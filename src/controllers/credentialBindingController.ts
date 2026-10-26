@@ -1,3 +1,5 @@
+import { configureCanvasReminder } from '../services/canvasReminderService.js';
+import { getUserDao } from '../dao/DaoFactory.js';
 import type { Request, Response } from 'express';
 import { getServerDao } from '../dao/DaoFactory.js';
 import { authorizationService, type RequestPrincipal } from '../services/authorizationService.js';
@@ -35,9 +37,16 @@ export const listMyCredentials = async (req: Request, res: Response): Promise<vo
       (server) =>
         hasCredentialTemplate(server) && authorizationService.can('server.discover', server, user),
     );
+    const account = await getUserDao().findById(user.username);
     const data = await Promise.all(
       servers.map(async (server) => ({
         serverName: server.name,
+        reminderEmailAvailable: !!account?.email,
+        reminderMailConfigured: !!(
+          process.env.MCPHUB_SMTP_HOST &&
+          process.env.MCPHUB_SMTP_FROM &&
+          process.env.MCPHUB_PUBLIC_URL
+        ),
         credentialTemplate: validateCredentialTemplate(server),
         ...(await getCredentialBindingStatus(server.name, user.username, server)),
       })),
@@ -62,7 +71,9 @@ export const updateMyCredential = async (req: Request, res: Response): Promise<v
     }
     if (req.method === 'DELETE')
       await deleteCredentialBindings({ serverName: server.name, username: user.username });
-    else await saveCredentialBinding(server.name, user.username, server, req.body?.values);
+    else if (req.body?.reminder !== undefined) {
+      await configureCanvasReminder(server.name, user.username, req.body.reminder);
+    } else await saveCredentialBinding(server.name, user.username, server, req.body?.values);
     res.json({ success: true });
   } catch (error) {
     respondError(res, error);

@@ -1,3 +1,4 @@
+import { startCanvasReminders, stopCanvasReminders } from './services/canvasReminderService.js';
 import express from 'express';
 import {
   smartRoutingPathMiddleware,
@@ -250,6 +251,7 @@ export class AppServer {
   }
 
   start(): void {
+    startCanvasReminders();
     this.server = this.app.listen(this.port, () => {
       logger.log(`Server is running on port ${this.port}`);
       if (this.frontendPath && !this.disableWeb) {
@@ -271,6 +273,7 @@ export class AppServer {
    */
   async shutdown(): Promise<void> {
     logger.log('[SHUTDOWN] Starting graceful shutdown...');
+    stopCanvasReminders();
 
     // Stop accepting new connections while existing requests finish within the grace period.
     const httpShutdown = this.server

@@ -201,6 +201,16 @@ export interface CredentialSlot {
 }
 
 export interface MyCredentialBinding {
+  reminderEmailAvailable?: boolean;
+  reminderMailConfigured?: boolean;
+  canvasReminder?: {
+    enabled: boolean;
+    days: number;
+    source: 'unknown' | 'canvas' | 'manual';
+    expiresAt: string | null;
+    checkedAt?: string;
+    delivery?: 'sent' | 'failed';
+  };
   serverName: string;
   credentialTemplate: CredentialSlot[];
   configured: boolean;

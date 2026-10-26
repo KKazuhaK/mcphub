@@ -4,6 +4,110 @@ import { useSearchParams } from 'react-router-dom';
 import type { MyCredentialBinding } from '../types';
 import { apiDelete, apiGet, apiPut, type ApiResponse } from '../utils/fetchInterceptor';
 
+const CanvasReminderForm = ({
+  binding,
+  onChange,
+}: {
+  binding: MyCredentialBinding;
+  onChange: () => Promise<void>;
+}) => {
+  const { t } = useTranslation();
+  const state = binding.canvasReminder!;
+  const [enabled, setEnabled] = useState(state.enabled);
+  const [days, setDays] = useState(state.days);
+  const [manual, setManual] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  useEffect(() => {
+    setEnabled(state.enabled);
+    setDays(state.days);
+  }, [state.enabled, state.days]);
+  const save = async (refresh: boolean) => {
+    setBusy(true);
+    setMessage('');
+    try {
+      const result = await apiPut<ApiResponse>(
+        `/credentials/${encodeURIComponent(binding.serverName)}`,
+        {
+          reminder: {
+            enabled,
+            days,
+            refresh,
+            ...(manual && !refresh ? { manualExpiresAt: new Date(manual).toISOString() } : {}),
+          },
+        },
+      );
+      if (!result.success) throw new Error(result.message || t('credentials.failed'));
+      setManual('');
+      await onChange();
+      setMessage(t('credentials.saved'));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t('credentials.failed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="border-t pt-4 space-y-3" aria-label={t('credentials.reminder.title')}>
+      <h3 className="font-semibold">{t('credentials.reminder.title')}</h3>
+      <p role="status">
+        {t('credentials.reminder.expiry')}:{' '}
+        {state.source === 'unknown'
+          ? t('credentials.reminder.unknown')
+          : state.expiresAt
+            ? new Date(state.expiresAt).toLocaleString()
+            : t('credentials.reminder.never')}
+        {state.source === 'manual' && ` (${t('credentials.reminder.manual')})`}
+      </p>
+      {state.expiresAt && Date.parse(state.expiresAt) <= Date.now() && (
+        <p role="alert">{t('credentials.reminder.expired')}</p>
+      )}
+      {state.checkedAt && (
+        <p className="text-sm">
+          {t('credentials.reminder.checked')}: {new Date(state.checkedAt).toLocaleString()}
+        </p>
+      )}
+      <label className="flex gap-2">
+        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+        {t('credentials.reminder.enable')}
+      </label>
+      <label className="block">
+        {t('credentials.reminder.days')}
+        <input
+          className="hub-input"
+          type="number"
+          min="1"
+          max="90"
+          value={days}
+          onChange={(e) => setDays(Number(e.target.value))}
+        />
+      </label>
+      <label className="block">
+        {t('credentials.reminder.manualDate')}
+        <input
+          className="hub-input"
+          type="datetime-local"
+          value={manual}
+          onChange={(e) => setManual(e.target.value)}
+        />
+      </label>
+      <p className="text-sm">{t('credentials.reminder.recipient')}</p>
+      {!binding.reminderEmailAvailable && <p role="alert">{t('credentials.reminder.noEmail')}</p>}
+      {!binding.reminderMailConfigured && <p role="alert">{t('credentials.reminder.noMail')}</p>}
+      {state.delivery === 'failed' && <p role="alert">{t('credentials.reminder.failed')}</p>}
+      <div className="flex flex-wrap gap-2">
+        <button className="hub-btn" type="button" disabled={busy} onClick={() => void save(false)}>
+          {t('credentials.reminder.save')}
+        </button>
+        <button className="hub-btn" type="button" disabled={busy} onClick={() => void save(true)}>
+          {t('credentials.reminder.refresh')}
+        </button>
+      </div>
+      {message && <p role="status">{message}</p>}
+    </section>
+  );
+};
+
 const CredentialForm = ({
   binding,
   onChange,
@@ -102,6 +206,7 @@ const CredentialForm = ({
           {t('credentials.delete')}
         </button>
       </div>
+      {binding.canvasReminder && <CanvasReminderForm binding={binding} onChange={onChange} />}
       {message && (
         <p role="status" className="text-sm text-[var(--hub-ink-2)]">
           {message}

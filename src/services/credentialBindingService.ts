@@ -1,3 +1,4 @@
+import { publicCanvasReminder } from './canvasCredentialMetadata.js';
 import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -157,6 +158,7 @@ export const getCredentialBindingStatus = async (
     configured: slots.length > 0 && configuredSlots.length === slots.length,
     configuredSlots,
     updatedAt: binding?.updatedAt ?? null,
+    canvasReminder: publicCanvasReminder(values),
   };
 };
 

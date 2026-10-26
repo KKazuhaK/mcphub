@@ -1470,6 +1470,24 @@
     "failed": "Không thể quản lý thông tin xác thực",
     "showAll": "Hiển thị tất cả các máy chủ",
     "loading": "Đang tải…",
-    "empty": "Không có máy chủ dùng chung nào yêu cầu thông tin xác thực cá nhân."
+    "empty": "Không có máy chủ dùng chung nào yêu cầu thông tin xác thực cá nhân.",
+    "reminder": {
+      "title": "Canvas token expiration reminders",
+      "expiry": "Expiration",
+      "unknown": "Unknown — automatic discovery is unavailable; enter a date below",
+      "never": "No expiration reported by Canvas",
+      "manual": "Manually entered",
+      "expired": "This token has expired. Replace your personal binding.",
+      "checked": "Last automatic check",
+      "enable": "Email me before expiration and once after expiration",
+      "days": "Days before expiration (1–90)",
+      "manualDate": "Optional manual expiration date (local time)",
+      "recipient": "Reminders go only to the email on your MCPHub account. Updating the token resets reminders.",
+      "noEmail": "Your account has no email address. Ask an administrator to add one.",
+      "noMail": "Email delivery is not configured. Ask an administrator to configure SMTP.",
+      "failed": "The last email delivery failed; the service will retry.",
+      "save": "Save reminder settings",
+      "refresh": "Check Canvas expiration now"
+    }
   }
 }
