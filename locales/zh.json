@@ -316,7 +316,8 @@
       "personalReconnect": "重新授权",
       "personalDisconnect": "断开授权",
       "personalError": "个人授权失败",
-      "personalSuccess": "个人授权已保存，请返回 Dashboard → 服务器。"
+      "personalSuccess": "个人授权已保存，请返回 Dashboard → 服务器。",
+      "personalSuccessWorkspace": "个人授权已保存。请返回你的工作区。"
     }
   },
   "status": {
@@ -1488,19 +1489,124 @@
     "failed": "无法管理凭据",
     "showAll": "显示所有服务器",
     "loading": "加载中…",
-    "empty": "暂无需要个人凭据的共享服务器。"
+    "empty": "暂无需要个人凭据的共享服务器。",
+    "missingWorkspace": "服务器“{{serverName}}”需要个人凭据。请在你的工作区中添加。"
   },
   "workspace": {
     "status": {
       "available": "服务器“{{serverName}}”可用。",
-      "not_selected": "服务器“{{serverName}}”不在你的工作区中。请在控制台 → 工作区中选择后再使用。",
+      "not_selected": "服务器“{{serverName}}”不在你的工作区中。请在你的工作区中选择后再使用。",
       "paused": "服务器“{{serverName}}”已被管理员暂停。",
       "maintenance": "服务器“{{serverName}}”正在维护中，请稍后再试。",
       "maintenanceUntil": "服务器“{{serverName}}”正在维护中，预计持续到 {{until}}，请稍后再试。",
-      "needs_auth": "服务器“{{serverName}}”需要你的个人凭据或授权。请在控制台 → 凭据或服务器中连接。",
-      "revoked": "你已断开对服务器“{{serverName}}”的授权。请在控制台 → 服务器中重新连接。",
-      "credential_invalid": "服务器“{{serverName}}”拒绝了你的凭据。请在控制台 → 凭据中更新，或在控制台 → 服务器中重新连接。",
+      "needs_auth": "服务器“{{serverName}}”需要你的个人凭据或授权。请在你的工作区中连接。",
+      "revoked": "你已断开对服务器“{{serverName}}”的授权。请在你的工作区中重新连接。",
+      "credential_invalid": "服务器“{{serverName}}”拒绝了你的凭据。请在你的工作区中更新或重新连接。",
       "error": "服务器“{{serverName}}”暂时不可用，请稍后再试。"
     }
+  },
+  "workspacePage": {
+    "nav": "工作区",
+    "title": "我的工作区",
+    "subtitle": "选择客户端可以使用的 MCP 服务，查看它们的状态，并复制你的个人端点。",
+    "loading": "正在加载工作区…",
+    "loadFailed": "无法加载你的工作区。",
+    "retry": "重试",
+    "toggleFailed": "无法更新 {{name}}，更改已撤销。",
+    "connectFailed": "无法开始连接。",
+    "banner": {
+      "noneSelected": "选择服务以开始使用",
+      "normal_other": "已选的 {{count}} 个服务均可用。",
+      "partial_other": "已选 {{selected}} 个服务中有 {{attention}} 个需要处理",
+      "noneUsable_other": "你已选的 {{count}} 个服务目前都不可用。"
+    },
+    "endpoint": {
+      "title": "我的端点",
+      "description": "所选的所有服务共用一个 URL，调整选择后该 URL 不变。",
+      "direct": "直连端点",
+      "smart": "智能路由端点",
+      "smartHint": "智能路由只暴露少量搜索与调用工具，而不是全部工具，可以让客户端的上下文保持精简。",
+      "smartDisabled": "此服务器尚未启用智能路由，请联系管理员。",
+      "snippets": "客户端配置",
+      "mode": "端点类型",
+      "mode_direct": "直连",
+      "mode_smart": "智能路由",
+      "client": "客户端",
+      "clientGeneric": "通用 MCP JSON",
+      "clientClaude": "Claude Desktop / Claude Code",
+      "clientCursor": "Cursor",
+      "authNote": "配置片段只包含 URL。客户端首次连接时会通过 OAuth 登录。"
+    },
+    "tools": {
+      "warning": "你的选择共暴露 {{count}} 个工具，工具过多会挤占客户端的上下文。",
+      "strongWarning": "你的选择共暴露 {{count}} 个工具，对大多数客户端来说太多了。请改用智能路由端点或单个服务的端点。",
+      "label_other": "个工具（来自可用服务）"
+    },
+    "services": {
+      "tab": "服务",
+      "title": "可用服务",
+      "description": "为你的端点开启或关闭服务。",
+      "empty": "暂时没有可供你使用的服务。",
+      "toggleFor": "将 {{name}} 加入我的工作区",
+      "copyEndpoint": "复制端点",
+      "copyEndpointFor": "复制 {{name}} 的端点",
+      "endpointConflict": "没有单独的端点：有分组与此服务同名。请改用你的主端点。",
+      "toolCount_other": "{{count}} 个工具"
+    },
+    "status": {
+      "available": "可用",
+      "not_selected": "未选择",
+      "paused": "已暂停",
+      "maintenance": "维护中",
+      "needs_auth": "需要登录",
+      "revoked": "已断开",
+      "credential_invalid": "凭据被拒绝",
+      "error": "出现问题"
+    },
+    "actions": {
+      "select": "加入工作区",
+      "selectFor": "将 {{name}} 加入我的工作区",
+      "connect": "连接",
+      "connectFor": "连接 {{name}}",
+      "contactAdmin": "联系管理员",
+      "retryLater": "请稍后再试",
+      "retryUntil": "请在 {{until}} 之后重试",
+      "openAuthorization": "打开登录页面"
+    },
+    "clients": {
+      "tab": "已连接的客户端",
+      "title": "已连接的客户端",
+      "description": "可代表你使用你的端点的应用和密钥。",
+      "empty": "没有已连接的客户端。",
+      "loadFailed": "无法加载已连接的客户端。",
+      "never": "从未",
+      "idle": "闲置",
+      "idleHint": "长时间未使用；重新连接前会被拒绝。",
+      "kind": {
+        "oauth": "OAuth 应用",
+        "key": "API 密钥"
+      },
+      "columns": {
+        "name": "名称",
+        "kind": "类型",
+        "created": "创建时间",
+        "lastUsed": "最近使用",
+        "expires": "过期时间"
+      },
+      "revoke": "撤销",
+      "revokeFor": "撤销 {{name}}",
+      "revokeTitle": "撤销此客户端？",
+      "revokeMessage": "撤销 {{name}}？它将立即失去访问权限，你的其他客户端和端点 URL 不受影响。",
+      "revokeAll": "全部撤销",
+      "revokeAllTitle": "撤销所有客户端？",
+      "revokeAllMessage": "所有已连接的客户端将立即失去访问权限。你的端点 URL 保持不变，每个客户端都需要重新授权后才能再次连接。",
+      "revoked": "已撤销客户端。",
+      "revokedAll": "已撤销所有客户端。",
+      "revokeFailed": "无法撤销。"
+    },
+    "disabled": "工作区已不可用，可能是管理员将其关闭了。",
+    "reload": "重新加载",
+    "settingsFailed": "无法读取服务器设置，因此显示标准导航。",
+    "popupBlocked": "浏览器拦截了登录窗口，请使用服务下方显示的链接。"
   }
 }

@@ -579,6 +579,10 @@ export const getAllSettings = async (req: Request, res: Response): Promise<void>
                 install: {
                   baseUrl: systemConfigForResponse.install?.baseUrl,
                 },
+                // Booleans only: the dashboard needs them to choose its navigation and to
+                // tell users whether the smart routing endpoint works.
+                workspace: { enabled: systemConfigForResponse.workspace?.enabled === true },
+                smartRouting: { enabled: systemConfigForResponse.smartRouting?.enabled === true },
               },
               bearerKeys: settings.bearerKeys?.filter(
                 (key) => key.kind === 'user' && key.owner === getRequestUser(req)?.username,

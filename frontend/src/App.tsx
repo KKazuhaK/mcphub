@@ -7,12 +7,14 @@ import { ServerProvider } from './contexts/ServerContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import MainLayout from './layouts/MainLayout';
 import ProtectedRoute from './components/ProtectedRoute';
+import RouteAccessGuard from './components/RouteAccessGuard';
 import EmbeddingSyncAlertListener from './components/EmbeddingSyncAlertListener';
 import { getBasePath } from './utils/runtime';
 
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const OAuthConsentPage = lazy(() => import('./pages/OAuthConsentPage'));
 const DashboardPage = lazy(() => import('./pages/Dashboard'));
+const WorkspacePage = lazy(() => import('./pages/WorkspacePage'));
 const CredentialsPage = lazy(() => import('./pages/CredentialsPage'));
 const ServersPage = lazy(() => import('./pages/ServersPage'));
 const GroupsPage = lazy(() => import('./pages/GroupsPage'));
@@ -71,21 +73,24 @@ function App() {
                   {/* 受保护的路由，使用 MainLayout 作为布局容器 */}
                   <Route element={<ProtectedRoute />}>
                     <Route element={<MainLayout />}>
-                      <Route path="/" element={<DashboardPage />} />
-                      <Route path="/credentials" element={<CredentialsPage />} />
-                      <Route path="/servers" element={<ServersPage />} />
-                      <Route path="/groups" element={<GroupsPage />} />
-                      <Route path="/prompts" element={<PromptsPage />} />
-                      <Route path="/resources" element={<ResourcesPage />} />
-                      <Route path="/users" element={<UsersPage />} />
-                      <Route path="/market" element={<MarketPage />} />
-                      <Route path="/market/:serverName" element={<MarketPage />} />
-                      {/* Legacy cloud routes redirect to the local market page */}
-                      <Route path="/cloud" element={<Navigate to="/market" replace />} />
-                      <Route path="/cloud/:serverName" element={<CloudRedirect />} />
-                      <Route path="/logs" element={<LogsPage />} />
-                      <Route path="/activity" element={<ActivityPage />} />
-                      <Route path="/settings" element={<SettingsPage />} />
+                      <Route element={<RouteAccessGuard />}>
+                        <Route path="/" element={<DashboardPage />} />
+                        <Route path="/workspace" element={<WorkspacePage />} />
+                        <Route path="/credentials" element={<CredentialsPage />} />
+                        <Route path="/servers" element={<ServersPage />} />
+                        <Route path="/groups" element={<GroupsPage />} />
+                        <Route path="/prompts" element={<PromptsPage />} />
+                        <Route path="/resources" element={<ResourcesPage />} />
+                        <Route path="/users" element={<UsersPage />} />
+                        <Route path="/market" element={<MarketPage />} />
+                        <Route path="/market/:serverName" element={<MarketPage />} />
+                        {/* Legacy cloud routes redirect to the local market page */}
+                        <Route path="/cloud" element={<Navigate to="/market" replace />} />
+                        <Route path="/cloud/:serverName" element={<CloudRedirect />} />
+                        <Route path="/logs" element={<LogsPage />} />
+                        <Route path="/activity" element={<ActivityPage />} />
+                        <Route path="/settings" element={<SettingsPage />} />
+                      </Route>
                     </Route>
                   </Route>
 

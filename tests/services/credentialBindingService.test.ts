@@ -16,6 +16,8 @@ import { validateCredentialTemplate } from '../../src/utils/credentialTemplate.j
 import { presentServerForPrincipal } from '../../src/services/serverConfigPresenter.js';
 import { RequestContextService } from '../../src/services/requestContextService.js';
 import { initI18n } from '../../src/utils/i18n.js';
+import { setCachedSystemConfig } from '../../src/utils/systemConfigCache.js';
+import { personalAuthorizationRequired } from '../../src/services/personalOAuthService.js';
 import type { ServerConfig } from '../../src/types/index.js';
 
 jest.mock('../../src/dao/DaoFactory.js', () => ({
@@ -109,6 +111,33 @@ test('localizes missing credential guidance from the request language', async ()
       );
     },
   );
+});
+
+test('points missing credential guidance at the workspace only under Workspace Mode', async () => {
+  const off = "Personal credentials required for 'amap'. Bind all required slots in Dashboard → Credentials.";
+  expect(missingCredentialError('amap').message).toBe(off);
+  expect(personalAuthorizationRequired('amap').message).toBe(
+    "Personal authorization required for 'amap'. Connect in Dashboard → Servers.",
+  );
+  setCachedSystemConfig({ workspace: { enabled: true } });
+  try {
+    expect(missingCredentialError('amap').message).toBe(
+      "Personal credentials required for 'amap'. Add them from your workspace.",
+    );
+    expect(personalAuthorizationRequired('amap').message).toBe(
+      "Personal authorization required for 'amap'. Connect it from your workspace.",
+    );
+    const context = RequestContextService.getInstance();
+    await context.runWithCustomRequestContext(
+      { headers: { 'accept-language': 'zh-CN,zh;q=0.9' } },
+      async () => {
+        expect(missingCredentialError('amap').message).toContain('工作区');
+      },
+    );
+  } finally {
+    setCachedSystemConfig({});
+  }
+  expect(missingCredentialError('amap').message).toBe(off);
 });
 
 test('authenticates ciphertext against both server and principal', async () => {

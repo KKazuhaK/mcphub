@@ -4,6 +4,7 @@ import React, {
   useState,
   useCallback,
   useEffect,
+  useRef,
   ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +12,7 @@ import { ApiResponse, BearerKey } from '@/types';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiGet, apiPut, apiPost, apiDelete } from '@/utils/fetchInterceptor';
+import { resolveWorkspaceSetting } from '@/utils/workspace';
 
 // Define types for the settings data
 interface RoutingConfig {
@@ -166,6 +168,10 @@ interface SettingsContextValue {
   updateAllowedCidrs: (value: string[]) => Promise<boolean>;
   storeToolPayload: boolean;
   workspaceEnabled: boolean;
+  // True once the setting has been read for the signed-in user.
+  workspaceResolved: boolean;
+  // The settings read failed, so Workspace Mode is treated as off until a retry succeeds.
+  workspaceLoadFailed: boolean;
   bearerKeys: BearerKey[];
   loading: boolean;
   error: string | null;
@@ -344,7 +350,7 @@ interface SettingsProviderProps {
 export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) => {
   const { t } = useTranslation();
   const { showToast } = useToast();
-  const { auth } = useAuth();
+  const { auth, logout } = useAuth();
 
   const [routingConfig, setRoutingConfig] = useState<RoutingConfig>({
     enableGlobalRoute: true,
@@ -420,6 +426,14 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
   const [allowedCidrs, setAllowedCidrs] = useState<string[]>([]);
   const [storeToolPayload, setStoreToolPayload] = useState<boolean>(true);
   const [workspaceEnabled, setWorkspaceEnabled] = useState<boolean>(false);
+  const [workspaceResolved, setWorkspaceResolved] = useState<boolean>(false);
+  const [workspaceLoadFailed, setWorkspaceLoadFailed] = useState<boolean>(false);
+  const authRef = useRef(auth);
+  authRef.current = auth;
+  const logoutRef = useRef(logout);
+  logoutRef.current = logout;
+  // The last value read successfully, kept when a later read fails.
+  const lastWorkspaceRef = useRef<boolean | undefined>(undefined);
   const [bearerKeys, setBearerKeys] = useState<BearerKey[]>([]);
 
   const [loading, setLoading] = useState(false);
@@ -567,7 +581,23 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
       if (data.success && data.data?.systemConfig?.enableSessionRebuild !== undefined) {
         setEnableSessionRebuild(data.data.systemConfig.enableSessionRebuild);
       }
-      setWorkspaceEnabled(data.data?.systemConfig?.workspace?.enabled === true);
+      const workspace = resolveWorkspaceSetting(data, lastWorkspaceRef.current);
+      if (workspace.signedOut && authRef.current.isAuthenticated) {
+        // The session ended: go through the normal sign-out so the login page takes over.
+        logoutRef.current();
+        return;
+      }
+      if (!workspace.failed && !workspace.signedOut) lastWorkspaceRef.current = workspace.enabled;
+      setWorkspaceEnabled(workspace.enabled);
+      setWorkspaceLoadFailed(workspace.failed);
+      // apiGet reports failures as `{ success: false }` rather than throwing. A read made before
+      // sign-in always fails, so only a signed-in failure counts as an answer.
+      if (!(workspace.failed || workspace.signedOut) || authRef.current.isAuthenticated) {
+        setWorkspaceResolved(true);
+      }
+      if (workspace.failed && authRef.current.isAuthenticated) {
+        setError(data?.message || 'Failed to fetch settings');
+      }
       if (data.success && data.data?.systemConfig?.activityLog?.storeToolPayload !== undefined) {
         setStoreToolPayload(data.data.systemConfig.activityLog.storeToolPayload);
       }
@@ -577,6 +607,8 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
       }
     } catch (error) {
       console.error('Failed to fetch settings', { error });
+      setWorkspaceLoadFailed(true);
+      if (authRef.current.isAuthenticated) setWorkspaceResolved(true);
       setError(error instanceof Error ? error.message : 'Failed to fetch settings');
       showToast(t('errors.failedToFetchSettings'));
     } finally {
@@ -1246,6 +1278,8 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
     updateAllowedCidrs,
     storeToolPayload,
     workspaceEnabled,
+    workspaceResolved,
+    workspaceLoadFailed,
     bearerKeys,
     loading,
     error,

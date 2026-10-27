@@ -954,3 +954,64 @@ export interface OpenApiToolStats {
   estimatedTokens: number;
   declaredSecurity?: OpenAPIDeclaredSecurity;
 }
+
+// Workspace Mode (per-user MCP scope) API shapes.
+export type WorkspaceStatusCode =
+  | 'available'
+  | 'not_selected'
+  | 'paused'
+  | 'maintenance'
+  | 'needs_auth'
+  | 'revoked'
+  | 'credential_invalid'
+  | 'error';
+
+export type WorkspaceStatusAction = 'select' | 'connect' | 'contact_admin' | 'retry_later' | null;
+
+export interface WorkspaceServerStatus {
+  code: WorkspaceStatusCode;
+  message: string;
+  action: WorkspaceStatusAction;
+  since?: string;
+  until?: string;
+}
+
+export interface WorkspaceServer {
+  name: string;
+  description?: string;
+  selected: boolean;
+  enabled: boolean;
+  toolCount: number;
+  requiresPersonalCredential: boolean;
+  credentialConfigured: boolean;
+  status: WorkspaceServerStatus;
+}
+
+export type WorkspaceEndpointState = 'normal' | 'partial' | 'empty';
+
+export interface WorkspaceSummary {
+  endpointState: WorkspaceEndpointState;
+  counts: Record<WorkspaceStatusCode, number>;
+}
+
+export interface WorkspaceServerEndpoint {
+  name: string;
+  url: string | null;
+  conflict?: 'group-name';
+}
+
+export interface WorkspaceEndpoints {
+  aggregate: string;
+  servers: WorkspaceServerEndpoint[];
+}
+
+export interface WorkspaceClient {
+  id: string;
+  kind: 'oauth' | 'key';
+  name: string;
+  clientId?: string;
+  createdAt: string | null;
+  lastUsedAt: string | null;
+  expiresAt?: string;
+  idle: boolean;
+}

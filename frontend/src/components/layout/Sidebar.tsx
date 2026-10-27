@@ -13,13 +13,20 @@ import {
   Activity,
   ScrollText,
   KeyRound,
+  Briefcase,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useServerContext } from '@/contexts/ServerContext';
 import { useGroupData } from '@/hooks/useGroupData';
-import { canViewSystemLogs } from '@/utils/navigationPermissions';
+import { useSettings } from '@/contexts/SettingsContext';
+import {
+  canViewSystemLogs,
+  getWorkspaceNavKeys,
+  type NavKey,
+} from '@/utils/navigationPermissions';
 import { usePermissionCheck } from '../PermissionChecker';
 import UserProfileMenu from '@/components/ui/UserProfileMenu';
+import { APP_VERSION } from '@/utils/appVersion';
 import { checkActivityAvailable } from '@/services/activityService';
 
 interface SidebarProps {
@@ -39,9 +46,10 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
   const { auth } = useAuth();
   const { allServers } = useServerContext();
   const { groups } = useGroupData();
+  const { workspaceEnabled, workspaceResolved } = useSettings();
   const [activityAvailable, setActivityAvailable] = useState(false);
 
-  const appVersion = import.meta.env.PACKAGE_VERSION as string;
+  const appVersion = APP_VERSION;
 
   useEffect(() => {
     checkActivityAvailable()
@@ -51,24 +59,47 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
 
   const userCanManageUsers = auth.user?.isAdmin && usePermissionCheck('x');
 
-  const workspaceItems: MenuItem[] = [
-    { path: '/', label: t('nav.dashboard'), icon: <LayoutGrid className="h-4 w-4" />, end: true },
-    {
+  const allWorkspaceItems: Record<NavKey, MenuItem> = {
+    workspace: {
+      path: '/workspace',
+      label: t('workspacePage.nav'),
+      icon: <Briefcase className="h-4 w-4" />,
+    },
+    dashboard: {
+      path: '/',
+      label: t('nav.dashboard'),
+      icon: <LayoutGrid className="h-4 w-4" />,
+      end: true,
+    },
+    servers: {
       path: '/servers',
       label: t('nav.servers'),
       icon: <ServerIcon className="h-4 w-4" />,
       badge: allServers.length || undefined,
     },
-    {
+    groups: {
       path: '/groups',
       label: t('nav.groups'),
       icon: <RouteIcon className="h-4 w-4" />,
       badge: groups.length || undefined,
     },
-    { path: '/prompts', label: t('nav.prompts'), icon: <MessageSquare className="h-4 w-4" /> },
-    { path: '/resources', label: t('nav.resources'), icon: <FileText className="h-4 w-4" /> },
-    { path: '/market', label: t('nav.market'), icon: <Store className="h-4 w-4" /> },
-  ];
+    prompts: {
+      path: '/prompts',
+      label: t('nav.prompts'),
+      icon: <MessageSquare className="h-4 w-4" />,
+    },
+    resources: {
+      path: '/resources',
+      label: t('nav.resources'),
+      icon: <FileText className="h-4 w-4" />,
+    },
+    market: { path: '/market', label: t('nav.market'), icon: <Store className="h-4 w-4" /> },
+  };
+  const workspaceItems: MenuItem[] = getWorkspaceNavKeys({
+    isAdmin: Boolean(auth.user?.isAdmin),
+    workspaceEnabled,
+    resolved: workspaceResolved,
+  }).map((key) => allWorkspaceItems[key]);
 
   const systemItems: MenuItem[] = [
     ...(userCanManageUsers

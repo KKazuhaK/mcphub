@@ -316,7 +316,8 @@
       "personalReconnect": "Yeniden yetkilendir",
       "personalDisconnect": "Bağlantıyı kes",
       "personalError": "Kişisel yetkilendirme başarısız",
-      "personalSuccess": "Kişisel yetkilendirme kaydedildi. Panel → Sunucular bölümüne dönün."
+      "personalSuccess": "Kişisel yetkilendirme kaydedildi. Panel → Sunucular bölümüne dönün.",
+      "personalSuccessWorkspace": "Kişisel yetkilendirme kaydedildi. Çalışma alanınıza dönün."
     }
   },
   "status": {
@@ -1483,19 +1484,129 @@
     "failed": "Kimlik bilgileri yönetilemiyor",
     "showAll": "Tüm sunucuları göster",
     "loading": "Yükleniyor…",
-    "empty": "Kişisel kimlik bilgisi gerektiren paylaşılan sunucu yok."
+    "empty": "Kişisel kimlik bilgisi gerektiren paylaşılan sunucu yok.",
+    "missingWorkspace": "{{serverName}} için kişisel kimlik bilgileri gerekli. Bunları çalışma alanınızdan ekleyin."
   },
   "workspace": {
     "status": {
       "available": "{{serverName}} kullanılabilir.",
-      "not_selected": "{{serverName}} çalışma alanınızda değil. Kullanmak için Pano → Çalışma Alanı bölümünden seçin.",
+      "not_selected": "{{serverName}} çalışma alanınızda değil. Kullanmak için çalışma alanınızdan seçin.",
       "paused": "{{serverName}} bir yönetici tarafından duraklatıldı.",
       "maintenance": "'{{serverName}}' bakımda. Lütfen daha sonra tekrar deneyin.",
       "maintenanceUntil": "'{{serverName}}' {{until}} tarihine kadar bakımda. Lütfen daha sonra tekrar deneyin.",
-      "needs_auth": "{{serverName}} için kişisel kimlik bilgileriniz veya yetkilendirmeniz gerekli. Pano → Kimlik Bilgileri veya Sunucular bölümünden bağlayın.",
-      "revoked": "{{serverName}} için yetkilendirmenizin bağlantısını kestiniz. Pano → Sunucular bölümünden yeniden bağlayın.",
-      "credential_invalid": "{{serverName}} için kimlik bilgileriniz reddedildi. Pano → Kimlik Bilgileri bölümünde güncelleyin veya Pano → Sunucular bölümünden yeniden bağlanın.",
+      "needs_auth": "{{serverName}} için kişisel kimlik bilgileriniz veya yetkilendirmeniz gerekli. Çalışma alanınızdan bağlayın.",
+      "revoked": "{{serverName}} için yetkilendirmenizin bağlantısını kestiniz. Çalışma alanınızdan yeniden bağlayın.",
+      "credential_invalid": "{{serverName}} için kimlik bilgileriniz reddedildi. Çalışma alanınızdan güncelleyin veya yeniden bağlanın.",
       "error": "{{serverName}} şu anda kullanılamıyor. Daha sonra tekrar deneyin."
     }
+  },
+  "workspacePage": {
+    "nav": "Çalışma alanı",
+    "title": "Çalışma alanım",
+    "subtitle": "İstemcilerinizin kullanabileceği MCP hizmetlerini seçin, durumlarını görün ve kişisel uç noktanızı kopyalayın.",
+    "loading": "Çalışma alanınız yükleniyor…",
+    "loadFailed": "Çalışma alanınız yüklenemedi.",
+    "retry": "Yeniden dene",
+    "toggleFailed": "{{name}} güncellenemedi. Değişiklik geri alındı.",
+    "connectFailed": "Bağlantı başlatılamadı.",
+    "banner": {
+      "noneSelected": "Başlamak için hizmet seçin",
+      "normal_one": "Seçtiğiniz hizmet hazır.",
+      "normal_other": "Seçilen {{count}} hizmetin tümü hazır.",
+      "partial_one": "Seçilen {{selected}} hizmetten {{attention}} tanesi ilgi gerektiriyor",
+      "partial_other": "Seçilen {{selected}} hizmetten {{attention}} tanesi ilgi gerektiriyor",
+      "noneUsable_one": "Seçtiğiniz hizmet şu anda kullanılabilir değil.",
+      "noneUsable_other": "Seçtiğiniz {{count}} hizmetin hiçbiri şu anda kullanılabilir değil."
+    },
+    "endpoint": {
+      "title": "Uç noktam",
+      "description": "Seçtiğiniz tüm hizmetler için tek bir URL. Seçiminizi değiştirseniz de aynı kalır.",
+      "direct": "Doğrudan uç nokta",
+      "smart": "Akıllı yönlendirme uç noktası",
+      "smartHint": "Akıllı yönlendirme, tüm araçlar yerine az sayıda arama ve çağırma aracı sunar; bu da istemcinizin bağlamını küçük tutar.",
+      "smartDisabled": "Bu sunucuda akıllı yönlendirme etkin değil; bir yöneticiye danışın.",
+      "snippets": "İstemci yapılandırması",
+      "mode": "Uç nokta türü",
+      "mode_direct": "Doğrudan",
+      "mode_smart": "Akıllı yönlendirme",
+      "client": "İstemci",
+      "clientGeneric": "Genel MCP JSON",
+      "clientClaude": "Claude Desktop / Claude Code",
+      "clientCursor": "Cursor",
+      "authNote": "Parçalar yalnızca URL içerir. İstemciniz ilk bağlandığında OAuth ile oturum açar."
+    },
+    "tools": {
+      "warning": "Seçiminiz {{count}} araç sunuyor. Uzun araç listeleri istemcinizin bağlamını doldurabilir.",
+      "strongWarning": "Seçiminiz {{count}} araç sunuyor; bu çoğu istemci için fazla. Bunun yerine akıllı yönlendirme uç noktasını veya hizmet bazlı uç noktaları kullanın.",
+      "label_one": "araç (kullanılabilir hizmetlerinizden)",
+      "label_other": "araç (kullanılabilir hizmetlerinizden)"
+    },
+    "services": {
+      "tab": "Hizmetler",
+      "title": "Kullanılabilir hizmetler",
+      "description": "Hizmetleri uç noktanız için açın veya kapatın.",
+      "empty": "Henüz kullanabileceğiniz bir hizmet yok.",
+      "toggleFor": "{{name}} hizmetini çalışma alanıma ekle",
+      "copyEndpoint": "Uç noktayı kopyala",
+      "copyEndpointFor": "{{name}} uç noktasını kopyala",
+      "endpointConflict": "Ayrı bir uç nokta yok: bir grup bu hizmetle aynı ada sahip. Bunun yerine ana uç noktanızı kullanın.",
+      "toolCount_one": "{{count}} araç",
+      "toolCount_other": "{{count}} araç"
+    },
+    "status": {
+      "available": "Hazır",
+      "not_selected": "Seçilmedi",
+      "paused": "Duraklatıldı",
+      "maintenance": "Bakımda",
+      "needs_auth": "Oturum gerekli",
+      "revoked": "Bağlantı kesildi",
+      "credential_invalid": "Kimlik bilgileri reddedildi",
+      "error": "Sorun"
+    },
+    "actions": {
+      "select": "Çalışma alanına ekle",
+      "selectFor": "{{name}} hizmetini çalışma alanıma ekle",
+      "connect": "Bağlan",
+      "connectFor": "{{name}} hizmetine bağlan",
+      "contactAdmin": "Bir yöneticiye danışın",
+      "retryLater": "Daha sonra tekrar deneyin",
+      "retryUntil": "{{until}} sonrasında tekrar deneyin",
+      "openAuthorization": "Oturum açma sayfasını aç"
+    },
+    "clients": {
+      "tab": "Bağlı istemciler",
+      "title": "Bağlı istemciler",
+      "description": "Uç noktanızı sizin adınıza kullanabilen uygulamalar ve anahtarlar.",
+      "empty": "Bağlı istemci yok.",
+      "loadFailed": "Bağlı istemciler yüklenemedi.",
+      "never": "Hiç",
+      "idle": "Boşta",
+      "idleHint": "Uzun süredir kullanılmadı; yeniden bağlanana kadar reddedilir.",
+      "kind": {
+        "oauth": "OAuth uygulaması",
+        "key": "API anahtarı"
+      },
+      "columns": {
+        "name": "Ad",
+        "kind": "Tür",
+        "created": "Oluşturulma",
+        "lastUsed": "Son kullanım",
+        "expires": "Sona erme"
+      },
+      "revoke": "İptal et",
+      "revokeFor": "{{name}} istemcisini iptal et",
+      "revokeTitle": "Bu istemci iptal edilsin mi?",
+      "revokeMessage": "{{name}} iptal edilsin mi? Erişimi hemen kaybeder. Diğer istemcileriniz ve uç nokta URL'niz etkilenmez.",
+      "revokeAll": "Tümünü iptal et",
+      "revokeAllTitle": "Tüm istemciler iptal edilsin mi?",
+      "revokeAllMessage": "Bağlı tüm istemciler erişimi hemen kaybeder. Uç nokta URL'niz aynı kalır ve her istemcinin yeniden bağlanabilmesi için yeniden yetkilendirilmesi gerekir.",
+      "revoked": "İstemci iptal edildi.",
+      "revokedAll": "Tüm istemciler iptal edildi.",
+      "revokeFailed": "İptal edilemedi."
+    },
+    "disabled": "Çalışma alanı artık kullanılamıyor. Bir yönetici kapatmış olabilir.",
+    "reload": "Yeniden yükle",
+    "settingsFailed": "Sunucu ayarları okunamadı, bu yüzden standart gezinme gösteriliyor.",
+    "popupBlocked": "Tarayıcınız oturum açma penceresini engelledi. Hizmetin altında gösterilen bağlantıyı kullanın."
   }
 }

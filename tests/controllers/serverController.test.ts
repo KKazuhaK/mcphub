@@ -658,6 +658,8 @@ describe('serverController - getAllSettings', () => {
           install: {
             baseUrl: 'https://hub.example.com',
           },
+          workspace: { enabled: false },
+          smartRouting: { enabled: false },
         },
         bearerKeys: [
           expect.objectContaining({
@@ -669,6 +671,34 @@ describe('serverController - getAllSettings', () => {
         ],
       },
     });
+  });
+
+  it('exposes only the workspace and smart routing booleans to ordinary users', async () => {
+    mockSystemConfigDao.get.mockResolvedValueOnce({
+      install: { baseUrl: 'https://hub.example.com' },
+      workspace: { enabled: true, enabledAt: '2026-01-01T00:00:00.000Z' },
+      smartRouting: {
+        enabled: true,
+        dbUrl: 'postgres://user:db-secret-pw@db.internal/mcphub',
+        llmProviderApiKey: 'sk-llm-secret',
+        azureOpenaiApiKey: 'azure-secret',
+        openaiApiKey: 'sk-openai-secret',
+      },
+    });
+    const req = { user: { username: 'alice', isAdmin: false } } as unknown as Request;
+    const res = { json: jest.fn(), status: jest.fn().mockReturnThis() } as unknown as Response;
+
+    await getAllSettings(req, res);
+
+    const body = JSON.stringify((res.json as jest.Mock).mock.calls[0][0]);
+    expect((res.json as jest.Mock).mock.calls[0][0].data.systemConfig).toEqual({
+      install: { baseUrl: 'https://hub.example.com' },
+      workspace: { enabled: true },
+      smartRouting: { enabled: true },
+    });
+    for (const secret of ['db-secret-pw', 'sk-llm-secret', 'azure-secret', 'sk-openai-secret']) {
+      expect(body).not.toContain(secret);
+    }
   });
 
   it('leaves last-use bookkeeping out of the settings payload', async () => {

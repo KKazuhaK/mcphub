@@ -153,15 +153,15 @@ const requestLanguage = (): string | undefined => {
 const DEFAULT_MESSAGES: Record<UserServerStatusCode, string> = {
   available: "'{{serverName}}' is available.",
   not_selected:
-    "'{{serverName}}' is not in your workspace. Select it in Dashboard → Workspace to use it.",
+    "'{{serverName}}' is not in your workspace. Select it in your workspace to use it.",
   paused: "'{{serverName}}' is paused by an administrator.",
   maintenance: "'{{serverName}}' is under maintenance. Try again later.",
   needs_auth:
-    "'{{serverName}}' needs your personal credentials or authorization. Connect it in Dashboard → Credentials or Servers.",
+    "'{{serverName}}' needs your personal credentials or authorization. Connect it from your workspace.",
   revoked:
-    "You disconnected your authorization for '{{serverName}}'. Reconnect it in Dashboard → Servers.",
+    "You disconnected your authorization for '{{serverName}}'. Reconnect it from your workspace.",
   credential_invalid:
-    "Your credentials for '{{serverName}}' were rejected. Update them in Dashboard → Credentials or reconnect in Dashboard → Servers.",
+    "Your credentials for '{{serverName}}' were rejected. Update them or reconnect from your workspace.",
   error: "'{{serverName}}' is currently unavailable. Try again later.",
 };
 
