@@ -55,7 +55,8 @@ describe('bearerKeyController', () => {
       {
         id: 'key-1',
         name: 'cursor',
-        token: 'mcphub_abcdefghijklmnopqrstuvwxyz',
+        tokenHash: 'a'.repeat(64),
+        tokenPrefix: 'mcphub_a',
         enabled: true,
         kind: 'user',
         owner: 'alice',
@@ -71,12 +72,15 @@ describe('bearerKeyController', () => {
       success: true,
       data: [
         expect.objectContaining({
-          token: 'mcphub_a...wxyz',
+          token: 'mcphub_a...',
+          tokenPrefix: 'mcphub_a',
           kind: 'user',
           owner: 'alice',
         }),
       ],
     });
+    // The hash never leaves the server.
+    expect(JSON.stringify((res.json as jest.Mock).mock.calls)).not.toContain('a'.repeat(64));
   });
 
   it('forces non-admin creation to a user-level key owned by the caller', async () => {
@@ -115,6 +119,42 @@ describe('bearerKeyController', () => {
         data: expect.objectContaining({ token: expect.stringMatching(/^mcphub_/) }),
       }),
     );
+  });
+
+  it('returns the plaintext token on create only, never the hash', async () => {
+    mockFindUserByUsername.mockResolvedValue({ username: 'alice', isAdmin: false });
+    mockCreate.mockImplementation(async (data) => ({
+      id: 'key-9',
+      ...data,
+      tokenHash: 'c'.repeat(64),
+      tokenPrefix: data.token.slice(0, 8),
+    }));
+    const createRes = makeRes();
+    await createBearerKey(makeReq({ body: { name: 'cursor' } }), createRes);
+
+    const created = (createRes.json as jest.Mock).mock.calls[0][0].data;
+    expect(created.token).toMatch(/^mcphub_[0-9a-f]{64}$/);
+    expect(created).not.toHaveProperty('tokenHash');
+
+    // What the list returns afterwards is the prefix, whatever the DAO hands back.
+    mockFindByOwner.mockResolvedValue([
+      {
+        id: 'key-9',
+        name: 'cursor',
+        tokenHash: 'c'.repeat(64),
+        tokenPrefix: created.token.slice(0, 8),
+        enabled: true,
+        kind: 'user',
+        owner: 'alice',
+        accessType: 'all',
+      },
+    ]);
+    const listRes = makeRes();
+    await getBearerKeys(makeReq(), listRes);
+    const listed = JSON.stringify((listRes.json as jest.Mock).mock.calls);
+    expect(listed).toContain(created.token.slice(0, 8));
+    expect(listed).not.toContain(created.token);
+    expect(listed).not.toContain('c'.repeat(64));
   });
 
   it('does not allow a user to update another user key', async () => {

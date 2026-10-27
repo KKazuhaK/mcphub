@@ -26,6 +26,10 @@ export class CredentialBindingConfigError extends CredentialBindingError {}
 
 // Runtime-only values must never become part of a serializable server configuration.
 export const argumentCredentialBindings = new WeakMap<ServerConfig, Record<string, string>>();
+// Every resolved slot value of a personal runtime config (url, header, env and args slots), kept
+// beside the config so error messages and logs about that runtime can be scrubbed. Never
+// serialized and never read back into a request.
+export const resolvedCredentialValues = new WeakMap<ServerConfig, string[]>();
 const argumentSlotPattern = /\{\{args\.([A-Za-z_][A-Za-z0-9_]*)\}\}/g;
 
 export const resolveCredentialArguments = (config: ServerConfig, args: string[]): string[] =>

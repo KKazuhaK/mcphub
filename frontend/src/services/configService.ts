@@ -10,6 +10,7 @@ export interface SystemConfig {
     bearerAuthHeaderName?: string;
     jsonBodyLimit?: string;
     skipAuth?: boolean;
+    allowTokenInQuery?: boolean;
   };
   install?: {
     pythonIndexUrl?: string;
@@ -95,6 +96,7 @@ export interface PublicConfigResponse {
   success: boolean;
   data?: {
     skipAuth?: boolean;
+    allowTokenInQuery?: boolean;
     allowRegistration?: boolean;
     permissions?: any;
     betterAuth?: BetterAuthConfig;
@@ -115,6 +117,7 @@ export interface SystemConfigResponse {
  */
 export const getPublicConfig = async (): Promise<{
   skipAuth: boolean;
+  allowTokenInQuery?: boolean;
   allowRegistration?: boolean;
   permissions?: any;
   betterAuth?: BetterAuthConfig;
@@ -132,6 +135,7 @@ export const getPublicConfig = async (): Promise<{
       const data: PublicConfigResponse = await response.json();
       return {
         skipAuth: data.data?.skipAuth === true,
+        allowTokenInQuery: data.data?.allowTokenInQuery !== false,
         allowRegistration: data.data?.allowRegistration === true,
         permissions: data.data?.permissions || {},
         betterAuth: data.data?.betterAuth,

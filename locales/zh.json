@@ -928,6 +928,8 @@
     "selectAtLeastOneServer": "请至少选择一个服务器",
     "skipAuth": "免登录开关",
     "skipAuthDescription": "允许仪表盘免登录；未认证用户将获得 guest 管理员访问权限（不影响 MCP 端点认证）",
+    "allowTokenInQuery": "允许在 URL 中携带令牌",
+    "allowTokenInQueryDescription": "允许 MCP、SSE 和仪表盘请求通过 URL 中的 ?token= 传递凭据。关闭后仅接受请求头，因为 URL 会留在浏览器历史和代理日志中；无法发送请求头的客户端将无法连接。",
     "jsonBodyLimit": "JSON 请求体大小限制",
     "jsonBodyLimitDescription": "Express JSON 请求体大小限制，大型 OpenAPI schema 上传也会受此配置影响。",
     "jsonBodyLimitPlaceholder": "例如：1mb、5mb、1024kb",

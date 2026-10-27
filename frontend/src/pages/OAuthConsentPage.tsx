@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertCircle, ExternalLink } from 'lucide-react';
 import { getBasePath } from '../utils/runtime';
+import { getToken } from '../services/authService';
 import ThemeSwitch from '@/components/ui/ThemeSwitch';
 import LanguageSwitch from '@/components/ui/LanguageSwitch';
 import type { OAuthConsentContext, ResourceTarget } from '../types/runtime';
@@ -22,6 +23,79 @@ const OAuthConsentPage: React.FC = () => {
   );
 
   const postUrl = `${getBasePath()}/oauth/authorize`;
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  // Resolved by the server only after the session is established (needsSession mode).
+  const [resolvedResource, setResolvedResource] = useState<ResourceTarget | undefined>();
+  const [submitting, setSubmitting] = useState(false);
+
+  // The server could not authenticate the navigation (credentials are never put in a URL), so
+  // this page signs in with the session the dashboard already stores.
+  const needsSession = context?.needsSession === true;
+
+  const goToLogin = () => {
+    const returnUrl = `${window.location.pathname}${window.location.search}`;
+    window.location.assign(`${getBasePath()}/login?returnUrl=${encodeURIComponent(returnUrl)}`);
+  };
+
+  useEffect(() => {
+    if (!needsSession) return;
+    const token = getToken();
+    if (!token) {
+      goToLogin();
+      return;
+    }
+    fetch(`${postUrl}${window.location.search}`, {
+      headers: { Accept: 'application/json', 'x-auth-token': token },
+    })
+      .then(async (response) => {
+        if (response.status === 401) return goToLogin();
+        const body = (await response.json().catch(() => null)) as {
+          resource?: ResourceTarget;
+        } | null;
+        if (body?.resource) setResolvedResource(body.resource);
+      })
+      .catch(() => undefined);
+  }, [needsSession]);
+
+  const submitDecision = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const token = getToken();
+    if (!token) {
+      goToLogin();
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const body = new URLSearchParams();
+      new FormData(event.currentTarget).forEach((value, key) => {
+        if (typeof value === 'string') body.append(key, value);
+      });
+      const response = await fetch(postUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'application/json',
+          'x-auth-token': token,
+        },
+        body,
+      });
+      if (response.status === 401) {
+        goToLogin();
+        return;
+      }
+      const result = (await response.json().catch(() => null)) as { redirect?: string } | null;
+      if (result?.redirect) {
+        window.location.assign(result.redirect);
+        return;
+      }
+      setSubmitError(t('oauthServer.requestInvalid'));
+    } catch {
+      setSubmitError(t('oauthServer.requestInvalid'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const hiddenInputs = (allow: string): React.ReactNode => {
     if (!context) return null;
@@ -46,6 +120,8 @@ const OAuthConsentPage: React.FC = () => {
       </>
     );
   };
+
+  const shownResource = resolvedResource ?? context?.resource;
 
   const resourceLabel = (resource: ResourceTarget): string => {
     switch (resource.kind) {
@@ -172,7 +248,7 @@ const OAuthConsentPage: React.FC = () => {
           {/* Consent card */}
           <div className="hub-card" style={{ padding: '22px 22px 20px' }}>
             {/* Resource target (RFC 8707) */}
-            {context.resource ? (
+            {shownResource ? (
               <div
                 style={{
                   display: 'flex',
@@ -187,7 +263,7 @@ const OAuthConsentPage: React.FC = () => {
               >
                 <span className="hub-sect">{t('oauthServer.grantingAccessTo')}</span>
                 <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--hub-ink)' }}>
-                  {resourceLabel(context.resource)}
+                  {resourceLabel(shownResource)}
                 </span>
                 <span
                   className="hub-mono"
@@ -199,7 +275,7 @@ const OAuthConsentPage: React.FC = () => {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {context.resource.raw}
+                  {shownResource.raw}
                 </span>
               </div>
             ) : null}
@@ -282,10 +358,16 @@ const OAuthConsentPage: React.FC = () => {
 
             {/* Approve / deny */}
             <div style={{ marginTop: 22, display: 'flex', gap: 10 }}>
-              <form method="POST" action={postUrl} style={{ flex: 1 }}>
+              <form
+                method="POST"
+                action={postUrl}
+                style={{ flex: 1 }}
+                onSubmit={needsSession ? submitDecision : undefined}
+              >
                 {hiddenInputs('true')}
                 <button
                   type="submit"
+                  disabled={submitting}
                   className="hub-btn primary w-full justify-center"
                   style={{
                     height: 'auto',
@@ -298,7 +380,12 @@ const OAuthConsentPage: React.FC = () => {
                   <span style={{ lineHeight: 1.3 }}>{t('oauthServer.buttons.approve')}</span>
                 </button>
               </form>
-              <form method="POST" action={postUrl} style={{ flex: 1 }}>
+              <form
+                method="POST"
+                action={postUrl}
+                style={{ flex: 1 }}
+                onSubmit={needsSession ? submitDecision : undefined}
+              >
                 {hiddenInputs('false')}
                 <button
                   type="submit"
@@ -315,6 +402,11 @@ const OAuthConsentPage: React.FC = () => {
                 </button>
               </form>
             </div>
+            {submitError ? (
+              <p className="hub-sub" role="alert" style={{ marginTop: 10, color: 'var(--hub-err)' }}>
+                {submitError}
+              </p>
+            ) : null}
           </div>
         </div>
       </div>

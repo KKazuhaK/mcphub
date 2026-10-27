@@ -721,7 +721,8 @@ describe('serverController - getAllSettings', () => {
       {
         id: 'alice-key',
         name: 'alice',
-        token: 'mcphub_abcdefghijklmnopqrstuvwxyz',
+        tokenHash: 'b'.repeat(64),
+        tokenPrefix: 'mcphub_a',
         enabled: true,
         kind: 'user',
         owner: 'alice',
@@ -730,7 +731,8 @@ describe('serverController - getAllSettings', () => {
       {
         id: 'bob-key',
         name: 'bob',
-        token: 'mcphub_abcdefghijklmnopqrstuvwxyz',
+        tokenHash: 'b'.repeat(64),
+        tokenPrefix: 'mcphub_a',
         enabled: true,
         kind: 'user',
         owner: 'bob',
@@ -739,7 +741,8 @@ describe('serverController - getAllSettings', () => {
       {
         id: 'system-key',
         name: 'system',
-        token: 'mcphub_abcdefghijklmnopqrstuvwxyz',
+        tokenHash: 'b'.repeat(64),
+        tokenPrefix: 'mcphub_a',
         enabled: true,
         kind: 'system',
         accessType: 'all',
@@ -777,7 +780,7 @@ describe('serverController - getAllSettings', () => {
             id: 'alice-key',
             kind: 'user',
             owner: 'alice',
-            token: 'mcphub_a...wxyz',
+            token: 'mcphub_a...',
           }),
         ],
       },
@@ -827,7 +830,8 @@ describe('serverController - getAllSettings', () => {
       {
         id: 'k',
         name: 'k',
-        token: 'mcphub_abcdefghijklmnopqrstuvwxyz',
+        tokenHash: 'b'.repeat(64),
+        tokenPrefix: 'mcphub_a',
         enabled: true,
         kind: 'user',
         owner: 'alice',
@@ -842,6 +846,7 @@ describe('serverController - getAllSettings', () => {
     expect(data.oauthTokens[0]).not.toHaveProperty('lastUsedAt');
     expect(data.oauthTokens[0]).not.toHaveProperty('grantCreatedAt');
     expect(data.bearerKeys[0]).not.toHaveProperty('lastUsedAt');
+    expect(data.bearerKeys[0]).not.toHaveProperty('tokenHash');
     expect(data.bearerKeys[0].createdAt).toBe('2026-01-01T00:00:00.000Z');
   });
 

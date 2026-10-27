@@ -19,6 +19,7 @@ jest.mock('../../src/utils/frontendShell.js', () => ({
 jest.mock('../../src/dao/index.js', () => ({
   getGroupDao: jest.fn(),
   getServerDao: jest.fn(),
+  getSystemConfigDao: jest.fn(() => ({ get: jest.fn().mockResolvedValue(null) })),
 }));
 
 import { getAuthorize } from '../../src/controllers/oauthServerController.js';
@@ -167,8 +168,9 @@ describe('oauthServerController getAuthorize consent shell', () => {
     expect(html).toContain('Trusted Client');
   });
 
-  it('redirects unauthenticated users to the login page before rendering consent', async () => {
+  it('redirects unauthenticated users to the login page when the dashboard shell is unavailable', async () => {
     (resolveBetterAuthUser as jest.Mock).mockResolvedValue(null);
+    (injectOAuthConsentShell as jest.Mock).mockReturnValue(null);
 
     const req = createRequest();
     const res = createResponse();
@@ -178,8 +180,18 @@ describe('oauthServerController getAuthorize consent shell', () => {
     expect(res.redirect).toHaveBeenCalledWith(
       expect.stringContaining('/login?returnUrl='),
     );
-    expect(injectOAuthConsentShell).not.toHaveBeenCalled();
     expect(res.send).not.toHaveBeenCalled();
+  });
+
+  it('serves unauthenticated users the consent shell in needsSession mode', async () => {
+    (resolveBetterAuthUser as jest.Mock).mockResolvedValue(null);
+    (injectOAuthConsentShell as jest.Mock).mockReturnValue('<html>shell</html>');
+
+    const res = createResponse();
+    await getAuthorize(createRequest() as any, res as any);
+
+    expect(res.redirect).not.toHaveBeenCalled();
+    expect((injectOAuthConsentShell as jest.Mock).mock.calls[0][0].needsSession).toBe(true);
   });
 
   it('passes the RFC 8707 resource target into the consent context', async () => {

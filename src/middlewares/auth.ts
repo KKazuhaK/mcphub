@@ -5,9 +5,13 @@ import { getBearerKeyDao, getSystemConfigDao } from '../dao/index.js';
 import { BearerKey, SystemConfig } from '../types/index.js';
 import { getBetterAuthRuntimeConfig } from '../services/betterAuthConfig.js';
 import { authenticateForwardAuthToken } from '../services/forwardAuthService.js';
-import { safeCompare } from '../utils/safeCompare.js';
+import { bearerHashMatches, hashBearerToken } from '../utils/bearerKeyHash.js';
 import { getBearerTokenFromHeaders } from '../utils/bearerAuth.js';
 import { logger } from '../utils/logger.js';
+import {
+  QUERY_CREDENTIAL_REJECTED_MESSAGE,
+  rejectsQueryCredential,
+} from '../utils/queryCredentials.js';
 
 const isTestEnv =
   process.env.NODE_ENV === 'test' ||
@@ -45,8 +49,9 @@ const validateBearerAuth = async (
     return null;
   }
 
+  const presentedHash = hashBearerToken(token);
   const matchingKey: BearerKey | undefined = enabledKeys.find((key) =>
-    safeCompare(key.token, token),
+    bearerHashMatches(key.tokenHash, presentedHash),
   );
   if (!matchingKey) {
     logger.warn('Bearer auth failed: token did not match any configured bearer key');
@@ -117,6 +122,16 @@ export const auth = async (req: Request, res: Response, next: NextFunction): Pro
     enableGroupNameRoute: true,
     skipAuth: false,
   };
+
+  // Header-only hardening: a credential in the URL is refused outright, even beside a valid header.
+  const rejectedQueryParam = rejectsQueryCredential(req.query, systemConfig);
+  if (rejectedQueryParam) {
+    logger.warn(
+      `Rejected a request carrying a credential in the URL query (${rejectedQueryParam})`,
+    );
+    res.status(401).json({ success: false, message: QUERY_CREDENTIAL_REJECTED_MESSAGE });
+    return;
+  }
 
   // Forward auth runs first: a JWT from the configured issuer either
   // authenticates here or is rejected, and never falls back to other methods.

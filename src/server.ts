@@ -3,7 +3,9 @@ import {
   smartRoutingPathMiddleware,
   assertSmartRoutingNameAvailable,
 } from './utils/smartRoutingPath.js';
-import { getGroupDao, getServerDao } from './dao/DaoFactory.js';
+import { getBearerKeyDao, getGroupDao, getServerDao } from './dao/DaoFactory.js';
+import { summarizeErrorForLogging } from './utils/serialization.js';
+import { warnAboutPlaintextBearerKeysInSettingsFile } from './utils/plaintextBearerWarning.js';
 import cors, { type CorsOptions } from 'cors';
 import config, { isWebDisabled } from './config/index.js';
 import path from 'path';
@@ -104,6 +106,19 @@ export class AppServer {
       // Give personal credential bindings from before destination fingerprints their server's
       // current destination, before any request can resolve one. Logs and continues on failure.
       await stampLegacyBindings();
+
+      // Bearer keys written by older versions are stored in plaintext; hash them in place before
+      // any request can authenticate. Idempotent. A failure is logged (never with a token) and
+      // the plaintext keys keep working until the next start.
+      try {
+        await getBearerKeyDao().migrateLegacyTokens();
+      } catch (error) {
+        logger.error('Failed to hash legacy bearer keys at startup', {
+          error: summarizeErrorForLogging(error),
+        });
+      }
+      // Database mode leaves the settings file alone; tell the operator what it still holds.
+      warnAboutPlaintextBearerKeysInSettingsFile();
 
       // Initialize OAuth provider if configured (for proxying upstream MCP OAuth)
       await initOAuthProvider();

@@ -1,8 +1,8 @@
-import { randomBytes } from 'node:crypto';
 import { Request, Response } from 'express';
 import { ApiResponse, BearerKey, BearerKeyAccessType, BearerKeyKind } from '../types/index.js';
 import { getBearerKeyDao, getUserDao } from '../dao/index.js';
 import { logger } from '../utils/logger.js';
+import { generateBearerToken, maskedBearerToken } from '../utils/bearerKeyHash.js';
 
 const VALID_ACCESS_TYPES: BearerKeyAccessType[] = ['all', 'groups', 'servers', 'custom'];
 
@@ -14,14 +14,12 @@ type AuthenticatedUser = {
 const getAuthenticatedUser = (req: Request): AuthenticatedUser | undefined =>
   (req as any).user as AuthenticatedUser | undefined;
 
-const maskToken = (token: string): string =>
-  token.length > 12 ? `${token.slice(0, 8)}...${token.slice(-4)}` : '********';
-
-const sanitizeKey = (key: BearerKey): BearerKey => ({
-  ...key,
-  kind: key.kind ?? 'system',
-  token: maskToken(key.token),
-});
+// Only the prefix is ever returned after creation. `token` keeps its masked display form for
+// older clients; the hash and the plaintext never leave the server.
+const sanitizeKey = (key: BearerKey): BearerKey => {
+  const { tokenHash: _tokenHash, ...rest } = key;
+  return { ...rest, kind: key.kind ?? 'system', token: maskedBearerToken(key) };
+};
 
 const canManageKey = (user: AuthenticatedUser | undefined, key: BearerKey): boolean =>
   Boolean(user?.isAdmin || (user?.username && key.kind === 'user' && key.owner === user.username));
@@ -106,7 +104,7 @@ export const createBearerKey = async (req: Request, res: Response): Promise<void
 
     const key = await getBearerKeyDao().create({
       name: name.trim(),
-      token: `mcphub_${randomBytes(32).toString('hex')}`,
+      token: generateBearerToken(),
       enabled: enabled ?? true,
       kind,
       owner: resolvedOwner,
@@ -115,9 +113,11 @@ export const createBearerKey = async (req: Request, res: Response): Promise<void
       allowedServers: kind === 'system' && Array.isArray(allowedServers) ? allowedServers : [],
     });
 
+    // The only response that carries the plaintext token.
+    const { tokenHash: _tokenHash, ...created } = key;
     res.status(201).json({
       success: true,
-      data: key,
+      data: created,
       message: 'Bearer key created. The token is only shown once.',
     } satisfies ApiResponse);
   } catch (error) {

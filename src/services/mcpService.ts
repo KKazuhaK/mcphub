@@ -204,6 +204,7 @@ const servers: { [sessionId: string]: Server } = {};
 
 import { setupClientKeepAlive } from './keepAliveService.js';
 import {
+  collectConfigSecrets,
   createUpstreamRequestError,
   isUpstreamConnectionFailure,
   UpstreamRequestError,
@@ -2095,15 +2096,20 @@ export const createTransportFromConfig = async (name: string, conf: ServerConfig
     if (transport.stderr && hasPersonalAuthentication(conf)) {
       transport.stderr.on('data', () => undefined); // Personal upstream diagnostics can contain raw credentials.
     } else if (transport.stderr) {
-      observeStdioStderr(transport, transport.stderr, (message) => {
-        logger.log(
-          'Upstream server stderr',
-          JSON.stringify({
-            serverName: name,
-            message,
-          }),
-        );
-      });
+      observeStdioStderr(
+        transport,
+        transport.stderr,
+        (message) => {
+          logger.log(
+            'Upstream server stderr',
+            JSON.stringify({
+              serverName: name,
+              message,
+            }),
+          );
+        },
+        collectConfigSecrets(conf),
+      );
     }
   } else {
     throw new Error(`Unable to create transport for server: ${name}`);

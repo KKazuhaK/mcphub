@@ -926,6 +926,8 @@
     "selectAtLeastOneServer": "Please select at least one server",
     "skipAuth": "Skip Authentication",
     "skipAuthDescription": "Allow dashboard access without login; unauthenticated users get guest admin access (does not affect MCP endpoint auth)",
+    "allowTokenInQuery": "Allow tokens in URLs",
+    "allowTokenInQueryDescription": "Accept ?token= credentials in the URL on MCP, SSE and dashboard requests. Turn this off to require headers only; URLs end up in browser history and proxy logs. Clients that cannot send headers will stop working.",
     "jsonBodyLimit": "JSON Body Size Limit",
     "jsonBodyLimitDescription": "Express JSON request size limit. This affects large OpenAPI schema uploads as well.",
     "jsonBodyLimitPlaceholder": "e.g. 1mb, 5mb, 1024kb",

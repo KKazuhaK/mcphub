@@ -24,6 +24,7 @@ import {
   isCredentialValueAllowed,
   resolveCredentialUrl,
   argumentCredentialBindings,
+  resolvedCredentialValues,
   credentialSlotId,
   validateCredentialTemplate,
 } from '../utils/credentialTemplate.js';
@@ -350,6 +351,12 @@ export const resolveCredentialBinding = async (
     resolved[slot.target]![slot.name] = value;
   }
   argumentCredentialBindings.set(resolved, argumentValues);
+  resolvedCredentialValues.set(
+    resolved,
+    slots
+      .map((slot) => values[credentialSlotId(slot)])
+      .filter((value) => typeof value === 'string'),
+  );
   // Caller-supplied passthrough headers must never override a bound slot.
   const boundHeaders = new Set(
     slots.filter((slot) => slot.target === 'headers').map((slot) => slot.name.toLowerCase()),

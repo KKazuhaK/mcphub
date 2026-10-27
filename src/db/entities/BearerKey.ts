@@ -1,6 +1,7 @@
 import {
   Entity,
   Column,
+  Index,
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
@@ -18,8 +19,16 @@ export class BearerKey {
   @Column({ type: 'varchar', length: 100 })
   name: string;
 
-  @Column({ type: 'varchar', length: 512 })
-  token: string;
+  // Plaintext written by older versions. Hashed and nulled at startup; never written again.
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  token?: string | null;
+
+  @Index()
+  @Column({ name: 'token_hash', type: 'varchar', length: 64, nullable: true })
+  tokenHash?: string | null;
+
+  @Column({ name: 'token_prefix', type: 'varchar', length: 16, nullable: true })
+  tokenPrefix?: string | null;
 
   @Column({ type: 'boolean', default: true })
   enabled: boolean;

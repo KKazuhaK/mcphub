@@ -50,7 +50,7 @@ async function list(client: ApiClient, globals: GlobalFlags): Promise<void> {
       name: k.name,
       enabled: k.enabled ? 'yes' : 'no',
       accessType: k.accessType,
-      token: maskToken(k.token),
+      token: k.tokenPrefix ? `${k.tokenPrefix}...` : maskToken(k.token),
     })),
     ['id', 'name', 'enabled', 'accessType', 'token'],
   );

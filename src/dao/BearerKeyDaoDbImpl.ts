@@ -1,10 +1,21 @@
 import { BearerKeyDao } from './BearerKeyDao.js';
 import { BearerKey as BearerKeyModel } from '../types/index.js';
 import { BearerKeyRepository } from '../db/repositories/BearerKeyRepository.js';
+import { bearerHashMatches, describeBearerToken, hashBearerToken } from '../utils/bearerKeyHash.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Database-backed implementation of BearerKeyDao
  */
+// Set once the startup migration has hashed every plaintext row. Until then (it has not run, or
+// a row failed) findByToken falls back to scanning legacy rows; after it, that scan is skipped.
+let legacyMigrationComplete = false;
+
+/** Test hook. */
+export const resetLegacyMigrationState = (): void => {
+  legacyMigrationComplete = false;
+};
+
 export class BearerKeyDaoDbImpl implements BearerKeyDao {
   private repository: BearerKeyRepository;
 
@@ -16,7 +27,12 @@ export class BearerKeyDaoDbImpl implements BearerKeyDao {
     return {
       id: entity.id,
       name: entity.name,
-      token: entity.token,
+      // A row not yet migrated has its hash derived on the fly; the plaintext never leaves here.
+      ...(entity.tokenHash
+        ? { tokenHash: entity.tokenHash, tokenPrefix: entity.tokenPrefix ?? undefined }
+        : entity.token
+          ? describeBearerToken(entity.token)
+          : {}),
       enabled: entity.enabled,
       kind: entity.kind ?? 'system',
       owner: entity.owner,
@@ -44,8 +60,15 @@ export class BearerKeyDaoDbImpl implements BearerKeyDao {
   }
 
   async findByToken(token: string): Promise<BearerKeyModel | undefined> {
-    const entity = await this.repository.findByToken(token);
-    return entity ? this.toModel(entity) : undefined;
+    const presented = hashBearerToken(token);
+    const entity = await this.repository.findByTokenHash(presented);
+    if (entity) return this.toModel(entity);
+    // A row the startup migration has not reached yet still authenticates.
+    if (legacyMigrationComplete) return undefined;
+    const legacy = (await this.repository.findWithPlaintextToken()).find((row) =>
+      bearerHashMatches(hashBearerToken(row.token!), presented),
+    );
+    return legacy ? this.toModel(legacy) : undefined;
   }
 
   async findByOwner(owner: string): Promise<BearerKeyModel[]> {
@@ -56,7 +79,8 @@ export class BearerKeyDaoDbImpl implements BearerKeyDao {
   async create(data: Omit<BearerKeyModel, 'id'>): Promise<BearerKeyModel> {
     const entity = await this.repository.create({
       name: data.name,
-      token: data.token,
+      token: null,
+      ...(data.token ? describeBearerToken(data.token) : {}),
       enabled: data.enabled,
       kind: data.kind ?? 'system',
       owner: data.owner,
@@ -66,7 +90,8 @@ export class BearerKeyDaoDbImpl implements BearerKeyDao {
       ...(data.createdAt ? { createdAt: new Date(data.createdAt) } : {}),
       lastUsedAt: data.lastUsedAt ? new Date(data.lastUsedAt) : undefined,
     } as any);
-    return this.toModel(entity as any);
+    // The plaintext is handed back once, to be shown to its owner, and never stored.
+    return { ...this.toModel(entity as any), ...(data.token ? { token: data.token } : {}) };
   }
 
   async update(
@@ -75,7 +100,7 @@ export class BearerKeyDaoDbImpl implements BearerKeyDao {
   ): Promise<BearerKeyModel | null> {
     const entity = await this.repository.update(id, {
       name: data.name,
-      token: data.token,
+      ...(data.token ? { token: null, ...describeBearerToken(data.token) } : {}),
       enabled: data.enabled,
       kind: data.kind,
       owner: data.owner,
@@ -84,6 +109,19 @@ export class BearerKeyDaoDbImpl implements BearerKeyDao {
       allowedServers: data.allowedServers,
     } as any);
     return entity ? this.toModel(entity as any) : null;
+  }
+
+  async migrateLegacyTokens(): Promise<number> {
+    let migrated = 0;
+    for (const row of await this.repository.findWithPlaintextToken()) {
+      const { tokenHash, tokenPrefix } = describeBearerToken(row.token!);
+      if (await this.repository.replacePlaintextToken(row.id, row.token!, tokenHash, tokenPrefix)) {
+        migrated++;
+      }
+    }
+    if (migrated > 0) logger.log(`Hashed ${migrated} bearer key(s) stored in plaintext`);
+    legacyMigrationComplete = (await this.repository.findWithPlaintextToken()).length === 0;
+    return migrated;
   }
 
   async recordLastUsed(id: string, at: string): Promise<void> {

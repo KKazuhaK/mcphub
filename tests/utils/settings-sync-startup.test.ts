@@ -15,6 +15,13 @@ jest.mock('../../src/db/repositories/BearerKeyRepository.js', () => ({
   BearerKeyRepository: jest.fn(() => ({ count: async () => 1 })),
 }));
 
+jest.mock('../../src/db/repositories/SystemConfigRepository.js', () => ({
+  SystemConfigRepository: jest.fn(() => ({
+    get: async () => ({ routing: {} }),
+    update: jest.fn(),
+  })),
+}));
+
 test('reconciles an already initialized database on every startup', async () => {
   await expect(initializeDatabaseMode()).resolves.toBe(true);
   expect(syncSettingsToDatabase).toHaveBeenCalledTimes(1);

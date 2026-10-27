@@ -177,7 +177,9 @@ const BearerKeyRow: React.FC<BearerKeyRowProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {t('settings.bearerKeyToken') || 'Token'}
                 </label>
-                <div className="py-2 px-3 text-sm font-mono text-gray-500">{keyData.token}</div>
+                <div className="py-2 px-3 text-sm font-mono text-gray-500">
+                  {keyData.tokenPrefix ? `${keyData.tokenPrefix}...` : keyData.token}
+                </div>
               </div>
             </div>
 
@@ -311,9 +313,7 @@ const BearerKeyRow: React.FC<BearerKeyRowProps> = ({
       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
         <div className="flex items-center gap-2">
           <span>
-            {keyData.token.length > 12
-              ? `${keyData.token.substring(0, 8)}...${keyData.token.substring(keyData.token.length - 4)}`
-              : keyData.token}
+            {keyData.tokenPrefix ? `${keyData.tokenPrefix}...` : keyData.token}
           </span>
         </div>
       </td>
@@ -898,7 +898,8 @@ const SettingsPage: React.FC = () => {
       | 'bearerAuthKey'
       | 'bearerAuthHeaderName'
       | 'jsonBodyLimit'
-      | 'skipAuth',
+      | 'skipAuth'
+      | 'allowTokenInQuery',
     value: boolean | string,
   ) => {
     await updateRoutingConfig(key, value);
@@ -4063,6 +4064,22 @@ const SettingsPage: React.FC = () => {
                   disabled={loading}
                   checked={routingConfig.skipAuth}
                   onCheckedChange={(checked) => handleRoutingConfigChange('skipAuth', checked)}
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
+                <div>
+                  <h3 className="font-medium text-gray-700">{t('settings.allowTokenInQuery')}</h3>
+                  <p className="text-sm text-gray-500">
+                    {t('settings.allowTokenInQueryDescription')}
+                  </p>
+                </div>
+                <Switch
+                  disabled={loading}
+                  checked={routingConfig.allowTokenInQuery}
+                  onCheckedChange={(checked) =>
+                    handleRoutingConfigChange('allowTokenInQuery', checked)
+                  }
                 />
               </div>
 

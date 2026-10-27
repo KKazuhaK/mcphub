@@ -1,3 +1,4 @@
+import { redactSecrets } from './redaction.js';
 import { sanitizeStringForLogging } from './serialization.js';
 
 const STDERR_TAIL_LIMIT = 32_768;
@@ -10,6 +11,8 @@ type StderrStream = {
 type StdioDiagnosticState = {
   rawTail: string;
   pendingLine: string;
+  // Configured credential values the child may echo; removed before a line is logged or attached.
+  secrets: string[];
 };
 
 type ErrorWithUpstreamStderr = Error & {
@@ -25,10 +28,12 @@ export const observeStdioStderr = (
   transport: object,
   stderr: StderrStream,
   logLine: (line: string) => void,
+  secrets: string[] = [],
 ): void => {
   const state: StdioDiagnosticState = {
     rawTail: '',
     pendingLine: '',
+    secrets,
   };
   diagnostics.set(transport, state);
 
@@ -37,7 +42,7 @@ export const observeStdioStderr = (
     state.pendingLine = lines.pop() ?? '';
     for (const line of lines) {
       if (line.length > 0) {
-        logLine(sanitizeStringForLogging(line));
+        logLine(sanitizeStringForLogging(redactSecrets(line, state.secrets)));
       }
     }
   };
@@ -51,15 +56,16 @@ export const observeStdioStderr = (
 
   stderr.on('end', () => {
     if (state.pendingLine.length > 0) {
-      logLine(sanitizeStringForLogging(state.pendingLine));
+      logLine(sanitizeStringForLogging(redactSecrets(state.pendingLine, state.secrets)));
       state.pendingLine = '';
     }
   });
 };
 
 export const getStdioStderrTail = (transport: object): string | undefined => {
-  const tail = diagnostics.get(transport)?.rawTail.trim();
-  return tail ? sanitizeStringForLogging(tail) : undefined;
+  const state = diagnostics.get(transport);
+  const tail = state?.rawTail.trim();
+  return tail ? sanitizeStringForLogging(redactSecrets(tail, state?.secrets)) : undefined;
 };
 
 export const addStdioErrorContext = (error: unknown, transport: object): unknown => {

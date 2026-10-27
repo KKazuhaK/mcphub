@@ -1,6 +1,12 @@
 import { personalOAuthContexts } from '../services/personalOAuthService.js';
-import type { ServerConfig } from '../types/index.js';
-import { argumentCredentialBindings } from './credentialTemplate.js';
+import type { OpenAPISecurityConfig, ServerConfig } from '../types/index.js';
+import { argumentCredentialBindings, resolvedCredentialValues } from './credentialTemplate.js';
+import {
+  isSensitiveName,
+  looksLikeSecretValue,
+  MIN_SECRET_LENGTH,
+  redactSecrets,
+} from './redaction.js';
 import {
   formatErrorForLogging,
   sanitizeStringForLogging,
@@ -19,47 +25,81 @@ export class UpstreamRequestError extends Error {
   }
 }
 
+const securityValues = (security: OpenAPISecurityConfig | undefined): (string | undefined)[] => {
+  if (!security) return [];
+  const credentials = security.http?.credentials;
+  let decoded: string[] = [];
+  if (credentials) {
+    // Basic credentials are base64 of `user:password`; the parts can appear on their own.
+    try {
+      const text = Buffer.from(credentials, 'base64').toString('utf8');
+      if (text.includes(':')) decoded = [text, ...text.split(':')];
+    } catch {
+      // Not base64: the literal value still applies.
+    }
+  }
+  return [
+    security.apiKey?.value,
+    credentials,
+    ...decoded,
+    security.oauth2?.token,
+    security.oauth2?.clientSecret,
+    security.openIdConnect?.token,
+    security.openIdConnect?.clientSecret,
+  ];
+};
+
+/**
+ * Every value in a server runtime config that must not appear in a log line or error message.
+ *
+ * Definite credentials, scrubbed from length 4: resolved credential slots (url, header, env and
+ * args), OAuth tokens and secrets, and OpenAPI security values (API key, HTTP credentials,
+ * OAuth2 and OpenID Connect tokens and client secrets). Personal values can be opaque strings
+ * with no recognizable token shape, so they are matched literally.
+ *
+ * Suspected credentials, by name only: env and header entries whose name says "token", "key",
+ * "secret" and so on. They count only when they look like a secret (length 8 or more, not a
+ * boolean, number or filesystem path), so `TOKEN_ENABLED=true` or `SESSION_DIR=/tmp/x` do not
+ * blank ordinary text.
+ */
+export const collectConfigSecrets = (config: ServerConfig): string[] => {
+  const oauth = personalOAuthContexts.get(config)?.config.oauth || config.oauth;
+  const suspected = [config.env, config.headers].flatMap((record) =>
+    Object.entries(record ?? {})
+      .filter(([name, value]) => isSensitiveName(name) && typeof value === 'string')
+      .map(([, value]) => value)
+      .filter(looksLikeSecretValue),
+  );
+  return [
+    ...(resolvedCredentialValues.get(config) ?? []),
+    ...(config.credentialTemplate ?? []).map((slot) =>
+      slot.target === 'args'
+        ? argumentCredentialBindings.get(config)?.[slot.name]
+        : slot.target === 'url'
+          ? config.url
+          : config[slot.target]?.[slot.name],
+    ),
+    oauth?.accessToken,
+    oauth?.refreshToken,
+    oauth?.clientSecret,
+    oauth?.pendingAuthorization?.codeVerifier,
+    ...securityValues(config.openapi?.security),
+    ...securityValues(config.openapi?.specSecurity),
+    ...suspected,
+  ].filter(
+    (value): value is string => typeof value === 'string' && value.length >= MIN_SECRET_LENGTH,
+  );
+};
+
 export const createUpstreamRequestError = (
   server: string,
   operation: string,
   error: unknown,
   config: ServerConfig,
 ): UpstreamRequestError => {
-  // Personal values can be opaque strings with no recognizable token shape.
-  // Remove them before formatting/truncation, including URL-encoded echoes.
-  const oauth = personalOAuthContexts.get(config)?.config.oauth || config.oauth;
-  const oauthSecrets = [
-    oauth?.accessToken,
-    oauth?.refreshToken,
-    oauth?.clientSecret,
-    oauth?.pendingAuthorization?.codeVerifier,
-  ];
-  const secrets = (config.credentialTemplate ?? [])
-    .map((slot) =>
-      slot.target === 'args'
-        ? argumentCredentialBindings.get(config)?.[slot.name]
-        : slot.target === 'url'
-          ? config.url
-          : config[slot.target]?.[slot.name],
-    )
-    .concat(oauthSecrets)
-    .filter((value): value is string => typeof value === 'string' && value.length > 0)
-    .flatMap((value) => [value, value.replace(/^(?:Bearer|Basic)\s+/i, '')])
-    .flatMap((value) => {
-      const variants = [value, JSON.stringify(value).slice(1, -1)];
-      try {
-        variants.push(encodeURIComponent(value));
-      } catch {
-        // A credential can contain an unpaired surrogate; literal redaction still applies.
-      }
-      return variants;
-    })
-    .filter((value) => value.length > 0)
-    .sort((a, b) => b.length - a.length);
-  const redact = (value: string): string => {
-    for (const secret of secrets) value = value.split(secret).join('[REDACTED]');
-    return sanitizeStringForLogging(value).slice(0, 2048);
-  };
+  const secrets = collectConfigSecrets(config);
+  const redact = (value: string): string =>
+    sanitizeStringForLogging(redactSecrets(value, secrets)).slice(0, 2048);
   // Never attach the original cause/config/body/stack to the safe error.
   const record =
     error && typeof error === 'object'

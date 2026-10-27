@@ -49,6 +49,7 @@ import { loadServerConfig, type ServerConfigWithOAuth } from './oauthSettingsSto
 // Import getServerByName to access ServerInfo
 import { getServerByName } from './mcpService.js';
 import { logger } from '../utils/logger.js';
+import { redactUrl } from '../utils/redaction.js';
 
 type OAuthClientInformationWithAuthMethod = OAuthClientInformation &
   Pick<OAuthClientMetadata, 'token_endpoint_auth_method'>;
@@ -415,7 +416,7 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
   async redirectToAuthorization(url: URL): Promise<void> {
     logger.log('='.repeat(80));
     logger.log(`OAuth Authorization Required for server: ${this.serverName}`);
-    if (!this.personal) logger.log(`Authorization URL: ${url.toString()}`);
+    if (!this.personal) logger.log(`Authorization URL: ${redactUrl(url.toString())}`);
     logger.log('='.repeat(80));
     let state = url.searchParams.get('state') || undefined;
 

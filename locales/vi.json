@@ -926,6 +926,8 @@
     "selectAtLeastOneServer": "Vui lòng chọn ít nhất một máy chủ",
     "skipAuth": "Bỏ qua xác thực",
     "skipAuthDescription": "Cho phép truy cập bảng điều khiển mà không cần đăng nhập; người dùng chưa xác thực sẽ có quyền quản trị cấp khách (không ảnh hưởng đến xác thực của endpoint MCP)",
+    "allowTokenInQuery": "Cho phép token trong URL",
+    "allowTokenInQueryDescription": "Chấp nhận thông tin xác thực ?token= trong URL cho các yêu cầu MCP, SSE và bảng điều khiển. Tắt để chỉ chấp nhận header; URL được lưu trong lịch sử trình duyệt và nhật ký proxy. Các client không gửi được header sẽ ngừng hoạt động.",
     "jsonBodyLimit": "Giới hạn kích thước Body JSON",
     "jsonBodyLimitDescription": "Giới hạn kích thước yêu cầu JSON của Express. Điều này cũng ảnh hưởng đến các lần tải lên lược đồ OpenAPI dung lượng lớn.",
     "jsonBodyLimitPlaceholder": "Ví dụ: 1mb, 5mb, 1024kb",

@@ -1,4 +1,4 @@
-import { Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import { BearerKey } from '../entities/BearerKey.js';
 import { getAppDataSource } from '../connection.js';
 import { withDbRetry, RetryOptions } from '../../utils/dbRetry.js';
@@ -57,10 +57,42 @@ export class BearerKeyRepository {
   }
 
   /**
-   * Find bearer key by token value
+   * Find bearer key by the SHA-256 of its token
    */
-  async findByToken(token: string): Promise<BearerKey | null> {
-    return this.withRetry(() => this.repository.findOne({ where: { token } }), 'findByToken');
+  async findByTokenHash(tokenHash: string): Promise<BearerKey | null> {
+    return this.withRetry(
+      () => this.repository.findOne({ where: { tokenHash } }),
+      'findByTokenHash',
+    );
+  }
+
+  /**
+   * Rows still holding a plaintext token from an older version.
+   */
+  async findWithPlaintextToken(): Promise<BearerKey[]> {
+    return this.withRetry(
+      () => this.repository.find({ where: { token: Not(IsNull()) } }),
+      'findWithPlaintextToken',
+    );
+  }
+
+  /**
+   * Replace a plaintext token with its hash. Conditional on the plaintext still being there,
+   * so a concurrent instance that already migrated the row is not overwritten.
+   */
+  async replacePlaintextToken(
+    id: string,
+    plaintext: string,
+    tokenHash: string,
+    tokenPrefix: string,
+  ): Promise<boolean> {
+    return this.withRetry(async () => {
+      const result = await this.repository.update(
+        { id, token: plaintext },
+        { token: null, tokenHash, tokenPrefix },
+      );
+      return (result.affected ?? 0) > 0;
+    }, 'replacePlaintextToken');
   }
 
   async findByOwner(owner: string): Promise<BearerKey[]> {

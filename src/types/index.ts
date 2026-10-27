@@ -278,6 +278,7 @@ export interface SystemConfig {
     bearerAuthHeaderName?: string; // Header name used to receive bearer credentials for MCP/API requests (default: 'Authorization')
     jsonBodyLimit?: string; // JSON request body size limit used by Express parser (default: '1mb'), including OpenAPI schema uploads
     skipAuth?: boolean; // Controls whether the dashboard requires login
+    allowTokenInQuery?: boolean; // Accept ?token= credentials on MCP/SSE and dashboard routes (default: true)
   };
   install?: {
     pythonIndexUrl?: string; // Python package repository URL (UV_DEFAULT_INDEX)
@@ -423,7 +424,9 @@ export type BearerKeyKind = 'system' | 'user';
 export interface BearerKey {
   id: string; // Unique identifier for the key
   name: string; // Human readable key name
-  token: string; // Bearer token value
+  token?: string; // Plaintext token: only on the create result and on legacy keys not yet hashed
+  tokenHash?: string; // SHA-256 of the token; the only stored form after migration
+  tokenPrefix?: string; // Short non-secret prefix for display
   enabled: boolean; // Whether this key is enabled
   kind?: BearerKeyKind; // Defaults to 'system' for keys created before user-level keys existed
   owner?: string; // Required for user-level keys

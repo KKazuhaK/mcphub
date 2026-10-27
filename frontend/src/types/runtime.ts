@@ -39,6 +39,7 @@ export interface OAuthConsentContext {
   codeChallenge?: string;
   codeChallengeMethod?: string;
   token?: string;
+  needsSession?: boolean;
   resource?: ResourceTarget;
   client?: ConsentClientInfo;
 }

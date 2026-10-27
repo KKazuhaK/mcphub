@@ -6,6 +6,7 @@ import { isRetryableDbError } from './utils/dbRetry.js';
 import { ensureWorkspaceEnabledAt } from './services/connectedClientService.js';
 import { hydrateSystemConfigCache, getCachedSystemConfig } from './utils/systemConfigCache.js';
 import { logger } from './utils/logger.js';
+import { redactUrl } from './utils/redaction.js';
 import {
   startHostedEventSubscriber,
   stopHostedEventSubscriber,
@@ -150,7 +151,7 @@ const setupGlobalProxyFetch = (): void => {
     init?: RequestInit,
   ): Promise<Response> => {
     const targetUrl = input instanceof Request ? input.url : input.toString();
-    logger.info('[proxy] Request via proxy', { url: targetUrl });
+    logger.info('[proxy] Request via proxy', { url: redactUrl(targetUrl) });
     const proxyInput = input instanceof Request ? input.url : input;
     return proxyRequest(proxyInput, init);
   };

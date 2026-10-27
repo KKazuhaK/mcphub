@@ -37,6 +37,7 @@ jest.mock('@modelcontextprotocol/server-legacy/sse', () => ({
   SSEServerTransport: jest.fn().mockImplementation(() => mockTransport),
 }));
 
+import { describeBearerToken } from '../../src/utils/bearerKeyHash.js';
 import type { Request, Response } from 'express';
 import {
   closeSessionsForCredential,
@@ -71,7 +72,7 @@ const tokenUpdate = jest.fn();
 const userKey = (overrides: Partial<BearerKey> = {}): BearerKey => ({
   id: 'key-1',
   name: 'laptop',
-  token: 'user-key-secret',
+  ...describeBearerToken('user-key-secret'),
   enabled: true,
   kind: 'user',
   owner: 'alice',

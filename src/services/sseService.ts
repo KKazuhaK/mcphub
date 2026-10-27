@@ -32,7 +32,11 @@ import {
   recordOAuthTokenUse,
   type SessionCredential,
 } from './connectedClientService.js';
-import { safeCompare } from '../utils/safeCompare.js';
+import {
+  QUERY_CREDENTIAL_REJECTED_MESSAGE,
+  rejectsQueryCredential,
+} from '../utils/queryCredentials.js';
+import { bearerHashMatches, hashBearerToken } from '../utils/bearerKeyHash.js';
 import { getCachedSystemConfig } from '../utils/systemConfigCache.js';
 import {
   getBearerAuthHeaderValue,
@@ -222,7 +226,7 @@ type BearerAuthResult =
     }
   | {
       valid: false;
-      reason: 'missing' | 'invalid' | 'forbidden' | 'unavailable';
+      reason: 'missing' | 'invalid' | 'forbidden' | 'unavailable' | 'query_credential';
     };
 
 /**
@@ -455,6 +459,11 @@ const validateBearerAuth = async (req: Request): Promise<BearerAuthResult> => {
   const systemConfig = await systemConfigDao.get();
   const enableBearerAuth = systemConfig?.routing?.enableBearerAuth ?? true;
 
+  // Header-only hardening applies to every MCP/SSE route, whatever the auth mode.
+  if (rejectsQueryCredential(req.query, systemConfig)) {
+    return { valid: false, reason: 'query_credential' };
+  }
+
   const bearerKeyDao = getBearerKeyDao();
   // A user-level key idle past the workspace window is dropped like a disabled one.
   const idleCheckedAt = Date.now();
@@ -533,7 +542,8 @@ const validateBearerAuth = async (req: Request): Promise<BearerAuthResult> => {
       return { valid: true };
     }
 
-    const matchingKey = enabledKeys.find((key) => safeCompare(key.token, token));
+    const presentedHash = hashBearerToken(token);
+    const matchingKey = enabledKeys.find((key) => bearerHashMatches(key.tokenHash, presentedHash));
     if (matchingKey) {
       const userKeyResult = await resolveUserLevelKeyUser(req, matchingKey);
       if (!userKeyResult.valid) {
@@ -595,7 +605,8 @@ const validateBearerAuth = async (req: Request): Promise<BearerAuthResult> => {
     return { valid: false, reason: 'invalid' };
   }
 
-  const matchingKey = enabledKeys.find((key) => safeCompare(key.token, token));
+  const presentedHash = hashBearerToken(token);
+  const matchingKey = enabledKeys.find((key) => bearerHashMatches(key.tokenHash, presentedHash));
   if (matchingKey) {
     const userKeyResult = await resolveUserLevelKeyUser(req, matchingKey);
     if (!userKeyResult.valid) {
@@ -686,7 +697,7 @@ const escapeHeaderValue = (value: string): string => {
 const sendBearerAuthError = async (
   req: Request,
   res: Response,
-  reason: 'missing' | 'invalid' | 'forbidden' | 'unavailable',
+  reason: 'missing' | 'invalid' | 'forbidden' | 'unavailable' | 'query_credential',
 ): Promise<void> => {
   if (reason === 'forbidden') {
     res.status(403).json({
@@ -706,7 +717,11 @@ const sendBearerAuthError = async (
   }
 
   const errorDescription =
-    reason === 'missing' ? 'No authorization provided' : 'Invalid bearer token';
+    reason === 'missing'
+      ? 'No authorization provided'
+      : reason === 'query_credential'
+        ? QUERY_CREDENTIAL_REJECTED_MESSAGE
+        : 'Invalid bearer token';
 
   const systemConfig = await getSystemConfigDao().get();
   const resourceMetadataUrl = getResourceMetadataUrl(getPublicResourceUrl(req, systemConfig));
@@ -722,7 +737,9 @@ const sendBearerAuthError = async (
   logger.warn(
     reason === 'missing'
       ? 'Bearer authentication required but no authorization header was provided'
-      : 'Bearer authentication failed due to invalid bearer token',
+      : reason === 'query_credential'
+        ? 'Rejected a credential in the URL query (allowTokenInQuery is off)'
+        : 'Bearer authentication failed due to invalid bearer token',
   );
 
   res.setHeader('WWW-Authenticate', `Bearer ${headerParts.join(', ')}`);

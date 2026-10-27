@@ -3,10 +3,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { BookOpen, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { getToken } from '../services/authService';
 import { getPublicConfig } from '../services/configService';
 import { createBetterAuthClient, startOidcLogin } from '../services/betterAuthClient';
 import { getBasePath } from '../utils/runtime';
+import { buildOAuthReturnTarget } from '../utils/oauthReturn';
 import ThemeSwitch from '@/components/ui/ThemeSwitch';
 import LanguageSwitch from '@/components/ui/LanguageSwitch';
 import GitHubIcon from '@/components/icons/GitHubIcon';
@@ -74,29 +74,13 @@ const LoginPage: React.FC = () => {
     );
   }, []);
 
-  const buildRedirectTarget = useCallback(() => {
-    if (!returnUrl) return '/';
-    if (!returnUrl.startsWith('/oauth/authorize')) return returnUrl;
-    const token = getToken();
-    if (!token) return returnUrl;
-    try {
-      const origin = window.location.origin;
-      const url = new URL(returnUrl, origin);
-      url.searchParams.set('token', token);
-      return `${url.pathname}${url.search}${url.hash}`;
-    } catch {
-      const separator = returnUrl.includes('?') ? '&' : '?';
-      return `${returnUrl}${separator}token=${encodeURIComponent(token)}`;
-    }
-  }, [returnUrl]);
-
   const redirectAfterLogin = useCallback(() => {
     if (returnUrl) {
-      window.location.assign(buildRedirectTarget());
+      window.location.assign(buildOAuthReturnTarget(returnUrl));
     } else {
       navigate('/');
     }
-  }, [buildRedirectTarget, navigate, returnUrl]);
+  }, [navigate, returnUrl]);
 
   useEffect(() => {
     if (!auth.loading && auth.isAuthenticated) redirectAfterLogin();
