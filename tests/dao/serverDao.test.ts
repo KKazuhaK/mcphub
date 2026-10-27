@@ -141,10 +141,35 @@ describe('ServerDaoImpl', () => {
 
       expect(saved).not.toHaveProperty('maxToolRisk');
       expect(saved).toHaveProperty('defaultUserRisk', 'write');
-      expect(
-        await run({ defaultUserRisk: undefined }),
-      ).not.toHaveProperty('defaultUserRisk');
+      expect(await run({ defaultUserRisk: undefined })).not.toHaveProperty('defaultUserRisk');
       expect(saved).not.toHaveProperty('toolRiskOverrides');
     });
+  });
+});
+
+describe('credentialWriteClients (file mode)', () => {
+  const stored = {
+    name: 'ubc',
+    type: 'sse',
+    url: 'https://example.com/sse',
+    credentialWriteClients: ['ubc-client'],
+  };
+  const run = async (updates: object) => {
+    const dao = new ServerDaoImpl();
+    jest.spyOn(dao as any, 'loadSettings').mockResolvedValue({ mcpServers: { ubc: stored } });
+    const save = jest.spyOn(dao as any, 'saveSettings').mockResolvedValue(undefined);
+    await dao.update('ubc', updates);
+    return JSON.parse(JSON.stringify(save.mock.calls[0][0].mcpServers.ubc));
+  };
+
+  it('reads the list back, keeps it through unrelated updates and removes it when cleared', async () => {
+    const dao = new ServerDaoImpl();
+    jest.spyOn(dao as any, 'loadSettings').mockResolvedValue({ mcpServers: { ubc: stored } });
+    expect((await dao.findById('ubc'))?.credentialWriteClients).toEqual(['ubc-client']);
+
+    expect((await run({ description: 'edited' })).credentialWriteClients).toEqual(['ubc-client']);
+    expect(await run({ credentialWriteClients: undefined })).not.toHaveProperty(
+      'credentialWriteClients',
+    );
   });
 });

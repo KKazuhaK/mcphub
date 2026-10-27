@@ -704,7 +704,8 @@
     "willRedirectTo": "Sẽ chuyển hướng tới:",
     "policy": "Chính sách quyền riêng tư",
     "terms": "Điều khoản",
-    "homepage": "Trang chủ"
+    "homepage": "Trang chủ",
+    "credentialWrite": "{{client}} muốn đặt thông tin xác thực cá nhân của bạn cho {{server}}"
   },
   "cloud": {
     "title": "Hỗ trợ Đám mây",

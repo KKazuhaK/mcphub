@@ -109,6 +109,7 @@ export async function migrateToDatabase(seedServersAndGroups = true): Promise<bo
             maxToolRisk: config.maxToolRisk,
             toolRiskOverrides: config.toolRiskOverrides,
             defaultUserRisk: config.defaultUserRisk,
+            credentialWriteClients: config.credentialWriteClients,
             enableKeepAlive: config.enableKeepAlive,
             protocolNegotiation: config.protocolNegotiation,
             keepAliveInterval: config.keepAliveInterval,

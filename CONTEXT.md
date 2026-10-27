@@ -48,6 +48,10 @@ _Avoid_: portal mode, user mode
 A user's explicit choice to include one visible server in their own MCP scope, stored per (user, server). Absent means not selected. Selection only narrows what visibility already allows; it never grants access. It applies to the all-servers route, global `$smart`, and single-server routes for an authenticated user under Workspace Mode, never to admin-defined Group routes or dashboard calls.
 _Avoid_: subscription, enablement (reserved for the global `enabled` flag), favourite
 
+**Credential-Write Scope**:
+The OAuth scope `credentials:write:<serverName>`. A short-lived token (five minutes, no refresh token) that lets one allowed client write or delete the signed-in user's own credential binding for exactly that server, and nothing else. Granted only on its own, only to a client listed in the server's administrator-only `credentialWriteClients`. Applies whether or not Workspace Mode is on.
+_Avoid_: credential token, connector token, session forwarding
+
 **Destination Binding**:
 The check that a stored personal credential is only used for the destination it was entered against. Each credential-slot binding carries a keyed fingerprint of the destination-relevant parts of the server declaration; when the declaration no longer matches, the binding is stale and treated as missing until the user enters the values again. Applies whether or not Workspace Mode is on.
 _Avoid_: credential pinning, credential lock

@@ -2,6 +2,7 @@ import { oauthServerMetadataSchema } from './oauthServerMetadata.js';
 import { resolveUpstreamProtocolMode } from './mcpProtocol.js';
 import { validateCredentialTemplate } from './credentialTemplate.js';
 import { validateMaxBufferSize } from './stdioOptions.js';
+import { normalizeCredentialWriteClients } from './credentialWriteScope.js';
 import { ServerConfigValidationError } from './serverConfigValidation.js';
 import { ServerConfig } from '../types/index.js';
 import { normalizeMaintenance, normalizePausedUsers } from './serverMaintenance.js';
@@ -368,6 +369,9 @@ export const normalizeServerConfigForPersistence = (config: ServerConfig): Serve
       : {}),
     ...(Object.prototype.hasOwnProperty.call(config, 'defaultUserRisk')
       ? { defaultUserRisk: normalizeDefaultUserRisk(config.defaultUserRisk) }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(config, 'credentialWriteClients')
+      ? { credentialWriteClients: normalizeCredentialWriteClients(config.credentialWriteClients) }
       : {}),
     options,
     perSessionClient: config.perSessionClient === true ? true : undefined,

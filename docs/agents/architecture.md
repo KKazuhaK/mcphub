@@ -36,6 +36,10 @@ Bearer-key tokens are never stored: `BearerKey` holds `tokenHash` (SHA-256, cons
 
 Anything that can reach a log line, an activity row or an error message goes through `src/utils/redaction.ts` (URLs, headers, env, args, bodies) or the logger, which applies it by key name (`url`, `headers`, `env`, `args`) and to error objects. A resolved credential slot is registered in `resolvedCredentialValues`; `collectConfigSecrets(config)` lists every value to scrub for that runtime. A new place that logs a URL, a request, a child-process argument or an upstream response must use these helpers. `routing.allowTokenInQuery=false` rejects query-string credentials on MCP, SSE and `/api` routes.
 
+## The credential-write scope stays narrow
+
+A token whose scope contains `credentials:write:*` is honoured only by the `/api` gate in `src/middlewares/auth.ts`, only for `PUT`/`DELETE /credentials/<its server>`, and as a non-admin principal carrying `credentialWriteGrant`. `resolveOAuthGrantFromToken` must keep refusing it, so it never authenticates an MCP route. Never read the user's admin status when serving it, never accept it beside another scope, and re-check the client against the server's `credentialWriteClients` on every request. See [ADR 0013](../adr/0013-credential-write-scope.md).
+
 ## Personal credentials follow their destination
 
 A credential-slot binding stores `destinationFingerprint` (see `src/utils/credentialDestination.ts` for the exact field list). A binding whose fingerprint differs from the current declaration must never be injected: `resolveCredentialBinding` throws `StaleCredentialError` (a `MissingCredentialError`) before reading any value. Any new `ServerConfig` option that changes where traffic goes (a proxy, TLS or agent option, a working directory) belongs in that list. The binding functions take the stored definition and expand it themselves, once, through `expandServerConfig` (never skip it, never pass an already expanded or resolved config); startup runs `stampLegacyBindings`, and a binding without a fingerprint is stale. Applies with Workspace Mode off too; see [ADR 0011](../adr/0011-credential-destination-binding.md).

@@ -26,6 +26,8 @@ import {
   type ConsentClientInfo,
 } from '../utils/frontendShell.js';
 import { parseResourceTarget, type ResourceTarget } from '../utils/oauthConsentResource.js';
+import { includesCredentialWriteScope, splitScopes } from '../utils/credentialWriteScope.js';
+import { evaluateCredentialWriteScopes } from '../services/credentialWriteScopeService.js';
 
 const { Request: OAuth2Request, Response: OAuth2Response } = OAuth2Server;
 
@@ -198,6 +200,8 @@ const generateAuthorizeHtml = (
     approveButtonLabel: string;
     denyButtonLabel: string;
     formFields: string;
+    // Replaces the scope list for a credential-write request: that one sentence, nothing else.
+    credentialNotice?: string;
   },
 ): string => {
   const backgroundColor = '#eef5ff';
@@ -246,7 +250,10 @@ const generateAuthorizeHtml = (
             <span class="client-box-label">${escapeHtml(options.clientName ? 'Application' : 'Client')}</span>
             <span class="client-box-name">${escapeHtml(options.clientName || '')}</span>
           </div>
-          <div class="scopes">
+          ${
+            options.credentialNotice
+              ? `<div class="scopes"><div class="scope-item"><span class="scope-name">${escapeHtml(options.credentialNotice)}</span></div></div>`
+              : `<div class="scopes">
             <div class="scopes-title">${escapeHtml('This application will be able to:')}</div>
             ${options.scopes
               .map(
@@ -258,7 +265,8 @@ const generateAuthorizeHtml = (
                 `,
               )
               .join('')}
-          </div>
+          </div>`
+          }
           <div class="buttons">
             <form method="POST" action="/oauth/authorize">
               ${options.formFields}
@@ -409,6 +417,25 @@ export const getAuthorize = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    // `credentials:write:<server>` is only ever granted on its own, to a client the server
+    // lists. Anything else is refused here, before a consent page that could not be honoured.
+    const requestedScopes = splitScopes(scope);
+    const credentialWriteRequested = includesCredentialWriteScope(requestedScopes);
+    let credentialWriteServer: string | undefined;
+    if (credentialWriteRequested) {
+      const evaluation = await evaluateCredentialWriteScopes(client_id, requestedScopes);
+      if (evaluation.kind !== 'granted') {
+        const errorUrl = new URL(redirect_uri);
+        errorUrl.searchParams.set('error', 'invalid_scope');
+        errorUrl.searchParams.set('error_description', 'Invalid scope: Requested scope is invalid');
+        setIssuerParam(errorUrl, await resolveIssuer(req));
+        if (state) errorUrl.searchParams.set('state', state);
+        res.redirect(errorUrl.toString());
+        return;
+      }
+      credentialWriteServer = evaluation.serverName;
+    }
+
     // Check if user is authenticated (including via JWT token)
     let user = (req as any).user;
     if (!user) {
@@ -435,7 +462,11 @@ export const getAuthorize = async (req: Request, res: Response): Promise<void> =
       String(req.headers?.accept ?? '').includes('application/json') &&
       req.headers?.['x-auth-token']
     ) {
-      res.json({ resource: await resolveResourceTarget(resource as string | undefined) });
+      res.json({
+        resource: credentialWriteServer
+          ? undefined
+          : await resolveResourceTarget(resource as string | undefined),
+      });
       return;
     }
     const requestToken = typeof req.query.token === 'string' ? req.query.token : '';
@@ -446,10 +477,13 @@ export const getAuthorize = async (req: Request, res: Response): Promise<void> =
     // Get translation function from request (set by i18n middleware)
     const t = (req as any).t || ((key: string) => key);
 
-    const scopes = (scope || 'read write')
-      .split(' ')
-      .filter((s) => s)
-      .map((s) => ({ name: s, description: getScopeDescription(s) }));
+    // A credential-write request lists no scope rows: the consent says that one thing only.
+    const scopes = credentialWriteServer
+      ? []
+      : (scope || 'read write')
+          .split(' ')
+          .filter((s) => s)
+          .map((s) => ({ name: s, description: getScopeDescription(s) }));
 
     const formFields = `
       <input type="hidden" name="client_id" value="${escapeHtml(client_id)}" />
@@ -457,7 +491,7 @@ export const getAuthorize = async (req: Request, res: Response): Promise<void> =
       <input type="hidden" name="response_type" value="${escapeHtml(response_type)}" />
       <input type="hidden" name="scope" value="${escapeHtml(scope || '')}" />
       <input type="hidden" name="state" value="${escapeHtml(state || '')}" />
-      ${resource ? `<input type="hidden" name="resource" value="${escapeHtml(resource)}" />` : ''}
+      ${resource && !credentialWriteServer ? `<input type="hidden" name="resource" value="${escapeHtml(resource)}" />` : ''}
       ${code_challenge ? `<input type="hidden" name="code_challenge" value="${escapeHtml(code_challenge)}" />` : ''}
       ${code_challenge_method ? `<input type="hidden" name="code_challenge_method" value="${escapeHtml(code_challenge_method)}" />` : ''}
       ${tokenField}
@@ -490,11 +524,15 @@ export const getAuthorize = async (req: Request, res: Response): Promise<void> =
       needsSession: needsSession || undefined,
       // Before sign-in the page must not reveal whether a name is a group, a server or neither:
       // it gets the unresolved target, and the SPA asks again once its session is established.
-      resource: needsSession
-        ? resource
-          ? parseResourceTarget(resource)
-          : undefined
-        : await resolveResourceTarget(resource),
+      credentialWrite: credentialWriteServer ? { serverName: credentialWriteServer } : undefined,
+      // The target of a credential-write request is its scope, not an MCP route.
+      resource: credentialWriteServer
+        ? undefined
+        : needsSession
+          ? resource
+            ? parseResourceTarget(resource)
+            : undefined
+          : await resolveResourceTarget(resource),
       client: consentClientInfo,
     };
 
@@ -529,6 +567,13 @@ export const getAuthorize = async (req: Request, res: Response): Promise<void> =
         {
           clientName: client.name,
           scopes,
+          credentialNotice: credentialWriteServer
+            ? t('oauthServer.credentialWrite', {
+                client: client.name,
+                server: credentialWriteServer,
+                interpolation: { escapeValue: false },
+              })
+            : undefined,
           approveLabel: t('oauthServer.buttons.approve') || 'Allow access',
           denyLabel: t('oauthServer.buttons.deny') || 'Deny',
           approveButtonLabel:

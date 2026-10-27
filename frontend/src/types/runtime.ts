@@ -41,6 +41,7 @@ export interface OAuthConsentContext {
   token?: string;
   needsSession?: boolean;
   resource?: ResourceTarget;
+  credentialWrite?: { serverName: string };
   client?: ConsentClientInfo;
 }
 

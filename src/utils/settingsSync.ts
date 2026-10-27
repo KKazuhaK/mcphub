@@ -34,6 +34,7 @@ const RUNTIME_STATE_COLUMNS = new Set([
   'maxToolRisk',
   'toolRiskOverrides',
   'defaultUserRisk',
+  'credentialWriteClients',
 ]);
 
 const name = z
@@ -163,6 +164,7 @@ export async function syncSettingsToDatabase(): Promise<void> {
         maxToolRisk: _maxToolRisk,
         toolRiskOverrides: _toolRiskOverrides,
         defaultUserRisk: _defaultUserRisk,
+        credentialWriteClients: _credentialWriteClients,
         ...declared
       } = input as ServerConfig;
       const config = normalizeServerConfigForPersistence(declared);
@@ -214,6 +216,7 @@ export async function syncSettingsToDatabase(): Promise<void> {
           maxToolRisk: undefined,
           toolRiskOverrides: undefined,
           defaultUserRisk: undefined,
+          credentialWriteClients: undefined,
         }).type === config.type &&
         existing.url === config.url &&
         (existing.owner ?? null) === (config.owner ?? null);

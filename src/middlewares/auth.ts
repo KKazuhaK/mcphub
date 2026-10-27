@@ -7,6 +7,7 @@ import { getBetterAuthRuntimeConfig } from '../services/betterAuthConfig.js';
 import { authenticateForwardAuthToken } from '../services/forwardAuthService.js';
 import { bearerHashMatches, hashBearerToken } from '../utils/bearerKeyHash.js';
 import { getBearerTokenFromHeaders } from '../utils/bearerAuth.js';
+import { resolveCredentialWriteGrantFromToken } from '../utils/oauthBearer.js';
 import { logger } from '../utils/logger.js';
 import {
   QUERY_CREDENTIAL_REJECTED_MESSAGE,
@@ -107,6 +108,20 @@ const isDashboardApiRequest = (req: Request): boolean => {
   );
 };
 
+// PUT/DELETE /credentials/:name is the only dashboard route a credential-write OAuth token opens.
+const CREDENTIAL_WRITE_ROUTE = /^\/credentials\/([^/]+)\/?$/;
+
+const matchCredentialWriteRoute = (req: Request): string | null => {
+  if (req.method !== 'PUT' && req.method !== 'DELETE') return null;
+  const match = CREDENTIAL_WRITE_ROUTE.exec(req.path);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+};
+
 // Middleware to authenticate JWT token
 export const auth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const t = (req as any).t;
@@ -131,6 +146,35 @@ export const auth = async (req: Request, res: Response, next: NextFunction): Pro
     );
     res.status(401).json({ success: false, message: QUERY_CREDENTIAL_REJECTED_MESSAGE });
     return;
+  }
+
+  // A credential-write OAuth token is honoured on exactly one route and server, as its own user
+  // and never as an administrator. Every other route, and every other credential, skips this
+  // block, so such a token is not a bearer for anything else.
+  const credentialWriteServer = matchCredentialWriteRoute(req);
+  if (credentialWriteServer) {
+    const presented = getBearerTokenFromHeaders(req.headers, systemConfig);
+    const grant = presented ? await resolveCredentialWriteGrantFromToken(presented) : null;
+    if (grant) {
+      if (grant.serverName !== credentialWriteServer) {
+        logger.warn(
+          `Credential-write token for server=${grant.serverName} refused on another server (client=${grant.clientId})`,
+        );
+        res.status(403).json({
+          success: false,
+          message: 'This token cannot be used for that server',
+        });
+        return;
+      }
+      (req as any).user = {
+        username: grant.username,
+        isAdmin: false,
+        credentialEligible: true,
+        credentialWriteGrant: { clientId: grant.clientId, serverName: grant.serverName },
+      };
+      next();
+      return;
+    }
   }
 
   // Forward auth runs first: a JWT from the configured issuer either

@@ -649,6 +649,40 @@ describe('templateService', () => {
       expect(config).not.toHaveProperty('defaultUserRisk');
     });
 
+    it('keeps credentialWriteClients out of imports and exports', async () => {
+      await importTemplate(
+        {
+          version: '1.0',
+          name: 'Test',
+          createdAt: new Date().toISOString(),
+          servers: {
+            s1: {
+              type: 'sse',
+              url: 'http://localhost:3001',
+              credentialWriteClients: ['ubc-client'],
+            },
+          },
+          groups: [],
+          requiredEnvVars: [],
+        } as never,
+        'alice',
+      );
+      expect(mockAddServer.mock.calls[0][1]).not.toHaveProperty('credentialWriteClients');
+
+      mockServerDao.findAll.mockResolvedValue([
+        {
+          name: 's1',
+          type: 'sse',
+          url: 'http://localhost:3001',
+          credentialWriteClients: ['ubc-client'],
+        },
+      ]);
+      mockGroupDao.findAll.mockResolvedValue([{ id: 'g1', name: 'G', servers: ['s1'] }]);
+      expect(JSON.stringify(await exportTemplate({ name: 'Test' }))).not.toContain(
+        'credentialWriteClients',
+      );
+    });
+
     it('are left out of exported templates', async () => {
       mockServerDao.findAll.mockResolvedValue([
         {

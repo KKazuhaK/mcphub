@@ -704,7 +704,8 @@
     "willRedirectTo": "Will redirect to:",
     "policy": "Privacy policy",
     "terms": "Terms",
-    "homepage": "Homepage"
+    "homepage": "Homepage",
+    "credentialWrite": "{{client}} wants to set your personal credentials for {{server}}"
   },
   "cloud": {
     "title": "Cloud Support",

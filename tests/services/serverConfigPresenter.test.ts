@@ -238,10 +238,7 @@ describe('serverConfigPresenter (#1036 Phase 1)', () => {
       const errored = { ...info, status: 'disconnected', error: rawError };
 
       it('replaces the raw error with a generic message for restricted users', () => {
-        const presented = presentServerInfoForPrincipal(errored, alice) as Record<
-          string,
-          unknown
-        >;
+        const presented = presentServerInfoForPrincipal(errored, alice) as Record<string, unknown>;
         // The raw upstream text must not survive heuristic redaction — only
         // the generic placeholder may appear.
         expect(presented.error).toBe('Server connection failed');
@@ -323,6 +320,25 @@ describe('serverConfigPresenter (#1036 Phase 1)', () => {
     });
   });
 
+  describe('admin-only credentialWriteClients', () => {
+    const withClients = () => ({
+      ...buildRawServerConfig(),
+      credentialWriteClients: ['ubc-client'],
+    });
+
+    it('is withheld from a non-admin owner and a shared user but kept for an admin', () => {
+      const owner = presentServerForPrincipal(withClients(), bob);
+      expect(owner.data).not.toHaveProperty('credentialWriteClients');
+      expect(JSON.stringify(presentServerForPrincipal(withClients(), alice).data)).not.toContain(
+        'credentialWriteClients',
+      );
+      expect(
+        (presentServerForPrincipal(withClients(), admin).data as Record<string, unknown>)
+          .credentialWriteClients,
+      ).toEqual(['ubc-client']);
+    });
+  });
+
   describe('admin-only tool risk controls', () => {
     const withRisk = () => ({
       ...buildRawServerConfig(),
@@ -346,7 +362,9 @@ describe('serverConfigPresenter (#1036 Phase 1)', () => {
     it('are withheld from a shared user', () => {
       const shared = presentServerForPrincipal(withRisk(), alice);
       expect(shared.view).toBe('safe');
-      expect(JSON.stringify(shared.data)).not.toMatch(/maxToolRisk|toolRiskOverrides|defaultUserRisk/);
+      expect(JSON.stringify(shared.data)).not.toMatch(
+        /maxToolRisk|toolRiskOverrides|defaultUserRisk/,
+      );
     });
 
     it('are withheld from the config block of a list entry for a non-admin owner', () => {

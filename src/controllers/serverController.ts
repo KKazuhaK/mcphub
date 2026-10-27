@@ -279,6 +279,8 @@ const adminOnlyFieldRefusal = (
     hasOwnKey(config, 'defaultUserRisk')
   )
     return 'Only admins can set tool risk levels';
+  if (hasOwnKey(config, 'credentialWriteClients'))
+    return 'Only admins can allow clients to write personal credentials';
   return undefined;
 };
 
@@ -400,6 +402,7 @@ const toConnectionRelevantConfig = (
     maxToolRisk: _maxToolRisk,
     toolRiskOverrides: _toolRiskOverrides,
     defaultUserRisk: _defaultUserRisk,
+    credentialWriteClients: _credentialWriteClients,
     ...withoutRuntimeState
   } = config;
   const normalized = normalizeServerConfigForPersistence(withoutRuntimeState) as Record<
@@ -1556,7 +1559,12 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
       res.json({
         success: true,
         message: 'Server updated successfully',
-        ...(await credentialDestinationNotice(req, existingServer, validCredentialUsers, finalName)),
+        ...(await credentialDestinationNotice(
+          req,
+          existingServer,
+          validCredentialUsers,
+          finalName,
+        )),
       });
       return;
     }
@@ -1582,7 +1590,12 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
         message: isRenaming
           ? `Server renamed and updated successfully`
           : 'Server updated successfully',
-        ...(await credentialDestinationNotice(req, existingServer, validCredentialUsers, finalName)),
+        ...(await credentialDestinationNotice(
+          req,
+          existingServer,
+          validCredentialUsers,
+          finalName,
+        )),
       });
     } else {
       res.status(404).json({

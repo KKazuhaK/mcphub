@@ -55,6 +55,8 @@ export type OAuthConsentContext = {
   needsSession?: boolean;
   // RFC 8707 `resource` — which MCPHub target the client wants to access.
   resource?: ResourceTarget;
+  // Set for a `credentials:write:<server>` request: the consent shows that one sentence only.
+  credentialWrite?: { serverName: string };
   // RFC 7591 client identity / trust metadata (populated when registered).
   client?: ConsentClientInfo;
 };

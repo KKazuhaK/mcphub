@@ -106,6 +106,10 @@ export class Server {
   @Column({ type: 'simple-json', nullable: true })
   toolRiskOverrides?: Record<string, 'read' | 'write' | 'external'>;
 
+  // OAuth clients allowed to request `credentials:write:<this server>` (administrator-only).
+  @Column({ type: 'simple-json', nullable: true })
+  credentialWriteClients?: string[];
+
   @Column({ type: 'boolean', nullable: true })
   perSessionClient?: boolean;
 

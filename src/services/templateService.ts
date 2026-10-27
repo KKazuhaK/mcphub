@@ -527,8 +527,7 @@ export async function exportGroupTemplate(
   if (!group) return null;
 
   if (requestingUser && !requestingUser.isAdmin) {
-    const visible = getDataService()
-      .filterData([group], requestingUser);
+    const visible = getDataService().filterData([group], requestingUser);
     if (visible.length === 0) return null;
   }
 
@@ -620,6 +619,7 @@ export async function importTemplate(
         maxToolRisk: _maxToolRisk,
         toolRiskOverrides: _toolRiskOverrides,
         defaultUserRisk: _defaultUserRisk,
+        credentialWriteClients: _credentialWriteClients,
         ...importable
       } = config as ServerConfig;
       const serverConfig: ServerConfig = {
@@ -631,7 +631,8 @@ export async function importTemplate(
         throw new Error(
           serverConfig.oauth?.allowInsecureTokenEndpoint === true
             ? 'Only admins can import servers allowing HTTP OAuth token endpoints'
-            : serverConfig.passthroughHeaders?.length || serverConfig.openapi?.passthroughHeaders?.length
+            : serverConfig.passthroughHeaders?.length ||
+                serverConfig.openapi?.passthroughHeaders?.length
               ? 'Only admins can import servers forwarding caller headers'
               : 'Only admins can import stdio-based server configurations',
         );

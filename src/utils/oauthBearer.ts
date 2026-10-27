@@ -6,6 +6,8 @@ import { safeCompare } from './safeCompare.js';
 import { getCachedSystemConfig } from './systemConfigCache.js';
 import { isOAuthTokenIdle } from '../services/connectedClientService.js';
 import { getBearerTokenFromHeaders, parseBearerAuthorization } from './bearerAuth.js';
+import { includesCredentialWriteScope, soleCredentialWriteServer } from './credentialWriteScope.js';
+import { evaluateCredentialWriteScopes } from '../services/credentialWriteScopeService.js';
 
 /**
  * Resolve the user and OAuth client behind a raw OAuth bearer token.
@@ -19,6 +21,12 @@ export const resolveOAuthGrantFromToken = async (
 
   const oauthToken = await getOAuthStoredToken(token);
   if (!oauthToken || !safeCompare(oauthToken.accessToken, token)) {
+    return null;
+  }
+
+  // A credential-write token only ever opens the two credential endpoints (see
+  // resolveCredentialWriteGrantFromToken); it is not a bearer for MCP routes.
+  if (includesCredentialWriteScope(oauthToken.scope)) {
     return null;
   }
 
@@ -38,6 +46,44 @@ export const resolveOAuthGrantFromToken = async (
     },
     clientId: oauthToken.clientId,
   };
+};
+
+export type CredentialWriteGrant = {
+  username: string;
+  clientId: string;
+  serverName: string;
+};
+
+/**
+ * Resolve a raw bearer token to a credential-write grant: the token's own user, its client and
+ * the one server it is narrowed to. Anything else is null - another kind of OAuth token, a
+ * refresh token, a token whose scope is mixed or malformed, or one whose client or server is
+ * no longer eligible. Admin status is deliberately not read: it never widens this grant.
+ */
+export const resolveCredentialWriteGrantFromToken = async (
+  token?: string,
+): Promise<CredentialWriteGrant | null> => {
+  if (!token || !isOAuthServerEnabled()) {
+    return null;
+  }
+
+  const oauthToken = await getOAuthStoredToken(token);
+  // Only the access token is a bearer: a presented refresh token never matches here.
+  if (!oauthToken || !safeCompare(oauthToken.accessToken, token)) {
+    return null;
+  }
+
+  const serverName = soleCredentialWriteServer(oauthToken.scope);
+  if (!serverName) {
+    return null;
+  }
+
+  const evaluation = await evaluateCredentialWriteScopes(oauthToken.clientId, oauthToken.scope);
+  if (evaluation.kind !== 'granted') {
+    return null;
+  }
+
+  return { username: oauthToken.username, clientId: oauthToken.clientId, serverName };
 };
 
 /**

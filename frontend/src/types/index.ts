@@ -240,6 +240,8 @@ export interface ServerConfig {
   maxToolRisk?: ToolRiskLevel | null;
   toolRiskOverrides?: Record<string, ToolRiskLevel> | null;
   defaultUserRisk?: ToolRiskLevel | null;
+  // Admin only: OAuth client ids allowed to request `credentials:write:<this server>`.
+  credentialWriteClients?: string[] | null;
   protocolNegotiation?: 'auto' | 'legacy'; // Streamable HTTP defaults to auto; other transports remain legacy.
   enableKeepAlive?: boolean; // Enable remote health checks; disconnected remote servers always retry
   keepAliveInterval?: number; // Health check interval in milliseconds (default: 60000ms)

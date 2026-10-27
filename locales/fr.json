@@ -703,7 +703,8 @@
     "willRedirectTo": "Redirigera vers :",
     "policy": "Politique de confidentialité",
     "terms": "Conditions d'utilisation",
-    "homepage": "Page d'accueil"
+    "homepage": "Page d'accueil",
+    "credentialWrite": "{{client}} souhaite définir vos identifiants personnels pour {{server}}"
   },
   "cloud": {
     "title": "Support Cloud",

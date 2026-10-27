@@ -4352,6 +4352,57 @@ describe('serverController - tool risk levels', () => {
     expect(mockAddServer).not.toHaveBeenCalled();
   });
 
+  it('refuses credentialWriteClients for a non-admin with a constant 403, on every write path', async () => {
+    for (const value of [['ubc-client'], [], null, 'x']) {
+      status.mockClear();
+      json.mockClear();
+      await update(alice, { credentialWriteClients: value });
+      expect(status).toHaveBeenCalledWith(403);
+      expect(json).toHaveBeenLastCalledWith({
+        success: false,
+        message: 'Only admins can allow clients to write personal credentials',
+      });
+    }
+    await createServer(
+      {
+        body: { name: 'fresh', config: { ...base, credentialWriteClients: ['ubc-client'] } },
+        user: alice,
+      } as unknown as Request,
+      res,
+    );
+    expect(status).toHaveBeenLastCalledWith(403);
+    await batchCreateServers(
+      {
+        body: {
+          servers: [{ name: 'fresh', config: { ...base, credentialWriteClients: ['ubc-client'] } }],
+        },
+        user: alice,
+      } as unknown as Request,
+      res,
+    );
+    expect(mockAddServer).not.toHaveBeenCalled();
+    expect(mockServerDao.update).not.toHaveBeenCalled();
+  });
+
+  it('lets an admin set, change and clear credentialWriteClients, trimmed and de-duplicated', async () => {
+    await update(admin, { credentialWriteClients: [' ubc-client ', 'ubc-client', 'other'] });
+    expect(status).not.toHaveBeenCalledWith(403);
+    expect(updatesOf()).toMatchObject({ credentialWriteClients: ['ubc-client', 'other'] });
+
+    mockServerDao.update.mockClear();
+    await update(admin, { credentialWriteClients: null });
+    expect(updatesOf()).toHaveProperty('credentialWriteClients', undefined);
+
+    status.mockClear();
+    await update(admin, { credentialWriteClients: 'ubc-client' });
+    expect(status).toHaveBeenLastCalledWith(400);
+  });
+
+  it('leaves the stored credentialWriteClients alone when a save does not carry the key', async () => {
+    await update(alice, { description: 'mine' });
+    expect(updatesOf()).not.toHaveProperty('credentialWriteClients');
+  });
+
   it('lets a non-admin save that does not carry the keys leave the stored values alone', async () => {
     await update(alice, { description: 'mine' });
     expect(status).not.toHaveBeenCalled();

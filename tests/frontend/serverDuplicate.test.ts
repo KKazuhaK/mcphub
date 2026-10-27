@@ -59,6 +59,16 @@ describe('buildDuplicateSource', () => {
     expect(source.config).toHaveProperty('maxToolRisk');
   });
 
+  it('does not copy the credential-write client list of the source', () => {
+    const source = buildServer();
+    source.config = { ...source.config, credentialWriteClients: ['ubc-client'] };
+
+    const duplicate = buildDuplicateSource(source);
+
+    expect(duplicate.config).not.toHaveProperty('credentialWriteClients');
+    expect(source.config).toHaveProperty('credentialWriteClients');
+  });
+
   it('does not copy the pause list or maintenance window of the source', () => {
     const source = buildServer();
     source.config = {
