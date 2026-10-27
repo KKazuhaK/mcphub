@@ -1,3 +1,4 @@
+import { isProtectedSelfClient } from '../services/selfOAuthResource.js';
 import { Request, Response } from 'express';
 import { validationResult } from 'express-validator';
 import crypto from 'crypto';
@@ -20,6 +21,9 @@ const canAccessClient = (req: Request, client: IOAuthClient): boolean => {
  * GET /api/oauth/clients
  * Get all OAuth clients
  */
+const SELF_CLIENT_PROTECTED_MESSAGE =
+  "This client is MCPHub's own public client for servers it is the authorization server of. It is maintained automatically (public, one redirect URI) and cannot be edited, deleted or given a secret.";
+
 export const getAllClients = async (req: Request, res: Response): Promise<void> => {
   try {
     const clients = await getOAuthClients();
@@ -190,6 +194,11 @@ export const updateClient = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    if (isProtectedSelfClient(clientId)) {
+      res.status(409).json({ success: false, message: SELF_CLIENT_PROTECTED_MESSAGE });
+      return;
+    }
+
     if (!canAccessClient(req, existingClient)) {
       res.status(403).json({
         success: false,
@@ -256,6 +265,11 @@ export const deleteClient = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    if (isProtectedSelfClient(clientId)) {
+      res.status(409).json({ success: false, message: SELF_CLIENT_PROTECTED_MESSAGE });
+      return;
+    }
+
     if (!canAccessClient(req, client)) {
       res.status(403).json({
         success: false,
@@ -301,6 +315,11 @@ export const regenerateSecret = async (req: Request, res: Response): Promise<voi
         success: false,
         message: 'OAuth client not found',
       });
+      return;
+    }
+
+    if (isProtectedSelfClient(clientId)) {
+      res.status(409).json({ success: false, message: SELF_CLIENT_PROTECTED_MESSAGE });
       return;
     }
 

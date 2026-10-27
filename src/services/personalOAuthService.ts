@@ -57,6 +57,7 @@ const declarationOAuth = (oauth?: OAuth): OAuth => {
     accessToken: _,
     refreshToken: __,
     pendingAuthorization: ___,
+    grantResource: ____,
     ...declaration
   } = oauth || {};
   return declaration;

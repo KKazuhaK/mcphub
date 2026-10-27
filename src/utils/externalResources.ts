@@ -11,6 +11,10 @@ const MAX_URL_LENGTH = 2048;
 const MAX_NAME_LENGTH = 100;
 const MAX_ALLOWED_CLIENTS = 100;
 const MAX_CLIENT_ID_LENGTH = 2048;
+const MAX_SCOPES = 50;
+const MAX_SCOPE_LENGTH = 200;
+// RFC 6749 section 3.3 scope-token: printable ASCII without space, quote and backslash.
+const SCOPE_TOKEN = /^[\x21\x23-\x5B\x5D-\x7E]+$/;
 
 export class ExternalResourceValidationError extends Error {}
 
@@ -52,7 +56,7 @@ export const normalizeExternalResources = (value: unknown): ExternalResource[] =
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
       throw new ExternalResourceValidationError(`${where} must be an object`);
     }
-    const { resource, name, allowedClients } = entry as Record<string, unknown>;
+    const { resource, name, allowedClients, scopes } = entry as Record<string, unknown>;
     if (!isValidExternalResourceUrl(resource)) {
       throw new ExternalResourceValidationError(
         `${where}.resource must be an absolute https URL (http only for localhost, 127.0.0.1 or [::1]) without credentials or a fragment`,
@@ -81,6 +85,23 @@ export const normalizeExternalResources = (value: unknown): ExternalResource[] =
         );
       }
       normalized.allowedClients = Array.from(new Set(allowedClients as string[]));
+    }
+    if (scopes !== undefined && scopes !== null) {
+      if (
+        !Array.isArray(scopes) ||
+        scopes.length > MAX_SCOPES ||
+        scopes.some(
+          (scope) =>
+            typeof scope !== 'string' ||
+            scope.length > MAX_SCOPE_LENGTH ||
+            !SCOPE_TOKEN.test(scope),
+        )
+      ) {
+        throw new ExternalResourceValidationError(
+          `${where}.scopes must be an array of scope tokens (printable ASCII, no spaces)`,
+        );
+      }
+      normalized.scopes = Array.from(new Set(scopes as string[]));
     }
     return normalized;
   });

@@ -50,6 +50,16 @@ import { loadServerConfig, type ServerConfigWithOAuth } from './oauthSettingsSto
 import { getServerByName } from './mcpService.js';
 import { logger } from '../utils/logger.js';
 import { redactUrl } from '../utils/redaction.js';
+import { CredentialBindingError } from '../utils/credentialTemplate.js';
+import {
+  SELF_OAUTH_CLIENT_ID,
+  assertSelfClientIdInUse,
+  ensureSelfOAuthClient,
+  resolveSelfResource,
+  selfRedirectUri,
+  selfResourceRefusal,
+  type SelfResource,
+} from './selfOAuthResource.js';
 
 type OAuthClientInformationWithAuthMethod = OAuthClientInformation &
   Pick<OAuthClientMetadata, 'token_endpoint_auth_method'>;
@@ -72,8 +82,16 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
   private _codeVerifier?: string;
   private _currentState?: string;
   private _systemInstallBaseUrl?: string;
+  // Set when the upstream is an external resource of this very hub: MCPHub is its authorization
+  // server, so the client is MCPHub's own public client and the issuer is pinned (ADR 0015).
+  private selfResource?: SelfResource;
 
-  constructor(serverName: string, serverConfig: ServerConfig, systemInstallBaseUrl?: string) {
+  constructor(
+    serverName: string,
+    serverConfig: ServerConfig,
+    systemInstallBaseUrl?: string,
+    selfResource?: SelfResource,
+  ) {
     this.personal = personalOAuthContexts.get(serverConfig);
     if (hasPersonalOAuth(serverConfig) && !this.personal)
       throw personalAuthorizationRequired(serverName);
@@ -83,6 +101,7 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
       ? { ...serverConfig, oauth: this.personal.config.oauth }
       : serverConfig;
     this._systemInstallBaseUrl = systemInstallBaseUrl;
+    this.selfResource = selfResource;
   }
 
   /**
@@ -91,11 +110,12 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
   static async create(
     serverName: string,
     serverConfig: ServerConfig,
+    selfResource?: SelfResource,
   ): Promise<MCPHubOAuthProvider> {
     const systemConfigDao = getSystemConfigDao();
     const systemConfig = await systemConfigDao.get();
     const systemInstallBaseUrl = resolveInstallBaseUrl(systemConfig);
-    return new MCPHubOAuthProvider(serverName, serverConfig, systemInstallBaseUrl);
+    return new MCPHubOAuthProvider(serverName, serverConfig, systemInstallBaseUrl, selfResource);
   }
 
   private getSystemInstallBaseUrl(): string | undefined {
@@ -120,6 +140,8 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
    * Get redirect URL for OAuth callback
    */
   get redirectUrl(): string {
+    // The public client's only redirect URI; a server's own override is not honoured here.
+    if (this.selfResource) return selfRedirectUri(this.selfResource.issuer);
     return (
       resolvePreferredRedirectUris(this.serverConfig, this.getSystemInstallBaseUrl())[0] ??
       DEFAULT_OAUTH_REDIRECT_URI
@@ -133,10 +155,9 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
     const dynamicConfig = this.serverConfig.oauth?.dynamicRegistration;
     const metadata = dynamicConfig?.metadata || {};
 
-    const redirectUris = resolvePreferredRedirectUris(
-      this.serverConfig,
-      this.getSystemInstallBaseUrl(),
-    );
+    const redirectUris = this.selfResource
+      ? [selfRedirectUri(this.selfResource.issuer)]
+      : resolvePreferredRedirectUris(this.serverConfig, this.getSystemInstallBaseUrl());
 
     const tokenEndpointAuthMethod =
       metadata.token_endpoint_auth_method && metadata.token_endpoint_auth_method !== ''
@@ -149,7 +170,10 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
     // `[]` means the upstream server explicitly publishes no scopes and should get none. Using
     // `||` here would treat `''` (from an empty array) the same as "unset" and always fall back
     // to 'openid', which zero-scope authorization servers commonly reject (see #1227).
-    const configuredScopes = this.serverConfig.oauth?.scopes;
+    // MCPHub's own authorization server grants its default scopes to a request that names none;
+    // an upstream's scope vocabulary (`openid`) would be refused there.
+    const configuredScopes =
+      this.serverConfig.oauth?.scopes ?? (this.selfResource ? [] : undefined);
     const scope =
       metadata.scope || (configuredScopes !== undefined ? configuredScopes.join(' ') : 'openid');
 
@@ -257,6 +281,9 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
           client_secret: serverConfig.oauth.clientSecret,
           token_endpoint_auth_method: tokenEndpointAuthMethod,
         };
+      }
+      if (this.selfResource) {
+        return { client_id: SELF_OAUTH_CLIENT_ID, token_endpoint_auth_method: 'none' };
       }
       return undefined;
     }
@@ -373,14 +400,35 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
   // Capture the SDK's actual discovery result before redirecting. Keep this
   // snapshot with the pending flow so callback validation survives restarts.
   saveDiscoveryState(state: OAuthDiscoveryState): void {
-    this._discoveryState = state;
     const metadata = state.authorizationServerMetadata;
+    // The upstream's protected-resource metadata names the authorization server it trusts. For an
+    // external resource of this hub that can only be this hub; anything else would send the user's
+    // browser (and the public client id) to a server the administrator never configured.
+    if (this.selfResource) {
+      const discovered = (metadata?.issuer ?? state.authorizationServerUrl).replace(/\/+$/, '');
+      if (discovered !== this.selfResource.issuer) {
+        throw new Error(
+          `The authorization server announced by '${this.serverName}' is not this MCPHub`,
+        );
+      }
+    }
+    this._discoveryState = state;
     this._issuer = metadata?.issuer;
     this._issRequired = Boolean(
       metadata &&
         'authorization_response_iss_parameter_supported' in metadata &&
         metadata.authorization_response_iss_parameter_supported === true,
     );
+  }
+
+  // The resource the SDK bound the grant to. Kept with the user's binding so that disconnecting
+  // revokes exactly what was granted, whatever the server's URL later becomes.
+  async saveResourceUrl(resource: string): Promise<void> {
+    if (!this.selfResource || this.serverConfig.oauth?.grantResource === resource) return;
+    const updated = await this.settings.mutateOAuthSettings(this.serverName, ({ oauth }) => {
+      oauth.grantResource = resource;
+    });
+    if (updated) this.serverConfig = updated;
   }
 
   async discoveryState(): Promise<OAuthDiscoveryState | undefined> {
@@ -632,7 +680,10 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
 const prepopulateScopesIfMissing = async (
   serverName: string,
   serverConfig: ServerConfig,
+  selfResource?: SelfResource,
 ): Promise<void> => {
+  // An external resource of this hub: scopes are MCPHub's, decided by the provider, not discovered.
+  if (selfResource) return;
   // `[]` means resolved-to-no-scopes; a missing `oauth` block means never resolved, so
   // discovery must still run before the first registration too (#1227).
   if (serverConfig.oauth?.scopes !== undefined) {
@@ -723,8 +774,13 @@ export const createOAuthProvider = async (
     return undefined;
   }
 
+  const selfResource = await resolveSelfResource(serverConfig);
+  await assertSelfClientIdInUse(serverName, serverConfig, selfResource);
+  const refusal = selfResource ? selfResourceRefusal(serverName, selfResource) : undefined;
+  if (refusal) throw new CredentialBindingError(refusal);
+
   // Discover and persist scopes before the first registration attempt, not only on later ones.
-  await prepopulateScopesIfMissing(serverName, serverConfig);
+  await prepopulateScopesIfMissing(serverName, serverConfig, selfResource);
 
   // Initialize OAuth for the server (performs registration if needed)
   // This ensures the client is registered before the SDK tries to use it
@@ -736,7 +792,17 @@ export const createOAuthProvider = async (
   }
 
   // Create and return the provider using the factory method
-  const provider = await MCPHubOAuthProvider.create(serverName, serverConfig);
+  const provider = await MCPHubOAuthProvider.create(serverName, serverConfig, selfResource);
+  if (selfResource) {
+    try {
+      await ensureSelfOAuthClient(selfResource.issuer);
+    } catch (error) {
+      logger.warn('Failed to register the personal OAuth client of this hub', {
+        serverName,
+        error,
+      });
+    }
+  }
 
   logger.log('Created OAuth provider', JSON.stringify({ serverName }));
   return provider;

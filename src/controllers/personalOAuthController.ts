@@ -13,6 +13,7 @@ import { notifyWorkspaceUser } from '../services/userServerStatusService.js';
 import { createTransportFromConfig } from '../services/mcpService.js';
 import { validateAuthorizationIss } from '../utils/oauthIssuer.js';
 import { CredentialBindingError } from '../utils/credentialTemplate.js';
+import { resolveSelfResource, revokeSelfGrants } from '../services/selfOAuthResource.js';
 
 export const managePersonalOAuth = async (req: Request, res: Response): Promise<void> => {
   const user = (req as Request & { user?: RequestPrincipal }).user;
@@ -40,6 +41,14 @@ export const managePersonalOAuth = async (req: Request, res: Response): Promise<
       ).catch(() => undefined);
       await disconnectPersonalOAuth(definition.name, user.username);
       const oauth = binding?.config.oauth;
+      // A server whose authorization server is this hub: end the grant there too.
+      const selfResource = await resolveSelfResource(definition);
+      if (selfResource) {
+        await revokeSelfGrants(user.username, [
+          selfResource.entry.resource,
+          oauth?.grantResource,
+        ]).catch(() => undefined);
+      }
       if (binding && oauth?.revocationEndpoint) {
         const { revokeToken, canServerOwnerReachInternalUrls } = await import(
           '../services/upstreamOAuthDisconnectService.js'
@@ -72,6 +81,13 @@ export const managePersonalOAuth = async (req: Request, res: Response): Promise<
     const context = await PersonalOAuthContext.load(definition.name, user.username, definition);
     if (req.method === 'POST') {
       // Starting a new flow supersedes the previous flow and invalidates live sessions.
+      const selfResource = await resolveSelfResource(definition);
+      if (selfResource) {
+        await revokeSelfGrants(user.username, [
+          selfResource.entry.resource,
+          context.config.oauth.grantResource,
+        ]).catch(() => undefined);
+      }
       await context.clearOAuthData(definition.name, 'tokens');
       await context.clearOAuthData(definition.name, 'verifier');
       credentialBindingEvents.emit('invalidate', {

@@ -141,7 +141,7 @@ describe('JWT access tokens for external resources', () => {
     oauthServerConfig = {
       enabled: true,
       externalResources: [
-        { resource: UBC, name: 'UBC Courses' },
+        { resource: UBC, name: 'UBC Courses', scopes: ['read'] },
         { resource: OTHER, name: 'Other Service', allowedClients: ['ubc-pub'] },
       ],
     };
@@ -293,6 +293,15 @@ describe('JWT access tokens for external resources', () => {
       expect(pair.expires_in).toBeGreaterThan(800);
       // The refresh token stays opaque.
       expect(pair.refresh_token).toMatch(/^[0-9a-f]+$/);
+    });
+
+    it("grants only the scopes the resource's entry lists and drops the rest", async () => {
+      const listed = await issue(UBC, 'read write');
+      expect((await verify(listed.access_token)).payload.scope).toBe('read');
+      // OTHER lists no scopes: nothing requested is granted, and the request is not refused.
+      const unlisted = await issue(OTHER, 'read write');
+      const { payload } = await verify(unlisted.access_token, OTHER);
+      expect(payload.scope ?? '').toBe('');
     });
 
     it('never issues an external JWT for a code that was not authorized for that resource', async () => {

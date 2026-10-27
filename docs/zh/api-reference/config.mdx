@@ -67,6 +67,7 @@ import { Card, Cards } from 'mintlify';
 - `resource` (string): 绝对 https URL（仅 `localhost`、`127.0.0.1`、`[::1]` 允许 http），不含片段或凭据。客户端的 RFC 8707 `resource` 参数必须与之完全一致。
 - `name` (string): 在授权页和已连接客户端中显示的名称。
 - `allowedClients` (string[]，可选): 可请求该资源的 OAuth 客户端 ID；为空或省略表示任何已注册客户端。
+- `scopes` (string[]，可选): 为该资源授予的 scope（并写入 JWT 的 `scope` 声明）；请求中未列出的 scope 会被丢弃，省略表示不授予任何 scope。
 
 既不是 MCPHub 自身来源、也不在列表中（或客户端无权使用）的 `resource` 会以 `invalid_target` 拒绝。签发的令牌不能用于 MCPHub 自身的路由。由于服务端离线验证，外部令牌有效期为 `min(accessTokenLifetime, oauthServer.externalTokenLifetimeSeconds)`（默认 900），并要求已配置公共基础 URL。轮换后的签名密钥立即发布，并在 `oauthServer.signingKeyActivationDelaySeconds`（默认 900）之后才开始签名。`POST /api/oauth/signing-keys/rotate`（仅管理员）会改用新密钥签名，旧公钥在其令牌过期前继续发布。详见 ADR 0014。
 
