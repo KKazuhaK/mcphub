@@ -1,9 +1,16 @@
-import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from 'node:crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHmac,
+  randomBytes,
+  randomUUID,
+} from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { getSettingsPath } from '../config/index.js';
-import { getCredentialBindingDao } from '../dao/DaoFactory.js';
+import { getCredentialBindingDao, getServerDao } from '../dao/DaoFactory.js';
+import { expandServerConfig } from './serverConfigEnvironment.js';
 import { RequestContextService } from './requestContextService.js';
 import { getT } from '../utils/i18n.js';
 import { logger } from '../utils/logger.js';
@@ -12,12 +19,15 @@ import {
   CredentialBindingConfigError,
   CredentialBindingError,
   MissingCredentialError,
+  StaleCredentialError,
+  hasCredentialTemplate,
   isCredentialValueAllowed,
   resolveCredentialUrl,
   argumentCredentialBindings,
   credentialSlotId,
   validateCredentialTemplate,
 } from '../utils/credentialTemplate.js';
+import { ORPHANED_FINGERPRINT, canonicalCredentialDestination } from '../utils/credentialDestination.js';
 import { isWorkspaceEnabled } from './userServerSelectionService.js';
 
 export const credentialBindingEvents = new EventEmitter();
@@ -148,14 +158,56 @@ export const missingCredentialError = (serverName: string): CredentialBindingErr
   return new MissingCredentialError(message || fallback);
 };
 
+// The user's values were entered for a different destination than the server now declares.
+export const staleCredentialError = (serverName: string): CredentialBindingError => {
+  const workspace = isWorkspaceEnabled();
+  const fallback = workspace
+    ? `The connection settings of '${serverName}' changed. Enter your credentials again from your workspace.`
+    : `The connection settings of '${serverName}' changed. Enter your personal credentials again in Dashboard → Credentials.`;
+  const message = getT(requestLanguage())(
+    workspace ? 'credentials.changedWorkspace' : 'credentials.changed',
+    { serverName, defaultValue: fallback },
+  );
+  return new StaleCredentialError(message || fallback);
+};
+
+const FINGERPRINT_VERSION = 'v1';
+
+// The one canonical form of a server's destination: the stored definition, expanded exactly
+// as the runtime expands it (`expandServerConfig`, always), then reduced to the
+// destination-relevant fields. Save, status, resolution, the startup stamping and the
+// administrator's before/after comparison all go through it, so they cannot disagree.
+export const canonicalDestination = async (definition: ServerConfig): Promise<string> =>
+  canonicalCredentialDestination(await expandServerConfig(definition));
+
+// Keyed with the credential encryption key so the stored value reveals nothing about the
+// declaration (URLs, header values and env can carry secrets) and cannot be recomputed
+// without the key. Changing the key therefore also invalidates the bindings (they could not
+// be decrypted with it either).
+const keyedFingerprint = async (canonical: string): Promise<string> =>
+  `${FINGERPRINT_VERSION}:${createHmac('sha256', await encryptionKey(true))
+    .update(`mcphub:credential-destination:${FINGERPRINT_VERSION}\0`)
+    .update(canonical)
+    .digest('hex')}`;
+
+export const computeDestinationFingerprint = async (definition: ServerConfig): Promise<string> =>
+  keyedFingerprint(await canonicalDestination(definition));
+
+// A binding is valid only for the exact fingerprint it was saved with. One without a
+// fingerprint (never stamped) or marked orphaned is stale.
+const isStaleBinding = (binding: StoredCredentialBinding, current: string): boolean =>
+  binding.destinationFingerprint !== current;
+
 export const getCredentialBindingStatus = async (
   serverName: string,
   username: string,
-  config: ServerConfig,
+  definition: ServerConfig,
 ) => {
   const binding = await getCredentialBindingDao().get(serverName, username);
-  const slots = validateCredentialTemplate(config) || [];
+  const slots = validateCredentialTemplate(definition) || [];
   const values = binding ? await decryptCredentialValues(binding) : {};
+  if (binding && isStaleBinding(binding, await computeDestinationFingerprint(definition)))
+    return { configured: false, configuredSlots: [], updatedAt: binding.updatedAt, stale: true };
   const configuredSlots = slots
     .filter((slot) => isCredentialValueAllowed(slot, values[credentialSlotId(slot)]))
     .map(credentialSlotId);
@@ -169,10 +221,10 @@ export const getCredentialBindingStatus = async (
 export const saveCredentialBinding = async (
   serverName: string,
   username: string,
-  config: ServerConfig,
+  definition: ServerConfig,
   values: unknown,
 ): Promise<void> => {
-  const slots = validateCredentialTemplate(config) || [];
+  const slots = validateCredentialTemplate(definition) || [];
   if (!slots.length)
     throw new CredentialBindingError('This server has no per-user credential slots');
   if (!values || typeof values !== 'object' || Array.isArray(values))
@@ -195,15 +247,17 @@ export const saveCredentialBinding = async (
     );
   if (slots.some((slot) => !isCredentialValueAllowed(slot, record[credentialSlotId(slot)])))
     throw new CredentialBindingError('Invalid URL credential binding');
+  const encryptedValues = await encryptCredentialValues(
+    serverName,
+    username,
+    record as Record<string, string>,
+  );
   await getCredentialBindingDao().save({
     serverName,
     username,
-    encryptedValues: await encryptCredentialValues(
-      serverName,
-      username,
-      record as Record<string, string>,
-    ),
+    encryptedValues,
     updatedAt: new Date().toISOString(),
+    destinationFingerprint: await computeDestinationFingerprint(definition),
   });
   credentialBindingEvents.emit('invalidate', { serverName, username });
 };
@@ -261,12 +315,18 @@ export const copyCredentialBindings = async (oldName: string, newName: string): 
 export const resolveCredentialBinding = async (
   serverName: string,
   username: string,
-  config: ServerConfig,
+  definition: ServerConfig,
 ) => {
+  // Expanded once, here: the fingerprint and the runtime config come from the same value.
+  const config = await expandServerConfig(definition);
   const slots = validateCredentialTemplate(config) || [];
   const binding = await getCredentialBindingDao().get(serverName, username);
   if (!binding) throw missingCredentialError(serverName);
   const values = await decryptCredentialValues(binding);
+  // Checked before any value is read into the config: a binding made for another
+  // destination is treated as missing and its values are never injected.
+  const fingerprint = await keyedFingerprint(canonicalCredentialDestination(config));
+  if (isStaleBinding(binding, fingerprint)) throw staleCredentialError(serverName);
   const resolved: ServerConfig = {
     ...config,
     url: resolveCredentialUrl(config, values),
@@ -305,4 +365,84 @@ export const resolveCredentialBinding = async (
       ),
     };
   return { config: resolved, revision: binding.encryptedValues };
+};
+
+// Usernames whose binding is valid for the declaration as it stands now.
+export const listValidBindingUsers = async (
+  serverName: string,
+  definition: ServerConfig,
+): Promise<string[]> => {
+  const dao = getCredentialBindingDao();
+  const usernames = await dao.listUsernames(serverName);
+  if (!usernames.length) return [];
+  const fingerprint = await computeDestinationFingerprint(definition);
+  const valid: string[] = [];
+  for (const username of usernames) {
+    const binding = await dao.get(serverName, username);
+    if (binding && !isStaleBinding(binding, fingerprint)) valid.push(username);
+  }
+  return valid;
+};
+
+// One-time pass at startup, before requests are served: gives every binding that has no
+// fingerprint the fingerprint of its server's current declaration, so an upgrade invalidates
+// nothing, and nothing is ever adopted later on first use. A binding whose server no longer
+// exists is marked orphaned (never deleted); one that cannot be decrypted is left unstamped,
+// and so stale. Each stamp is a conditional write, so instances starting together cannot
+// overwrite one another. Never throws: a failure is logged and the binding stays stale.
+export const stampLegacyBindings = async (): Promise<{
+  stamped: number;
+  orphaned: number;
+  skipped: number;
+}> => {
+  const counts = { stamped: 0, orphaned: 0, skipped: 0 };
+  try {
+    const dao = getCredentialBindingDao();
+    const legacy = await dao.listUnstamped();
+    const servers = new Map<string, (ServerConfig & { name: string }) | null>();
+    for (const binding of legacy) {
+      try {
+        if (!servers.has(binding.serverName))
+          servers.set(binding.serverName, (await getServerDao().findById(binding.serverName)) ?? null);
+        const server = servers.get(binding.serverName);
+        let fingerprint = ORPHANED_FINGERPRINT;
+        if (server) {
+          // Personal OAuth rows and servers that no longer take slots are not slot bindings.
+          if (!hasCredentialTemplate(server)) {
+            counts.skipped++;
+            continue;
+          }
+          await decryptCredentialValues(binding);
+          fingerprint = await computeDestinationFingerprint(server);
+        }
+        if (
+          await dao.adoptDestinationFingerprint(
+            binding.serverName,
+            binding.username,
+            binding.encryptedValues,
+            fingerprint,
+          )
+        )
+          counts[server ? 'stamped' : 'orphaned']++;
+      } catch (error) {
+        counts.skipped++;
+        logger.warn('Could not stamp a personal credential binding; it will ask for new values', {
+          serverName: binding.serverName,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    if (legacy.length) logger.log('Stamped personal credential bindings with their destination', counts);
+  } catch (error) {
+    logger.error('Failed to stamp personal credential bindings at startup', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+  return counts;
+};
+
+// A server created under a name that still has bindings (left by an earlier server of that
+// name) must not inherit them, whatever its declaration.
+export const retireServerBindings = async (serverName: string): Promise<void> => {
+  await getCredentialBindingDao().setServerFingerprint(serverName, ORPHANED_FINGERPRINT);
 };

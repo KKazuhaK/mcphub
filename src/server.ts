@@ -9,6 +9,7 @@ import config, { isWebDisabled } from './config/index.js';
 import path from 'path';
 import fs from 'fs';
 import { initUpstreamServers, connected, cleanupAllServers } from './services/mcpService.js';
+import { stampLegacyBindings } from './services/credentialBindingService.js';
 import { initMiddlewares } from './middlewares/index.js';
 import { initRoutes } from './routes/index.js';
 import { initI18n } from './utils/i18n.js';
@@ -99,6 +100,10 @@ export class AppServer {
 
       // Initialize default admin user if no users exist
       await initializeDefaultUser();
+
+      // Give personal credential bindings from before destination fingerprints their server's
+      // current destination, before any request can resolve one. Logs and continues on failure.
+      await stampLegacyBindings();
 
       // Initialize OAuth provider if configured (for proxying upstream MCP OAuth)
       await initOAuthProvider();

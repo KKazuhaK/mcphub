@@ -50,6 +50,7 @@ import { UserContextService } from './userContextService.js';
 import {
   credentialBindingEvents,
   deleteCredentialBindings,
+  retireServerBindings,
   missingCredentialError,
 } from './credentialBindingService.js';
 import {
@@ -2162,7 +2163,16 @@ const refreshCapabilitiesAfterFailedCall = async (info: ServerInfo): Promise<voi
 };
 
 // Helper function to handle client.callTool with reconnection logic
-const callToolWithReconnect = async (
+// Refuses to rebuild a connection from the shared stored definition when the server takes
+// personal credentials, whether the runtime at hand carries them or the definition declares them.
+const assertNotPersonalRuntime = (serverInfo: ServerInfo, stored?: ServerConfig): void => {
+  if (hasPersonalAuthentication(serverInfo.config) || hasPersonalAuthentication(stored))
+    throw new CredentialBindingError(
+      'A personal runtime cannot be rebuilt from the shared server configuration',
+    );
+};
+
+export const callToolWithReconnect = async (
   serverInfo: ServerInfo,
   toolParams: any,
   options?: any,
@@ -2243,12 +2253,17 @@ const callToolWithReconnect = async (
         );
 
         try {
+          // A personal runtime is only ever rebuilt from its own lease's resolved
+          // configuration; the stored definition holds no credential values and would
+          // connect it as nobody (or, worse, as the shared identity).
+          assertNotPersonalRuntime(serverInfo);
           const rawConfig = await getServerDao().findById(serverInfo.name);
           if (!rawConfig) {
             throw new Error(`Server configuration not found for: ${serverInfo.name}`, {
               cause: error,
             });
           }
+          assertNotPersonalRuntime(serverInfo, rawConfig);
 
           // Match initial connection expansion before URL validation and transport creation.
           const server = await expandServerConfig(rawConfig);
@@ -3501,6 +3516,9 @@ export const addServer = async (
   validateMaxBufferSize(config.options?.maxBufferSize);
   validateCredentialTemplate(config);
   const server: ServerConfigWithName = { name, ...config };
+  // Before the server exists, so a binding saved the moment it does is never swept up.
+  // Bindings left under this name belong to an earlier server of that name.
+  await retireServerBindings(name);
   const result = await getServerDao().create(server);
   if (result) {
     return { success: true, message: 'Server added successfully' };
@@ -3562,6 +3580,7 @@ export const addOrUpdateServer = async (
     if (exists) {
       await getServerDao().update(name, config);
     } else {
+      await retireServerBindings(name);
       await getServerDao().create({ name, ...config });
     }
 
@@ -3744,10 +3763,12 @@ const ensureServerReady = async (serverInfo: ServerInfo): Promise<void> => {
   const spawnPromise = (async () => {
     // Load the config fresh from the DAO for the expanded transport config and
     // to read the server name. See #1029.
+    assertNotPersonalRuntime(serverInfo);
     const rawConfig = await getServerDao().findById(serverInfo.name);
     if (!rawConfig) {
       throw new Error('Server configuration not found for on-demand wake');
     }
+    assertNotPersonalRuntime(serverInfo, rawConfig);
     if (rawConfig.enabled === false) {
       throw new Error(`Cannot start disabled on-demand server: ${rawConfig.name}`);
     }

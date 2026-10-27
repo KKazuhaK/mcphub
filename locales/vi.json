@@ -1522,7 +1522,13 @@
     "showAll": "Hiển thị tất cả các máy chủ",
     "loading": "Đang tải…",
     "empty": "Không có máy chủ dùng chung nào yêu cầu thông tin xác thực cá nhân.",
-    "missingWorkspace": "Yêu cầu thông tin xác thực cá nhân đối với '{{serverName}}'. Hãy thêm chúng từ không gian làm việc của bạn."
+    "missingWorkspace": "Yêu cầu thông tin xác thực cá nhân đối với '{{serverName}}'. Hãy thêm chúng từ không gian làm việc của bạn.",
+    "staleNotice": "Cài đặt kết nối của dịch vụ này đã thay đổi sau khi bạn nhập các giá trị này, nên chúng không được dùng. Hãy nhập lại thông tin xác thực.",
+    "changed": "Cài đặt kết nối của '{{serverName}}' đã thay đổi. Hãy nhập lại thông tin xác thực cá nhân trong Bảng điều khiển → Thông tin xác thực.",
+    "changedWorkspace": "Cài đặt kết nối của '{{serverName}}' đã thay đổi. Hãy nhập lại thông tin xác thực từ không gian làm việc của bạn.",
+    "destinationChangedWarning": "{{affected}} người dùng sẽ cần nhập lại thông tin xác thực cho '{{serverName}}'.",
+    "destinationChangedWarningOwner": "Những người dùng đã nhập thông tin xác thực cho '{{serverName}}' sẽ cần nhập lại.",
+    "destinationMismatch": "Địa chỉ API của dịch vụ này không khớp với địa chỉ đã khai báo nên thông tin xác thực của bạn chưa được gửi. Hãy nhờ quản trị viên kiểm tra cài đặt của dịch vụ."
   },
   "workspace": {
     "status": {
@@ -1532,6 +1538,7 @@
       "maintenance": "'{{serverName}}' đang được bảo trì. Vui lòng thử lại sau.",
       "maintenanceUntil": "'{{serverName}}' đang được bảo trì đến {{until}}. Vui lòng thử lại sau.",
       "needs_auth": "'{{serverName}}' cần thông tin xác thực hoặc quyền truy cập cá nhân của bạn. Hãy kết nối từ không gian làm việc của bạn.",
+      "needsAuthChanged": "Cài đặt kết nối của '{{serverName}}' đã thay đổi. Hãy nhập lại thông tin xác thực từ không gian làm việc của bạn.",
       "revoked": "Bạn đã ngắt ủy quyền cho '{{serverName}}'. Hãy kết nối lại từ không gian làm việc của bạn.",
       "credential_invalid": "Thông tin xác thực của bạn cho '{{serverName}}' bị từ chối. Hãy cập nhật hoặc kết nối lại từ không gian làm việc của bạn.",
       "error": "'{{serverName}}' hiện không khả dụng. Vui lòng thử lại sau.",

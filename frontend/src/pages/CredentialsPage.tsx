@@ -47,6 +47,11 @@ const CredentialForm = ({
           {t(binding.configured ? 'credentials.configured' : 'credentials.required')}
         </span>
       </div>
+      {binding.stale && (
+        <p role="status" className="text-sm" style={{ color: 'var(--hub-err)' }}>
+          {t('credentials.staleNotice')}
+        </p>
+      )}
       <p className="text-sm text-[var(--hub-ink-3)]">{t('credentials.writeOnly')}</p>
       {binding.credentialTemplate.map((slot) => {
         const id = `${slot.target}.${slot.name}`;

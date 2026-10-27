@@ -15,6 +15,21 @@ export interface CredentialBindingDao {
   listUsernames(serverName: string): Promise<string[]>;
   save(binding: StoredCredentialBinding): Promise<void>;
   compareAndSave(binding: StoredCredentialBinding, expected?: string): Promise<boolean>;
+  /**
+   * Record the destination fingerprint of a binding that has none, provided the
+   * binding is still the ciphertext the caller read. Returns false when it already
+   * has one or was replaced, so concurrent adopters cannot overwrite each other.
+   */
+  adoptDestinationFingerprint(
+    serverName: string,
+    username: string,
+    expectedEncryptedValues: string,
+    fingerprint: string,
+  ): Promise<boolean>;
+  /** Bindings that carry no destination fingerprint (for the startup stamping pass). */
+  listUnstamped(): Promise<StoredCredentialBinding[]>;
+  /** Set the fingerprint of every binding of a server, whatever it was. */
+  setServerFingerprint(serverName: string, fingerprint: string): Promise<void>;
   delete(filter: { serverName?: string; username?: string }): Promise<void>;
 }
 
@@ -75,6 +90,45 @@ export class CredentialBindingDaoImpl implements CredentialBindingDao {
     if (current?.encryptedValues !== expected) return false;
     this.write([...bindings.filter((row) => row !== current), binding]);
     return true;
+  }
+
+  async adoptDestinationFingerprint(
+    serverName: string,
+    username: string,
+    expectedEncryptedValues: string,
+    fingerprint: string,
+  ): Promise<boolean> {
+    // Read and write run in one synchronous step, so no other adopter can interleave.
+    const bindings = this.readAll();
+    const current = bindings.find(
+      (row) => row.serverName === serverName && row.username === username,
+    );
+    if (
+      !current ||
+      current.encryptedValues !== expectedEncryptedValues ||
+      current.destinationFingerprint
+    )
+      return false;
+    this.write(
+      bindings.map((row) =>
+        row === current ? { ...row, destinationFingerprint: fingerprint } : row,
+      ),
+    );
+    return true;
+  }
+
+  async listUnstamped(): Promise<StoredCredentialBinding[]> {
+    return this.readAll().filter((row) => !row.destinationFingerprint);
+  }
+
+  async setServerFingerprint(serverName: string, fingerprint: string): Promise<void> {
+    const bindings = this.readAll();
+    if (!bindings.some((row) => row.serverName === serverName)) return;
+    this.write(
+      bindings.map((row) =>
+        row.serverName === serverName ? { ...row, destinationFingerprint: fingerprint } : row,
+      ),
+    );
   }
 
   async delete(filter: { serverName?: string; username?: string }): Promise<void> {

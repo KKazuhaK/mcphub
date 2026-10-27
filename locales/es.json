@@ -1522,7 +1522,13 @@
     "showAll": "Mostrar todos los servidores",
     "loading": "Cargando…",
     "empty": "Ningún servidor compartido requiere credenciales personales.",
-    "missingWorkspace": "Se requieren credenciales personales para '{{serverName}}'. Añádelas desde tu espacio de trabajo."
+    "missingWorkspace": "Se requieren credenciales personales para '{{serverName}}'. Añádelas desde tu espacio de trabajo.",
+    "staleNotice": "La configuración de conexión de este servicio cambió después de introducir estos valores, por lo que no se usan. Vuelve a introducir tus credenciales.",
+    "changed": "La configuración de conexión de '{{serverName}}' cambió. Vuelve a introducir tus credenciales personales en Panel → Credenciales.",
+    "changedWorkspace": "La configuración de conexión de '{{serverName}}' cambió. Vuelve a introducir tus credenciales desde tu espacio de trabajo.",
+    "destinationChangedWarning": "{{affected}} usuario(s) deberán volver a introducir sus credenciales para '{{serverName}}'.",
+    "destinationChangedWarningOwner": "Los usuarios que introdujeron credenciales para '{{serverName}}' deberán volver a introducirlas.",
+    "destinationMismatch": "La dirección de la API de este servicio no coincide con la declarada, por lo que no se enviaron tus credenciales. Pide a un administrador que revise la configuración del servicio."
   },
   "workspace": {
     "status": {
@@ -1532,6 +1538,7 @@
       "maintenance": "'{{serverName}}' está en mantenimiento. Inténtalo de nuevo más tarde.",
       "maintenanceUntil": "'{{serverName}}' está en mantenimiento hasta {{until}}. Inténtalo de nuevo más tarde.",
       "needs_auth": "'{{serverName}}' necesita tus credenciales o autorización personales. Conéctalo desde tu espacio de trabajo.",
+      "needsAuthChanged": "La configuración de conexión de '{{serverName}}' cambió. Vuelve a introducir tus credenciales desde tu espacio de trabajo.",
       "revoked": "Has desconectado tu autorización para '{{serverName}}'. Vuelve a conectarla desde tu espacio de trabajo.",
       "credential_invalid": "Se rechazaron tus credenciales para '{{serverName}}'. Actualízalas o vuelve a conectar desde tu espacio de trabajo.",
       "error": "'{{serverName}}' no está disponible por ahora. Inténtalo de nuevo más tarde.",

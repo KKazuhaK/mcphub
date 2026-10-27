@@ -1,9 +1,13 @@
-import { hasPersonalAuthentication } from '../utils/credentialTemplate.js';
+import { hasCredentialTemplate, hasPersonalAuthentication } from '../utils/credentialTemplate.js';
+import { notifyWorkspaceUser } from '../services/userServerStatusService.js';
+import { getT } from '../utils/i18n.js';
 import { matchesNamePattern } from '../utils/namePattern.js';
 import { validateAllowedCidrs } from '../utils/ssrf.js';
 import {
+  canonicalDestination,
   copyCredentialBindings,
   deleteCredentialBindings,
+  listValidBindingUsers,
 } from '../services/credentialBindingService.js';
 import { renameServerSelections } from '../services/userServerSelectionService.js';
 import { assertMaintenanceEndsInFuture } from '../utils/serverMaintenance.js';
@@ -139,6 +143,67 @@ const canAccessServer = (user: RequestUser | null, server: ServerRecord): boolea
   }
 
   return server.owner === user.username;
+};
+
+// Users whose stored credentials are valid for the server as it stands before an edit. Taken
+// before the edit so the notice counts only bindings the edit can actually invalidate.
+const usersWithValidCredentials = async (server: ServerRecord): Promise<string[]> => {
+  if (!hasCredentialTemplate(server)) return [];
+  try {
+    return await listValidBindingUsers(server.name, server);
+  } catch (error) {
+    logger.warn('Failed to list users with valid credentials before a server edit', {
+      serverName: server.name,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  }
+};
+
+// When an edit moved where the server's credentials are sent, tells the editor that the users
+// who had valid credentials must enter them again (their stored values are no longer used) and
+// tells those users' sessions. Counts go to administrators only: an owner learns that it
+// happened, not how many users hold credentials. Never blocks or fails the edit.
+const credentialDestinationNotice = async (
+  req: Request,
+  before: ServerRecord,
+  validBefore: string[],
+  serverName: string,
+): Promise<{ warnings?: string[]; credentialsAffected?: number; credentialsReset?: boolean }> => {
+  try {
+    if (!validBefore.length) return {};
+    const after = await getServerDao().findById(serverName);
+    if (!after || !hasCredentialTemplate(after)) return {};
+    if ((await canonicalDestination(before)) === (await canonicalDestination(after))) return {};
+    logger.warn('Server connection settings changed; personal credentials must be re-entered', {
+      serverName,
+      affectedUsers: validBefore.length,
+    });
+    await Promise.all(validBefore.map((username) => notifyWorkspaceUser(username)));
+    const language = (req as Request & { language?: string }).language;
+    const isAdmin = getRequestUser(req)?.isAdmin === true;
+    const fallback = isAdmin
+      ? `${validBefore.length} user(s) will need to re-enter their credentials for '${serverName}'.`
+      : `Users will need to re-enter their credentials for '${serverName}'.`;
+    const message =
+      getT(language)(
+        isAdmin
+          ? 'credentials.destinationChangedWarning'
+          : 'credentials.destinationChangedWarningOwner',
+        { affected: validBefore.length, serverName, defaultValue: fallback },
+      ) || fallback;
+    return {
+      credentialsReset: true,
+      warnings: [message],
+      ...(isAdmin ? { credentialsAffected: validBefore.length } : {}),
+    };
+  } catch (error) {
+    logger.warn('Failed to compute the effect of a server destination change', {
+      serverName,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return {};
+  }
 };
 
 const loadAuthorizedServer = async (
@@ -1292,6 +1357,7 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
     }
 
     assertMaintenanceEndsInFuture(normalizedConfig.maintenance, existingServer.maintenance);
+    const validCredentialUsers = await usersWithValidCredentials(existingServer);
     const availabilityBefore: ServerAvailabilityState = {
       pausedUsers: existingServer.pausedUsers,
       maintenance: existingServer.maintenance,
@@ -1490,6 +1556,7 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
       res.json({
         success: true,
         message: 'Server updated successfully',
+        ...(await credentialDestinationNotice(req, existingServer, validCredentialUsers, finalName)),
       });
       return;
     }
@@ -1515,6 +1582,7 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
         message: isRenaming
           ? `Server renamed and updated successfully`
           : 'Server updated successfully',
+        ...(await credentialDestinationNotice(req, existingServer, validCredentialUsers, finalName)),
       });
     } else {
       res.status(404).json({

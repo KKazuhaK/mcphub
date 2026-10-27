@@ -1522,7 +1522,13 @@
     "showAll": "Show all servers",
     "loading": "Loading…",
     "empty": "No shared servers require personal credentials.",
-    "missingWorkspace": "Personal credentials required for '{{serverName}}'. Add them from your workspace."
+    "missingWorkspace": "Personal credentials required for '{{serverName}}'. Add them from your workspace.",
+    "staleNotice": "The connection settings of this service changed after you entered these values, so they are not used. Enter your credentials again.",
+    "changed": "The connection settings of '{{serverName}}' changed. Enter your personal credentials again in Dashboard → Credentials.",
+    "changedWorkspace": "The connection settings of '{{serverName}}' changed. Enter your credentials again from your workspace.",
+    "destinationChangedWarning": "{{affected}} user(s) will need to re-enter their credentials for '{{serverName}}'.",
+    "destinationChangedWarningOwner": "Users who entered credentials for '{{serverName}}' will need to re-enter them.",
+    "destinationMismatch": "This service's API address does not match its declared address, so your credentials were not sent. Ask an administrator to check the service's settings."
   },
   "workspace": {
     "status": {
@@ -1532,6 +1538,7 @@
       "maintenance": "'{{serverName}}' is under maintenance. Try again later.",
       "maintenanceUntil": "'{{serverName}}' is under maintenance until {{until}}. Try again later.",
       "needs_auth": "'{{serverName}}' needs your personal credentials or authorization. Connect it from your workspace.",
+      "needsAuthChanged": "The connection settings of '{{serverName}}' changed. Enter your credentials again from your workspace.",
       "revoked": "You disconnected your authorization for '{{serverName}}'. Reconnect it from your workspace.",
       "credential_invalid": "Your credentials for '{{serverName}}' were rejected. Update them or reconnect from your workspace.",
       "error": "'{{serverName}}' is currently unavailable. Try again later.",

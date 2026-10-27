@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Server } from '@/types';
+import { useToast } from '@/contexts/ToastContext';
 import { apiPut } from '../utils/fetchInterceptor';
 import ServerForm from './ServerForm';
 
@@ -13,6 +14,7 @@ interface EditServerFormProps {
 const EditServerForm = ({ server, onEdit, onCancel }: EditServerFormProps) => {
   const { t } = useTranslation();
   const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   const handleSubmit = async (payload: any) => {
     try {
@@ -40,6 +42,11 @@ const EditServerForm = ({ server, onEdit, onCancel }: EditServerFormProps) => {
         return;
       }
 
+      // The save went through; say how many users must enter their credentials again.
+      const warnings: unknown = result.warnings;
+      if (Array.isArray(warnings))
+        for (const warning of warnings)
+          if (typeof warning === 'string') showToast(warning, 'info', 8000);
       onEdit();
     } catch (err) {
       console.error('Error updating server:', err);

@@ -14,6 +14,7 @@ import {
 import type { ServerConfig } from '../types/index.js';
 import type { OAuthSettingsContext, ServerConfigWithOAuth } from './oauthSettingsStore.js';
 import { isWorkspaceEnabled } from './userServerSelectionService.js';
+import { canonicalJson } from '../utils/canonicalJson.js';
 
 type OAuth = NonNullable<ServerConfig['oauth']>;
 export const hasPersonalOAuth = (config?: ServerConfig): boolean =>
@@ -60,26 +61,9 @@ const declarationOAuth = (oauth?: OAuth): OAuth => {
   } = oauth || {};
   return declaration;
 };
-// JSON.stringify is key-order sensitive, and the dashboard save path normalizes the
-// OAuth object into a fixed key order (normalizeOAuth in serverConfigPersistence.ts),
-// so a share-list-only edit could still flip a naive stringify (#1362). Canonicalize
-// object keys (array order is preserved) so identical destination/client values always
-// yield the same fingerprint regardless of property order.
-const canonicalJson = (value: unknown): string => {
-  if (value === undefined) return 'undefined';
-  if (value === null) return 'null';
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (typeof value === 'object') {
-    const entries = Object.keys(value as Record<string, unknown>)
-      .sort()
-      .map(
-        (key) =>
-          `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`,
-      );
-    return `{${entries.join(',')}}`;
-  }
-  return JSON.stringify(value) ?? 'null';
-};
+// Canonical key order (see canonicalJson) keeps identical destination/client values on the
+// same fingerprint regardless of property order, e.g. after the dashboard save path
+// normalizes the OAuth object (#1362).
 const fingerprint = (expanded: ServerConfig): string =>
   // URL-only MCP declarations use SSE; dashboard saves make that default explicit.
   canonicalJson([expanded.type ?? 'sse', expanded.url, declarationOAuth(expanded.oauth)]);

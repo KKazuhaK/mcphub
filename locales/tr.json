@@ -1519,7 +1519,13 @@
     "showAll": "Tüm sunucuları göster",
     "loading": "Yükleniyor…",
     "empty": "Kişisel kimlik bilgisi gerektiren paylaşılan sunucu yok.",
-    "missingWorkspace": "{{serverName}} için kişisel kimlik bilgileri gerekli. Bunları çalışma alanınızdan ekleyin."
+    "missingWorkspace": "{{serverName}} için kişisel kimlik bilgileri gerekli. Bunları çalışma alanınızdan ekleyin.",
+    "staleNotice": "Bu hizmetin bağlantı ayarları, bu değerleri girdikten sonra değişti; bu yüzden kullanılmıyorlar. Kimlik bilgilerinizi yeniden girin.",
+    "changed": "{{serverName}} bağlantı ayarları değişti. Kişisel kimlik bilgilerinizi Panel → Kimlik Bilgileri bölümünde yeniden girin.",
+    "changedWorkspace": "{{serverName}} bağlantı ayarları değişti. Kimlik bilgilerinizi çalışma alanınızdan yeniden girin.",
+    "destinationChangedWarning": "{{affected}} kullanıcının {{serverName}} için kimlik bilgilerini yeniden girmesi gerekecek.",
+    "destinationChangedWarningOwner": "{{serverName}} için kimlik bilgisi girmiş kullanıcıların bunları yeniden girmesi gerekecek.",
+    "destinationMismatch": "Bu hizmetin API adresi bildirilen adresle eşleşmiyor; bu yüzden kimlik bilgileriniz gönderilmedi. Bir yöneticiden hizmet ayarlarını kontrol etmesini isteyin."
   },
   "workspace": {
     "status": {
@@ -1529,6 +1535,7 @@
       "maintenance": "'{{serverName}}' bakımda. Lütfen daha sonra tekrar deneyin.",
       "maintenanceUntil": "'{{serverName}}' {{until}} tarihine kadar bakımda. Lütfen daha sonra tekrar deneyin.",
       "needs_auth": "{{serverName}} için kişisel kimlik bilgileriniz veya yetkilendirmeniz gerekli. Çalışma alanınızdan bağlayın.",
+      "needsAuthChanged": "{{serverName}} bağlantı ayarları değişti. Kimlik bilgilerinizi çalışma alanınızdan yeniden girin.",
       "revoked": "{{serverName}} için yetkilendirmenizin bağlantısını kestiniz. Çalışma alanınızdan yeniden bağlayın.",
       "credential_invalid": "{{serverName}} için kimlik bilgileriniz reddedildi. Çalışma alanınızdan güncelleyin veya yeniden bağlanın.",
       "error": "{{serverName}} şu anda kullanılamıyor. Daha sonra tekrar deneyin.",

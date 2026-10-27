@@ -93,6 +93,7 @@ jest.mock('../../src/dao/DaoFactory.js', () => ({
   ...jest.requireActual('../../src/dao/DaoFactory.js'),
   getCredentialBindingDao: jest.fn(() => ({
     delete: jest.fn().mockResolvedValue(undefined),
+    setServerFingerprint: jest.fn().mockResolvedValue(undefined),
   })),
 }));
 

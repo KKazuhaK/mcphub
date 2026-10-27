@@ -20,6 +20,7 @@ const mockSystemConfigDao = {
 
 const mockUserDao = {
   findAll: jest.fn(),
+  findByUsername: jest.fn(async () => ({ username: 'admin', isAdmin: true })),
 };
 
 const mockGroupDao = {
@@ -72,6 +73,8 @@ const mockDisconnectUpstreamOAuth = jest.fn();
 const mockDeleteCredentialBindings = jest.fn();
 const mockCopyCredentialBindings = jest.fn();
 const mockRenameServerSelections = jest.fn();
+const mockListValidBindingUsers = jest.fn();
+const mockNotifyWorkspaceUser = jest.fn();
 
 jest.mock('../../src/dao/DaoFactory.js', () => ({
   getCredentialBindingDao: jest.fn(() => ({ delete: jest.fn().mockResolvedValue(undefined) })),
@@ -147,6 +150,12 @@ jest.mock('../../src/services/credentialBindingService.js', () => ({
   ...(jest.requireActual('../../src/services/credentialBindingService.js') as object),
   deleteCredentialBindings: jest.fn((...args: unknown[]) => mockDeleteCredentialBindings(...args)),
   copyCredentialBindings: jest.fn((...args: unknown[]) => mockCopyCredentialBindings(...args)),
+  listValidBindingUsers: jest.fn((...args: unknown[]) => mockListValidBindingUsers(...args)),
+}));
+
+jest.mock('../../src/services/userServerStatusService.js', () => ({
+  ...(jest.requireActual('../../src/services/userServerStatusService.js') as object),
+  notifyWorkspaceUser: jest.fn((...args: unknown[]) => mockNotifyWorkspaceUser(...args)),
 }));
 
 jest.mock('../../src/services/userServerSelectionService.js', () => ({
@@ -258,6 +267,95 @@ describe('serverController - server share candidates', () => {
 
     expect(status).toHaveBeenCalledWith(403);
     expect(mockUserDao.findAll).not.toHaveBeenCalled();
+  });
+});
+
+describe('serverController - credential destination changes', () => {
+  const slotted = {
+    name: 'keyed',
+    type: 'streamable-http',
+    url: 'https://old.example.com/mcp',
+    owner: 'admin',
+    visibility: 'public',
+    credentialTemplate: [{ target: 'headers', name: 'Authorization' }],
+  };
+  const admin = { username: 'admin', isAdmin: true };
+  const run = async (stored: object, edited: object, user: object = admin) => {
+    mockServerDao.findById.mockResolvedValueOnce(slotted).mockResolvedValue(stored);
+    mockServerDao.update = jest.fn().mockResolvedValue(stored);
+    const json = jest.fn();
+    const response = { json, status: jest.fn().mockReturnThis() } as unknown as Response;
+    await updateServer(
+      { params: { name: 'keyed' }, body: { config: edited }, user } as unknown as Request,
+      response,
+    );
+    return json.mock.calls[0][0];
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockAddOrUpdateServer.mockResolvedValue({ success: true });
+    mockNotifyToolChanged.mockResolvedValue(undefined);
+    mockListValidBindingUsers.mockResolvedValue(['alice', 'bob']);
+  });
+
+  it('tells an administrator how many users must re-enter credentials', async () => {
+    const edited = { ...slotted, url: 'https://new.example.com/mcp' };
+    const body = await run(edited, edited);
+    expect(body).toEqual(
+      expect.objectContaining({
+        success: true,
+        credentialsReset: true,
+        credentialsAffected: 2,
+        warnings: [expect.stringContaining('2 user(s)')],
+      }),
+    );
+    // Counted before the edit, against the declaration the bindings were valid for.
+    expect(mockListValidBindingUsers).toHaveBeenCalledWith(
+      'keyed',
+      expect.objectContaining({ url: slotted.url }),
+    );
+    expect(mockNotifyWorkspaceUser).toHaveBeenCalledTimes(2);
+    expect(mockNotifyWorkspaceUser).toHaveBeenCalledWith('alice');
+  });
+
+  it('gives an owner who is not an administrator a warning without any count', async () => {
+    const edited = { ...slotted, url: 'https://new.example.com/mcp' };
+    const body = await run(edited, edited, { username: 'admin', isAdmin: false });
+    expect(body.credentialsReset).toBe(true);
+    expect(body.credentialsAffected).toBeUndefined();
+    expect(JSON.stringify(body)).not.toMatch(/\b2\b/);
+    expect(body.warnings).toHaveLength(1);
+  });
+
+  it('counts only bindings that were valid before the edit', async () => {
+    mockListValidBindingUsers.mockResolvedValue(['alice']);
+    const edited = { ...slotted, url: 'https://new.example.com/mcp' };
+    expect((await run(edited, edited)).credentialsAffected).toBe(1);
+  });
+
+  it('says nothing when no binding was valid', async () => {
+    mockListValidBindingUsers.mockResolvedValue([]);
+    const edited = { ...slotted, url: 'https://new.example.com/mcp' };
+    expect(await run(edited, edited)).toEqual(
+      expect.objectContaining({ message: 'Server updated successfully' }),
+    );
+    expect(mockNotifyWorkspaceUser).not.toHaveBeenCalled();
+  });
+
+  it('does not warn about an edit that leaves the destination alone', async () => {
+    const edited = { ...slotted, description: 'new note', visibility: 'private' };
+    const body = await run(edited, edited);
+    expect(body).toEqual({ success: true, message: 'Server updated successfully' });
+    expect(mockNotifyWorkspaceUser).not.toHaveBeenCalled();
+  });
+
+  it('still saves when listing the users fails', async () => {
+    mockListValidBindingUsers.mockRejectedValue(new Error('store unavailable'));
+    const edited = { ...slotted, url: 'https://new.example.com/mcp' };
+    const body = await run(edited, edited);
+    expect(body.success).toBe(true);
+    expect(body.warnings).toBeUndefined();
   });
 });
 

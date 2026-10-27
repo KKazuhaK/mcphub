@@ -48,6 +48,10 @@ _Avoid_: portal mode, user mode
 A user's explicit choice to include one visible server in their own MCP scope, stored per (user, server). Absent means not selected. Selection only narrows what visibility already allows; it never grants access. It applies to the all-servers route, global `$smart`, and single-server routes for an authenticated user under Workspace Mode, never to admin-defined Group routes or dashboard calls.
 _Avoid_: subscription, enablement (reserved for the global `enabled` flag), favourite
 
+**Destination Binding**:
+The check that a stored personal credential is only used for the destination it was entered against. Each credential-slot binding carries a keyed fingerprint of the destination-relevant parts of the server declaration; when the declaration no longer matches, the binding is stale and treated as missing until the user enters the values again. Applies whether or not Workspace Mode is on.
+_Avoid_: credential pinning, credential lock
+
 **Personal Endpoint**:
 A user's all-servers MCP route (`/:user/mcp`, or `/:user/mcp/$smart` under Smart Routing). Under Workspace Mode it exposes exactly that user's selected, visible, enabled servers, so its URL stays the same while the selection changes.
 _Avoid_: personal URL (ambiguous with personal URL credential slots), aggregate endpoint

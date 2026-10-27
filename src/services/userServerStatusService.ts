@@ -57,6 +57,9 @@ export type PersonalAuthState =
   | 'configured'
   | 'missing'
   | 'revoked'
+  // The user's credentials were entered for different connection settings than the server
+  // declares now, so they are not used.
+  | 'stale'
   // The user cannot hold personal credentials (e.g. a system key).
   | 'ineligible';
 
@@ -82,6 +85,7 @@ export interface ResolvedUserServerState {
   since?: string;
   // Overrides the default action of the code.
   action?: UserServerStatusAction;
+  reason?: UserServerStatus['reason'];
   maintenance?: ServerMaintenance;
 }
 
@@ -95,6 +99,7 @@ export const resolveUserServerState = (input: UserServerStateInputs): ResolvedUs
   // A user who cannot hold personal credentials at all needs an administrator.
   if (input.personalAuth === 'ineligible') return { code: 'needs_auth', action: 'contact_admin' };
   if (input.personalAuth === 'missing') return { code: 'needs_auth' };
+  if (input.personalAuth === 'stale') return { code: 'needs_auth', reason: 'destination_changed' };
   if (input.personalAuth === 'revoked') return { code: 'revoked', since: input.revokedAt };
   const { failure } = input;
   if (failure?.kind === 'auth' && input.personalAuth === 'configured')
@@ -176,11 +181,14 @@ export const buildUserServerStatus = (
 ): UserServerStatus => {
   const until = state.code === 'maintenance' ? state.maintenance?.until : undefined;
   // A maintenance window with an end time has its own wording, so translations can place it.
-  const key = until ? 'maintenanceUntil' : state.code;
+  const changed = state.reason === 'destination_changed';
+  const key = until ? 'maintenanceUntil' : changed ? 'needsAuthChanged' : state.code;
   const defaultValue = (
     until
       ? "'{{serverName}}' is under maintenance until {{until}}. Try again later."
-      : DEFAULT_MESSAGES[state.code]
+      : changed
+        ? "The connection settings of '{{serverName}}' changed. Enter your credentials again from your workspace."
+        : DEFAULT_MESSAGES[state.code]
   )
     .replace('{{serverName}}', serverName)
     .replace('{{until}}', until ?? '');
@@ -195,6 +203,7 @@ export const buildUserServerStatus = (
     action: state.action !== undefined ? state.action : USER_SERVER_STATUS_ACTIONS[state.code],
     ...(state.since ? { since: state.since } : {}),
     ...(until ? { until } : {}),
+    ...(changed ? { reason: state.reason } : {}),
   };
 };
 
@@ -243,9 +252,14 @@ export const getPersonalAuthState = async (
   if (user.credentialEligible === false) return 'ineligible';
   try {
     if (hasCredentialTemplate(config)) {
-      return (await getCredentialBindingStatus(serverName, user.username, config)).configured
-        ? 'configured'
-        : 'missing';
+      // Judged against the stored, unresolved declaration. The config a caller holds can be a
+      // personal runtime's resolved copy (URL-slot values substituted), which would never match.
+      const { getServerDao } = await import('../dao/index.js');
+      const stored = await getServerDao().findById(serverName);
+      if (!stored) return 'missing';
+      const status = await getCredentialBindingStatus(serverName, user.username, stored);
+      if (status.stale) return 'stale';
+      return status.configured ? 'configured' : 'missing';
     }
     const { hasPersonalOAuth, PersonalOAuthContext } = await import('./personalOAuthService.js');
     if (hasPersonalOAuth(config)) {

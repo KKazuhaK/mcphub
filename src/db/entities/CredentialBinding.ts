@@ -13,4 +13,9 @@ export class CredentialBinding {
 
   @Column({ type: 'varchar', length: 30 })
   updatedAt: string;
+
+  // Keyed fingerprint of the destination these values were bound to; null on rows
+  // written before it existed (they adopt the current one on first use).
+  @Column({ type: 'varchar', length: 80, nullable: true })
+  destinationFingerprint?: string | null;
 }

@@ -1524,7 +1524,13 @@
     "showAll": "显示所有服务器",
     "loading": "加载中…",
     "empty": "暂无需要个人凭据的共享服务器。",
-    "missingWorkspace": "服务器“{{serverName}}”需要个人凭据。请在你的工作区中添加。"
+    "missingWorkspace": "服务器“{{serverName}}”需要个人凭据。请在你的工作区中添加。",
+    "staleNotice": "此服务的连接设置在你输入这些凭据之后发生了更改，因此它们不会被使用。请重新输入凭据。",
+    "changed": "服务器“{{serverName}}”的连接设置已更改。请在仪表板 → 凭据中重新输入你的个人凭据。",
+    "changedWorkspace": "服务器“{{serverName}}”的连接设置已更改。请在你的工作区中重新输入凭据。",
+    "destinationChangedWarning": "{{affected}} 位用户需要为“{{serverName}}”重新输入凭据。",
+    "destinationChangedWarningOwner": "为“{{serverName}}”输入过凭据的用户需要重新输入。",
+    "destinationMismatch": "此服务的 API 地址与其声明的地址不一致，因此未发送你的凭据。请联系管理员检查该服务的设置。"
   },
   "workspace": {
     "status": {
@@ -1534,6 +1540,7 @@
       "maintenance": "服务器“{{serverName}}”正在维护中，请稍后再试。",
       "maintenanceUntil": "服务器“{{serverName}}”正在维护中，预计持续到 {{until}}，请稍后再试。",
       "needs_auth": "服务器“{{serverName}}”需要你的个人凭据或授权。请在你的工作区中连接。",
+      "needsAuthChanged": "服务器“{{serverName}}”的连接设置已更改。请在你的工作区中重新输入凭据。",
       "revoked": "你已断开对服务器“{{serverName}}”的授权。请在你的工作区中重新连接。",
       "credential_invalid": "服务器“{{serverName}}”拒绝了你的凭据。请在你的工作区中更新或重新连接。",
       "error": "服务器“{{serverName}}”暂时不可用，请稍后再试。",

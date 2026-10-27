@@ -12,7 +12,6 @@ import {
   MissingCredentialError,
   hasPersonalAuthentication,
 } from '../utils/credentialTemplate.js';
-import { expandServerConfig } from './serverConfigEnvironment.js';
 import type { CapabilityScope } from './capabilitySnapshotService.js';
 import type { ServerConfig, ServerInfo } from '../types/index.js';
 
@@ -77,12 +76,10 @@ export class PrincipalRuntimeService {
     // These snapshots only detect runtime changes in memory; they are never persisted or logged.
     const definitionSnapshot = JSON.stringify(definition);
     const resolver = hasPersonalOAuth(definition) ? resolvePersonalOAuth : resolveCredentialBinding;
+    // Resolvers take the stored definition and expand it themselves, once, so every
+    // resolution (including the re-checks after a connect) fingerprints the same declaration.
     if (toolsOnly && this.restoreTools) {
-      const resolved = await resolver(
-        serverName,
-        principal.username,
-        hasPersonalOAuth(definition) ? definition : await expandServerConfig(definition),
-      );
+      const resolved = await resolver(serverName, principal.username, definition);
       const existing = this.entries.get(JSON.stringify([serverName, principal.username]));
       const live =
         existing?.valid &&
@@ -105,11 +102,7 @@ export class PrincipalRuntimeService {
       }
     }
     const prepare = async () => {
-      const resolved = await resolver(
-        serverName,
-        principal.username,
-        hasPersonalOAuth(definition) ? definition : await expandServerConfig(definition),
-      );
+      const resolved = await resolver(serverName, principal.username, definition);
       const revision = JSON.stringify([definitionSnapshot, resolved.revision]);
       const key = JSON.stringify([serverName, principal.username]);
       let entry = this.entries.get(key);
