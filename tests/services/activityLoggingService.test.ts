@@ -146,4 +146,87 @@ describe('ActivityLoggingService', () => {
     expect(persisted.errorMessage).toBe('Credential-templated server tool call failed');
     expect(JSON.stringify(persisted)).not.toContain('alice-personal-secret');
   });
+
+  it('records the connected client alongside the existing key fields', async () => {
+    const activityLoggingService = getActivityLoggingService();
+
+    await activityLoggingService.logToolCall({
+      server: 'demo-server',
+      tool: 'demo-tool',
+      duration: 1,
+      status: 'success',
+      keyId: 'key-1',
+      keyName: 'OAuth',
+      clientKind: 'oauth',
+      clientId: 'client-1',
+    });
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        keyId: 'key-1',
+        keyName: 'OAuth',
+        clientKind: 'oauth',
+        clientId: 'client-1',
+      }),
+    );
+  });
+
+  it('stores null for dashboard and system calls, and never half an identity', async () => {
+    const activityLoggingService = getActivityLoggingService();
+
+    await activityLoggingService.logToolCall({
+      server: 'demo-server',
+      tool: 'demo-tool',
+      duration: 1,
+      status: 'success',
+    });
+    await activityLoggingService.logToolCall({
+      server: 'demo-server',
+      tool: 'demo-tool',
+      duration: 1,
+      status: 'success',
+      clientKind: 'key',
+    });
+
+    for (const [stored] of mockCreate.mock.calls) {
+      expect(stored.clientKind).toBeNull();
+      expect(stored.clientId).toBeNull();
+    }
+  });
+
+  it('stores the status code even when a credential server hides the error text', async () => {
+    const activityLoggingService = getActivityLoggingService();
+
+    await activityLoggingService.logToolCall({
+      server: 'personal',
+      tool: 'ping',
+      duration: 1,
+      status: 'error',
+      hasCredentialTemplate: true,
+      errorMessage: "'personal' is paused (reason: paused)",
+      statusCode: 'paused',
+    });
+    await activityLoggingService.logToolCall({
+      server: 'demo',
+      tool: 'ping',
+      duration: 1,
+      status: 'error',
+      statusCode: 'Not A Code: https://x/?t=secret',
+    });
+    await activityLoggingService.logToolCall({
+      server: 'demo',
+      tool: 'ping',
+      duration: 1,
+      status: 'success',
+    });
+
+    expect(mockCreate.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        errorMessage: 'Credential-templated server tool call failed',
+        statusCode: 'paused',
+      }),
+    );
+    expect(mockCreate.mock.calls[1][0].statusCode).toBeNull();
+    expect(mockCreate.mock.calls[2][0].statusCode).toBeNull();
+  });
 });

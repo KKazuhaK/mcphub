@@ -1117,7 +1117,16 @@
     "smartRoutingIndexReindexConfirmMessage": "Toàn bộ embedding hiện tại sẽ bị xóa sạch và tạo lại từ đầu. Quá trình này có thể tốn chút thời gian và tiêu tốn hạn mức sử dụng API embedding.",
     "smartRoutingIndexPersonalCredentials": "Các máy chủ sử dụng thông tin xác thực cá nhân",
     "smartRoutingIndexSkippedReason": "Bị bỏ qua",
-    "smartRoutingIndexIndexedAs": "được lập chỉ mục dưới tư cách {{principals}}"
+    "smartRoutingIndexIndexedAs": "được lập chỉ mục dưới tư cách {{principals}}",
+    "activityRetention": "Thời gian lưu hoạt động (ngày)",
+    "activityRetentionDescription": "Thời gian lưu hoạt động gọi công cụ. Để trống để lưu mãi mãi. Không bao giờ ngắn hơn cửa sổ lịch sử người dùng thấy trong không gian làm việc.",
+    "activityRetentionWarning": "Cảnh báo: hoạt động cũ hơn mức này sẽ bị xóa vĩnh viễn và không thể khôi phục.",
+    "activityRetentionPlaceholder": "Lưu mãi mãi",
+    "activityRetentionInvalid": "Nhập số ngày nguyên từ 1 đến 3650, hoặc để trống.",
+    "activityRetentionConfirmTitle": "Xóa vĩnh viễn hoạt động cũ?",
+    "activityRetentionConfirmMessage": "Hoạt động cũ hơn {{days}} ngày sẽ bị xóa vĩnh viễn ở lần dọn dẹp hằng giờ tiếp theo. Không thể hoàn tác. (Số ngày không bao giờ ít hơn cửa sổ lịch sử của người dùng, dù bạn đã nhập {{entered}}.)",
+    "activityRetentionConfirm": "Lưu và xóa",
+    "activityRetentionUpdateFailed": "Không thể cập nhật thời gian lưu hoạt động"
   },
   "mcpb": {
     "upload": "Tải lên",
@@ -1605,6 +1614,52 @@
     "disabled": "Không gian làm việc không còn khả dụng. Có thể quản trị viên đã tắt nó.",
     "reload": "Tải lại",
     "settingsFailed": "Không thể đọc cài đặt máy chủ nên hiển thị điều hướng tiêu chuẩn.",
-    "popupBlocked": "Trình duyệt đã chặn cửa sổ đăng nhập. Hãy dùng liên kết hiển thị dưới dịch vụ."
+    "popupBlocked": "Trình duyệt đã chặn cửa sổ đăng nhập. Hãy dùng liên kết hiển thị dưới dịch vụ.",
+    "activity": {
+      "tab": "Hoạt động",
+      "title": "Hoạt động gần đây",
+      "description": "Ứng dụng khách nào đã gọi công cụ nào của dịch vụ nào, vào lúc nào và kết quả ra sao. Dữ liệu đầu vào và kết quả không bao giờ được hiển thị ở đây.",
+      "empty": "Chưa có hoạt động nào. Các lệnh gọi từ ứng dụng khách của bạn sẽ xuất hiện ở đây.",
+      "emptyFiltered": "Không có hoạt động nào khớp với bộ lọc.",
+      "loadFailed": "Không thể tải hoạt động.",
+      "unavailableTitle": "Lịch sử hoạt động cần chế độ cơ sở dữ liệu",
+      "unavailableBody": "Máy chủ này không lưu lịch sử lệnh gọi nên không có gì để hiển thị. Hãy nhờ quản trị viên chạy MCPHub với cơ sở dữ liệu.",
+      "loadMore": "Tải thêm",
+      "loadingMore": "Đang tải…",
+      "shown_other": "Đang hiển thị {{count}} sự kiện",
+      "columns": {
+        "time": "Thời gian",
+        "service": "Dịch vụ",
+        "tool": "Công cụ",
+        "client": "Ứng dụng khách",
+        "result": "Kết quả",
+        "reason": "Lý do",
+        "duration": "Thời lượng"
+      },
+      "filters": {
+        "label": "Lọc hoạt động",
+        "service": "Dịch vụ",
+        "result": "Kết quả",
+        "client": "Ứng dụng khách",
+        "allServices": "Tất cả dịch vụ",
+        "allResults": "Tất cả kết quả",
+        "allClients": "Tất cả ứng dụng khách"
+      },
+      "result": {
+        "success": "Thành công",
+        "error": "Thất bại",
+        "blocked": "Bị chặn"
+      },
+      "reason": {
+        "tool_error": "Công cụ báo lỗi",
+        "credential_server_error": "Lệnh gọi thất bại trên dịch vụ dùng thông tin xác thực riêng của bạn",
+        "unavailable": "Công cụ không khả dụng",
+        "upstream_error": "Dịch vụ trả về lỗi"
+      },
+      "noClient": "Bảng điều khiển hoặc hệ thống",
+      "unknownClient": "Ứng dụng khách không xác định (không còn kết nối)",
+      "clientGone": "{{name}} (không còn kết nối)",
+      "duration": "{{ms}} ms"
+    }
   }
 }

@@ -1,4 +1,4 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import type { Request, Response } from 'express';
 import dotenv from 'dotenv';
 import { logger } from './logger.js';
@@ -70,6 +70,7 @@ export const createStandardRateLimiter = (options: {
   max: number | typeof UNLIMITED;
   skipSuccessfulRequests?: boolean;
   skip?: (request: Request, response: Response) => boolean | Promise<boolean>;
+  keyGenerator?: (request: Request, response: Response) => string;
 }) => {
   const { max, skip, ...rest } = options;
 
@@ -121,6 +122,17 @@ export const apiAuthGateRateLimiter = createStandardRateLimiter({
 export const hostedInternalEventRateLimiter = createStandardRateLimiter({
   windowMs: envInt('HOSTED_EVENT_RATE_LIMIT_WINDOW_MS', MINUTE_1),
   max: envLimit('HOSTED_EVENT_RATE_LIMIT_MAX', 600),
+});
+
+// The activity history query is the heaviest read a user can trigger from the dashboard, so it
+// has its own per-user budget, keyed by username. The route always has an authenticated user;
+// the address fallback only exists for safety and goes through the IPv6-aware helper.
+export const activityHistoryRateLimiter = createStandardRateLimiter({
+  windowMs: envInt('ACTIVITY_RATE_LIMIT_WINDOW_MS', MINUTE_1),
+  max: envLimit('ACTIVITY_RATE_LIMIT_MAX', 60),
+  keyGenerator: (request) =>
+    (request as Request & { user?: { username?: string } }).user?.username ??
+    ipKeyGenerator(request.ip ?? ''),
 });
 
 export const mcpConnectionRateLimiter = createStandardRateLimiter({

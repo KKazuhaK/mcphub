@@ -1116,7 +1116,16 @@
     "smartRoutingIndexReindexConfirmMessage": "Tous les embeddings existants seront effacés puis régénérés depuis zéro. Cela peut prendre du temps et consommer du quota API d’embedding.",
     "smartRoutingIndexPersonalCredentials": "Serveurs à identifiants personnels",
     "smartRoutingIndexSkippedReason": "Ignoré",
-    "smartRoutingIndexIndexedAs": "indexé en tant que {{principals}}"
+    "smartRoutingIndexIndexedAs": "indexé en tant que {{principals}}",
+    "activityRetention": "Conservation de l'activité (jours)",
+    "activityRetentionDescription": "Durée de conservation de l'activité des appels d'outils. Laissez vide pour la conserver indéfiniment. Jamais inférieure à la fenêtre d'historique que les utilisateurs voient dans leur espace.",
+    "activityRetentionWarning": "Attention : l'activité plus ancienne est supprimée définitivement et ne peut pas être récupérée.",
+    "activityRetentionPlaceholder": "Conserver indéfiniment",
+    "activityRetentionInvalid": "Saisissez un nombre entier de jours de 1 à 3650, ou laissez vide.",
+    "activityRetentionConfirmTitle": "Supprimer définitivement l'ancienne activité ?",
+    "activityRetentionConfirmMessage": "L'activité de plus de {{days}} jours sera supprimée définitivement lors du prochain nettoyage horaire. Cette action est irréversible. (Le nombre de jours n'est jamais inférieur à la fenêtre d'historique des utilisateurs, même si vous avez saisi {{entered}}.)",
+    "activityRetentionConfirm": "Enregistrer et supprimer",
+    "activityRetentionUpdateFailed": "Échec de la mise à jour de la conservation de l'activité"
   },
   "mcpb": {
     "upload": "Télécharger",
@@ -1613,6 +1622,54 @@
     "disabled": "L'espace de travail n'est plus disponible. Un administrateur l'a peut-être désactivé.",
     "reload": "Recharger",
     "settingsFailed": "Impossible de lire les paramètres du serveur ; la navigation standard est affichée.",
-    "popupBlocked": "Votre navigateur a bloqué la fenêtre de connexion. Utilisez le lien affiché sous le service."
+    "popupBlocked": "Votre navigateur a bloqué la fenêtre de connexion. Utilisez le lien affiché sous le service.",
+    "activity": {
+      "tab": "Activité",
+      "title": "Activité récente",
+      "description": "Quel client a appelé quel outil de quel service, quand, et comment l'appel s'est terminé. Les entrées et les résultats ne sont jamais affichés ici.",
+      "empty": "Aucune activité pour le moment. Les appels de vos clients apparaîtront ici.",
+      "emptyFiltered": "Aucune activité ne correspond à ces filtres.",
+      "loadFailed": "Impossible de charger l'activité.",
+      "unavailableTitle": "L'historique d'activité nécessite le mode base de données",
+      "unavailableBody": "Ce serveur ne conserve aucun historique d'appels, il n'y a donc rien à afficher. Demandez à un administrateur d'exécuter MCPHub avec une base de données.",
+      "loadMore": "Charger plus",
+      "loadingMore": "Chargement…",
+      "shown_one": "{{count}} événement affiché",
+      "shown_other": "{{count}} événements affichés",
+      "shown_many": "{{count}} événements affichés",
+      "columns": {
+        "time": "Heure",
+        "service": "Service",
+        "tool": "Outil",
+        "client": "Client",
+        "result": "Résultat",
+        "reason": "Motif",
+        "duration": "Durée"
+      },
+      "filters": {
+        "label": "Filtrer l'activité",
+        "service": "Service",
+        "result": "Résultat",
+        "client": "Client",
+        "allServices": "Tous les services",
+        "allResults": "Tous les résultats",
+        "allClients": "Tous les clients"
+      },
+      "result": {
+        "success": "Réussi",
+        "error": "Échec",
+        "blocked": "Bloqué"
+      },
+      "reason": {
+        "tool_error": "L'outil a signalé une erreur",
+        "credential_server_error": "L'appel a échoué sur un service qui utilise vos propres identifiants",
+        "unavailable": "L'outil n'était pas disponible",
+        "upstream_error": "Le service a renvoyé une erreur"
+      },
+      "noClient": "Tableau de bord ou système",
+      "unknownClient": "Client inconnu (plus connecté)",
+      "clientGone": "{{name}} (plus connecté)",
+      "duration": "{{ms}} ms"
+    }
   }
 }

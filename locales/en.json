@@ -1117,7 +1117,16 @@
     "smartRoutingIndexReindexConfirmMessage": "All existing embeddings will be cleared and regenerated from scratch. This can take a while and consumes embedding API quota.",
     "smartRoutingIndexPersonalCredentials": "Personal-credential servers",
     "smartRoutingIndexSkippedReason": "Skipped",
-    "smartRoutingIndexIndexedAs": "indexed as {{principals}}"
+    "smartRoutingIndexIndexedAs": "indexed as {{principals}}",
+    "activityRetention": "Activity retention (days)",
+    "activityRetentionDescription": "How long tool call activity is kept. Leave empty to keep it forever. Never shorter than the history window users see in their workspace.",
+    "activityRetentionWarning": "Warning: activity older than this is permanently deleted and cannot be recovered.",
+    "activityRetentionPlaceholder": "Keep forever",
+    "activityRetentionInvalid": "Enter a whole number of days from 1 to 3650, or leave empty.",
+    "activityRetentionConfirmTitle": "Delete old activity permanently?",
+    "activityRetentionConfirmMessage": "Activity older than {{days}} days will be permanently deleted on the next hourly cleanup. This cannot be undone. (Days are never fewer than the user history window, even if you entered {{entered}}.)",
+    "activityRetentionConfirm": "Save and delete old activity",
+    "activityRetentionUpdateFailed": "Failed to update activity retention"
   },
   "mcpb": {
     "upload": "Upload",
@@ -1610,6 +1619,54 @@
     "disabled": "Workspace is no longer available. An administrator may have turned it off.",
     "reload": "Reload",
     "settingsFailed": "Could not read the server settings, so the standard navigation is shown.",
-    "popupBlocked": "Your browser blocked the sign-in window. Use the link shown under the service."
+    "popupBlocked": "Your browser blocked the sign-in window. Use the link shown under the service.",
+    "activity": {
+      "tab": "Activity",
+      "title": "Recent activity",
+      "description": "Which client called which tool of which service, when, and how it ended. Inputs and results are never shown here.",
+      "empty": "No activity yet. Calls your clients make will appear here.",
+      "emptyFiltered": "No activity matches these filters.",
+      "loadFailed": "Unable to load activity.",
+      "unavailableTitle": "Activity history needs database mode",
+      "unavailableBody": "This server stores no call history, so there is nothing to show. Ask an administrator to run MCPHub with a database.",
+      "loadMore": "Load more",
+      "loadingMore": "Loading…",
+      "shown_one": "{{count}} event shown",
+      "shown_other": "{{count}} events shown",
+      "shown_many": "{{count}} events shown",
+      "columns": {
+        "time": "Time",
+        "service": "Service",
+        "tool": "Tool",
+        "client": "Client",
+        "result": "Result",
+        "reason": "Reason",
+        "duration": "Duration"
+      },
+      "filters": {
+        "label": "Filter activity",
+        "service": "Service",
+        "result": "Result",
+        "client": "Client",
+        "allServices": "All services",
+        "allResults": "All results",
+        "allClients": "All clients"
+      },
+      "result": {
+        "success": "Succeeded",
+        "error": "Failed",
+        "blocked": "Blocked"
+      },
+      "reason": {
+        "tool_error": "The tool reported an error",
+        "credential_server_error": "The call failed on a service that uses your own credentials",
+        "unavailable": "The tool was not available",
+        "upstream_error": "The service returned an error"
+      },
+      "noClient": "Dashboard or system",
+      "unknownClient": "Unknown client (no longer connected)",
+      "clientGone": "{{name}} (no longer connected)",
+      "duration": "{{ms}} ms"
+    }
   }
 }

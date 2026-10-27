@@ -112,7 +112,7 @@ export const resolveUserServerState = (input: UserServerStateInputs): ResolvedUs
 // Only states that follow from configuration stop a call before it reaches the upstream.
 // The rest describe the last attempt or the shared connection, which the call itself
 // (and its existing reconnect logic) is the best way to re-check.
-const BLOCKING_CODES: readonly UserServerStatusCode[] = [
+export const BLOCKING_CODES: readonly UserServerStatusCode[] = [
   'not_selected',
   'paused',
   'maintenance',

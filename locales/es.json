@@ -1117,7 +1117,16 @@
     "smartRoutingIndexReindexConfirmMessage": "Todos los embeddings existentes se borrarán y se regenerarán desde cero. Esto puede tardar y consume cuota de la API de embeddings.",
     "smartRoutingIndexPersonalCredentials": "Servidores con credenciales personales",
     "smartRoutingIndexSkippedReason": "Omitido",
-    "smartRoutingIndexIndexedAs": "indexado como {{principals}}"
+    "smartRoutingIndexIndexedAs": "indexado como {{principals}}",
+    "activityRetention": "Retención de actividad (días)",
+    "activityRetentionDescription": "Cuánto tiempo se conserva la actividad de las llamadas a herramientas. Déjalo vacío para conservarla siempre. Nunca es menor que la ventana de historial que ven los usuarios en su espacio.",
+    "activityRetentionWarning": "Advertencia: la actividad anterior se elimina de forma permanente y no se puede recuperar.",
+    "activityRetentionPlaceholder": "Conservar siempre",
+    "activityRetentionInvalid": "Introduce un número entero de días entre 1 y 3650, o déjalo vacío.",
+    "activityRetentionConfirmTitle": "¿Eliminar permanentemente la actividad antigua?",
+    "activityRetentionConfirmMessage": "La actividad de más de {{days}} días se eliminará de forma permanente en la próxima limpieza horaria. No se puede deshacer. (Los días nunca son menos que la ventana de historial de los usuarios, aunque hayas introducido {{entered}}.)",
+    "activityRetentionConfirm": "Guardar y eliminar",
+    "activityRetentionUpdateFailed": "No se pudo actualizar la retención de actividad"
   },
   "mcpb": {
     "upload": "Subir",
@@ -1615,6 +1624,54 @@
     "disabled": "El espacio de trabajo ya no está disponible. Puede que un administrador lo haya desactivado.",
     "reload": "Recargar",
     "settingsFailed": "No se pudieron leer los ajustes del servidor, por eso se muestra la navegación estándar.",
-    "popupBlocked": "Tu navegador bloqueó la ventana de inicio de sesión. Usa el enlace que aparece bajo el servicio."
+    "popupBlocked": "Tu navegador bloqueó la ventana de inicio de sesión. Usa el enlace que aparece bajo el servicio.",
+    "activity": {
+      "tab": "Actividad",
+      "title": "Actividad reciente",
+      "description": "Qué cliente llamó a qué herramienta de qué servicio, cuándo y cómo terminó. Las entradas y los resultados nunca se muestran aquí.",
+      "empty": "Todavía no hay actividad. Las llamadas de tus clientes aparecerán aquí.",
+      "emptyFiltered": "Ninguna actividad coincide con estos filtros.",
+      "loadFailed": "No se pudo cargar la actividad.",
+      "unavailableTitle": "El historial de actividad requiere el modo base de datos",
+      "unavailableBody": "Este servidor no guarda historial de llamadas, así que no hay nada que mostrar. Pide a un administrador que ejecute MCPHub con una base de datos.",
+      "loadMore": "Cargar más",
+      "loadingMore": "Cargando…",
+      "shown_one": "{{count}} evento mostrado",
+      "shown_other": "{{count}} eventos mostrados",
+      "shown_many": "{{count}} eventos mostrados",
+      "columns": {
+        "time": "Hora",
+        "service": "Servicio",
+        "tool": "Herramienta",
+        "client": "Cliente",
+        "result": "Resultado",
+        "reason": "Motivo",
+        "duration": "Duración"
+      },
+      "filters": {
+        "label": "Filtrar actividad",
+        "service": "Servicio",
+        "result": "Resultado",
+        "client": "Cliente",
+        "allServices": "Todos los servicios",
+        "allResults": "Todos los resultados",
+        "allClients": "Todos los clientes"
+      },
+      "result": {
+        "success": "Correcta",
+        "error": "Fallida",
+        "blocked": "Bloqueada"
+      },
+      "reason": {
+        "tool_error": "La herramienta informó de un error",
+        "credential_server_error": "La llamada falló en un servicio que usa tus propias credenciales",
+        "unavailable": "La herramienta no estaba disponible",
+        "upstream_error": "El servicio devolvió un error"
+      },
+      "noClient": "Panel o sistema",
+      "unknownClient": "Cliente desconocido (ya no está conectado)",
+      "clientGone": "{{name}} (ya no está conectado)",
+      "duration": "{{ms}} ms"
+    }
   }
 }

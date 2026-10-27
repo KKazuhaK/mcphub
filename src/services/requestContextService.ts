@@ -3,6 +3,7 @@ import { Request } from 'express';
 import ipaddr from 'ipaddr.js';
 import type { BearerKeyKind } from '../types/index.js';
 import type { HostedAuthContext } from './hostedAuthService.js';
+import type { SessionCredential } from './connectedClientService.js';
 
 /**
  * Request context interface for MCP request handling
@@ -22,6 +23,8 @@ export interface RequestContext {
   keyId?: string;
   keyName?: string;
   keyKind?: BearerKeyKind;
+  /** The OAuth grant or user-level key that authenticated the request, for activity history. */
+  credential?: SessionCredential;
   hostedAuth?: HostedAuthContext;
 }
 
@@ -177,6 +180,14 @@ export class RequestContextService {
     if (requestContext) {
       requestContext.keyId = keyId;
       requestContext.keyName = keyName;
+    }
+  }
+
+  /** Set the connected-client credential that authenticated this request. */
+  public setCredentialContext(credential?: SessionCredential): void {
+    const requestContext = this.getRequestContext();
+    if (requestContext) {
+      requestContext.credential = credential;
     }
   }
 

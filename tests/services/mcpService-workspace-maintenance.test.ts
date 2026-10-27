@@ -57,6 +57,8 @@ let workspaceEnabled = true;
 const sessionUsers = new Map<string, string>();
 
 jest.mock('../../src/dao/DaoFactory.js', () => ({
+  getActivityDao: jest.fn(() => ({ create: (...args: any[]) => mockActivityCreate(...args) })),
+  isActivityLoggingEnabled: jest.fn(() => true),
   getUserServerSelectionDao: jest.fn(() => mockSelectionDao),
   getCredentialBindingDao: jest.fn(() => ({ delete: jest.fn(async () => undefined) })),
 }));
@@ -117,10 +119,25 @@ jest.mock('../../src/services/smartRoutingService.js', () => ({
   isSmartRoutingGroup: jest.fn((group?: string) => Boolean(group?.startsWith('$smart'))),
 }));
 
+// Records every call; when `useRealActivityLogger` is set it also runs the real service, so the
+// stored row (redaction included) can be asserted against a stand-in activity store.
 const mockLogToolCall = jest.fn<(...args: any[]) => Promise<void>>(async () => undefined);
-jest.mock('../../src/services/activityLoggingService.js', () => ({
-  getActivityLoggingService: jest.fn(() => ({ logToolCall: mockLogToolCall })),
-}));
+const mockActivityCreate = jest.fn<(...args: any[]) => Promise<void>>(async () => undefined);
+let useRealActivityLogger = false;
+jest.mock('../../src/services/activityLoggingService.js', () => {
+  const actual = jest.requireActual('../../src/services/activityLoggingService.js') as any;
+  return {
+    ...actual,
+    getActivityLoggingService: jest.fn(() => ({
+      logToolCall: (...args: any[]) => {
+        mockLogToolCall(...args);
+        return useRealActivityLogger
+          ? actual.getActivityLoggingService().logToolCall(...args)
+          : Promise.resolve();
+      },
+    })),
+  };
+});
 
 jest.mock('../../src/services/hostedAuthService.js', () => ({
   assertHostedToolAllowed: jest.fn(),
@@ -190,6 +207,8 @@ import {
 } from '../../src/services/credentialBindingService.js';
 import { logger } from '../../src/utils/logger.js';
 import { UserContextService } from '../../src/services/userContextService.js';
+import { classifyActivity } from '../../src/services/workspaceActivityService.js';
+import { RequestContextService } from '../../src/services/requestContextService.js';
 import {
   clearServerSelectionCache,
   setServerSelected,
@@ -617,6 +636,115 @@ describe('mcpService workspace maintenance and per-user pause', () => {
       });
       expect(infos.find((info) => info.name === 'beta')?.maintenance).toBeUndefined();
       expect(JSON.stringify(infos)).not.toContain('pausedUsers');
+    });
+  });
+});
+
+describe('activity records the connected client of the request', () => {
+  const withCredential = <T>(
+    credential: { kind: 'oauth' | 'key'; id: string } | undefined,
+    fn: () => Promise<T>,
+  ) =>
+    RequestContextService.getInstance().runWithCustomRequestContext(
+      { headers: {}, credential, username: 'alice' },
+      fn,
+    );
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    selectionRows.length = 0;
+    clearServerSelectionCache();
+    clearUserServerFailures();
+    workspaceEnabled = true;
+    cleanupAllServers();
+    setServerInfosForTest([upstream('alpha'), upstream('beta')]);
+    for (const name of ['alpha', 'beta']) await setServerSelected('alice', name, true);
+  });
+
+  it.each([
+    ['an OAuth client', { kind: 'oauth' as const, id: 'client-1' }],
+    ['a user key', { kind: 'key' as const, id: 'key-1' }],
+  ])('stamps a successful call made with %s', async (_label, credential) => {
+    await withCredential(credential, () => call(alice, 'alpha::ping'));
+
+    expect(mockLogToolCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        server: 'alpha',
+        status: 'success',
+        clientKind: credential.kind,
+        clientId: credential.id,
+      }),
+    );
+  });
+
+  it('stamps a call stopped by the workspace status gate', async () => {
+    jest.spyOn(logger, 'error').mockImplementation(() => undefined);
+    setServerInfosForTest([upstream('alpha', { maintenance: {} }), upstream('beta')]);
+
+    await withCredential({ kind: 'oauth', id: 'client-1' }, () => call(alice, 'alpha::ping'));
+
+    expect(mockLogToolCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'error',
+        clientKind: 'oauth',
+        clientId: 'client-1',
+        errorMessage: expect.stringMatching(/\(reason: maintenance\)$/),
+      }),
+    );
+  });
+
+  it('leaves the client empty for dashboard and system calls', async () => {
+    await withCredential(undefined, () => call(alice, 'alpha::ping'));
+    await call(alice, 'beta::ping');
+
+    expect(mockLogToolCall).toHaveBeenCalledTimes(2);
+    for (const [entry] of mockLogToolCall.mock.calls) {
+      expect(entry.clientKind).toBeUndefined();
+      expect(entry.clientId).toBeUndefined();
+    }
+  });
+
+  describe('stored row of a blocked call, through the real activity logger', () => {
+    beforeEach(() => {
+      useRealActivityLogger = true;
+      mockActivityCreate.mockClear();
+      jest.spyOn(logger, 'error').mockImplementation(() => undefined);
+    });
+    afterEach(() => {
+      useRealActivityLogger = false;
+    });
+
+    const personal = { credentialTemplate: [{ target: 'env', name: 'API_KEY' }] } as const;
+
+    it.each([
+      ['personal-credential', personal],
+      ['shared', {}],
+    ])(
+      'keeps the status code on a %s server so it is classified as blocked',
+      async (_kind, config) => {
+        setServerInfosForTest([
+          upstream('alpha', { ...(config as object), maintenance: {} } as Partial<ServerConfig>),
+          upstream('beta'),
+        ]);
+
+        await withCredential({ kind: 'oauth', id: 'client-1' }, () => call(alice, 'alpha::ping'));
+
+        expect(mockActivityCreate).toHaveBeenCalledTimes(1);
+        const stored = mockActivityCreate.mock.calls[0][0];
+        expect(stored).toEqual(
+          expect.objectContaining({ server: 'alpha', status: 'error', statusCode: 'maintenance' }),
+        );
+        // A personal-credential server's error text is redacted; the code survives it.
+        if (_kind === 'personal-credential') {
+          expect(stored.errorMessage).toBe('Credential-templated server tool call failed');
+        }
+        expect(classifyActivity(stored)).toEqual({ result: 'blocked', reason: 'maintenance' });
+      },
+    );
+
+    it('stores no status code for a call that ran', async () => {
+      await call(alice, 'beta::ping');
+      expect(mockActivityCreate.mock.calls[0][0].statusCode).toBeNull();
     });
   });
 });

@@ -1,17 +1,20 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
+import ActivityPanel from '@/components/workspace/ActivityPanel';
 import ConnectedClientsPanel from '@/components/workspace/ConnectedClientsPanel';
 import WorkspaceServicesView from '@/components/workspace/WorkspaceServicesView';
 
-type WorkspaceTab = 'services' | 'clients';
+type WorkspaceTab = 'services' | 'clients' | 'activity';
 
 // A query parameter rather than a nested route: the SPA is served with a relative asset base,
 // so a deep link two segments down could not load its scripts after a reload.
 const WorkspacePage: React.FC = () => {
   const { t } = useTranslation();
   const [search, setSearch] = useSearchParams();
-  const tab: WorkspaceTab = search.get('tab') === 'clients' ? 'clients' : 'services';
+  const requested = search.get('tab');
+  const tab: WorkspaceTab =
+    requested === 'clients' || requested === 'activity' ? requested : 'services';
 
   const tabButton = (value: WorkspaceTab, label: string) => (
     <button
@@ -19,7 +22,7 @@ const WorkspacePage: React.FC = () => {
       role="tab"
       aria-selected={tab === value}
       className={'hub-btn' + (tab === value ? ' primary' : '')}
-      onClick={() => setSearch(value === 'clients' ? { tab: 'clients' } : {})}
+      onClick={() => setSearch(value === 'services' ? {} : { tab: value })}
     >
       {label}
     </button>
@@ -35,9 +38,16 @@ const WorkspacePage: React.FC = () => {
       <div className="flex gap-2" role="tablist" aria-label={t('workspacePage.title')}>
         {tabButton('services', t('workspacePage.services.tab'))}
         {tabButton('clients', t('workspacePage.clients.tab'))}
+        {tabButton('activity', t('workspacePage.activity.tab'))}
       </div>
 
-      {tab === 'clients' ? <ConnectedClientsPanel /> : <WorkspaceServicesView />}
+      {tab === 'clients' ? (
+        <ConnectedClientsPanel />
+      ) : tab === 'activity' ? (
+        <ActivityPanel />
+      ) : (
+        <WorkspaceServicesView />
+      )}
     </div>
   );
 };

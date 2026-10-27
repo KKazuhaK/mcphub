@@ -1,7 +1,37 @@
-import { Repository, Between, Like, FindOptionsWhere } from 'typeorm';
+import { Repository, Between, Like, FindOptionsWhere, Brackets, LessThan } from 'typeorm';
 import { Activity } from '../entities/Activity.js';
 import { getAppDataSource } from '../connection.js';
 import { IActivityFilter, IActivityStats } from '../../types/index.js';
+
+/** The columns a user's own history may read. Tool input and output are never selected. */
+export type ActivityHistoryRow = Pick<
+  Activity,
+  | 'id'
+  | 'timestamp'
+  | 'server'
+  | 'tool'
+  | 'duration'
+  | 'status'
+  | 'errorMessage'
+  | 'statusCode'
+  | 'clientKind'
+  | 'clientId'
+>;
+
+export interface ActivityHistoryQuery {
+  username: string;
+  limit: number;
+  server?: string;
+  clientId?: string;
+  clientKind?: string;
+  /** 'blocked' rows are errors whose `statusCode` is one of `blockedReasons`. */
+  status?: 'success' | 'error' | 'blocked';
+  blockedReasons?: string[];
+  since?: Date;
+  until?: Date;
+  /** Keyset position of the last row already returned. */
+  after?: { timestamp: Date; id: string };
+}
 
 /**
  * Repository for Activity entity
@@ -156,6 +186,101 @@ export class ActivityRepository {
       .execute();
 
     return result.affected || 0;
+  }
+
+  /**
+   * One user's history, newest first (timestamp, then id), `limit` rows. Reads metadata columns
+   * only. Callers ask for one more than they show to learn whether another page exists.
+   */
+  async findUserHistory(query: ActivityHistoryQuery): Promise<ActivityHistoryRow[]> {
+    const qb = this.repository
+      .createQueryBuilder('a')
+      .select([
+        'a.id',
+        'a.timestamp',
+        'a.server',
+        'a.tool',
+        'a.duration',
+        'a.status',
+        'a.errorMessage',
+        'a.statusCode',
+        'a.clientKind',
+        'a.clientId',
+      ])
+      .where('a.username = :username', { username: query.username });
+
+    if (query.server) qb.andWhere('a.server = :server', { server: query.server });
+    if (query.clientId) qb.andWhere('a.clientId = :clientId', { clientId: query.clientId });
+    if (query.clientKind)
+      qb.andWhere('a.clientKind = :clientKind', { clientKind: query.clientKind });
+    if (query.since) qb.andWhere('a.timestamp >= :since', { since: query.since });
+    if (query.until) qb.andWhere('a.timestamp <= :until', { until: query.until });
+
+    if (query.status) {
+      const codes = query.blockedReasons ?? [];
+      if (query.status === 'success') {
+        qb.andWhere('a.status = :status', { status: 'success' });
+      } else if (query.status === 'blocked') {
+        qb.andWhere('a.status = :status', { status: 'error' });
+        if (codes.length)
+          qb.andWhere('a.statusCode IN (:...blockedCodes)', { blockedCodes: codes });
+        else qb.andWhere('1 = 0');
+      } else {
+        qb.andWhere('a.status = :status', { status: 'error' });
+        if (codes.length) {
+          qb.andWhere('(a.statusCode IS NULL OR a.statusCode NOT IN (:...blockedCodes))', {
+            blockedCodes: codes,
+          });
+        }
+      }
+    }
+
+    if (query.after) {
+      qb.andWhere(
+        new Brackets((inner) => {
+          inner
+            .where('a.timestamp < :afterTs', { afterTs: query.after!.timestamp })
+            .orWhere('(a.timestamp = :afterTs AND a.id < :afterId)', {
+              afterId: query.after!.id,
+            });
+        }),
+      );
+    }
+
+    return await qb
+      .orderBy('a.timestamp', 'DESC')
+      .addOrderBy('a.id', 'DESC')
+      .take(query.limit)
+      .getMany();
+  }
+
+  /**
+   * Delete rows older than `date`: ids are read in batches and removed by id, so no single
+   * statement holds a long lock. Stops when nothing is left or `budgetMs` is spent; `done` is
+   * false when a backlog remains.
+   */
+  async purgeOlderThan(
+    date: Date,
+    options: { batchSize?: number; budgetMs?: number; now?: () => number } = {},
+  ): Promise<{ removed: number; done: boolean }> {
+    const batchSize = options.batchSize ?? 1000;
+    const budgetMs = options.budgetMs ?? 20_000;
+    const now = options.now ?? Date.now;
+    const deadline = now() + budgetMs;
+    let removed = 0;
+    for (;;) {
+      const rows = await this.repository.find({
+        select: { id: true },
+        where: { timestamp: LessThan(date) },
+        order: { timestamp: 'ASC' },
+        take: batchSize,
+      });
+      if (!rows.length) return { removed, done: true };
+      const result = await this.repository.delete(rows.map((row) => row.id));
+      removed += result.affected ?? rows.length;
+      if (rows.length < batchSize) return { removed, done: true };
+      if (now() >= deadline) return { removed, done: false };
+    }
   }
 
   /**

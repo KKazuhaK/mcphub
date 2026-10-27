@@ -314,6 +314,10 @@ export interface SystemConfig {
     // treat tool arguments as sensitive can turn this off to store metadata only.
     // Defaults to true.
     storeToolPayload?: boolean;
+    // Administrator retention for the activity log, in days (integer 1 to 3650). Absent means
+    // activity is kept forever. When set, activity older than this (and older than the
+    // per-user history window) is permanently deleted by a periodic purge.
+    retentionDays?: number;
   };
   workspace?: {
     // When enabled, a user's personal MCP endpoints expose only the servers that
@@ -322,6 +326,9 @@ export interface SystemConfig {
     // Days a user-level bearer key or OAuth grant may go unused before it is rejected
     // as if revoked. Default 90; 0 disables. Only effective while the workspace is enabled.
     clientIdleDays?: number;
+    // Days of history the per-user activity view shows. Default 90; integer 1 to 3650.
+    // Display only: nothing is deleted on its account (see activityLog.retentionDays).
+    activityRetentionDays?: number;
     // ISO time the mode was last switched on. Idle time is never measured from before it,
     // so enabling the mode cannot expire credentials that predate usage tracking.
     enabledAt?: string;
@@ -880,6 +887,9 @@ export interface IActivity {
   keyName?: string; // Bearer key name for display purposes
   sourceIp?: string; // Source IP address of the caller
   errorMessage?: string; // Error message if status is 'error'
+  statusCode?: string | null; // Why a call was stopped before the upstream (a Server Status code or an internal unavailable reason); null otherwise
+  clientKind?: 'oauth' | 'key' | null; // Credential type the call arrived with (connected-client identity)
+  clientId?: string | null; // OAuth client id or user-level bearer key id; null for dashboard/system calls
 }
 
 // Activity statistics interface

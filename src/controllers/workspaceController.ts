@@ -24,6 +24,14 @@ import {
 import type { IUser, ServerConfig, UserServerStatus } from '../types/index.js';
 import { hasPersonalAuthentication } from '../utils/credentialTemplate.js';
 import { getPublicInstallBaseUrl } from '../utils/protectedResource.js';
+import {
+  DEFAULT_HISTORY_PAGE_SIZE,
+  MAX_HISTORY_PAGE_SIZE,
+  decodeCursor,
+  isActivityHistoryAvailable,
+  listUserActivity,
+  type ActivityHistoryFilters,
+} from '../services/workspaceActivityService.js';
 import { getCachedSystemConfig } from '../utils/systemConfigCache.js';
 
 type ServerRecord = ServerConfig & { name: string };
@@ -240,5 +248,86 @@ export const revokeAllWorkspaceClients = async (req: Request, res: Response): Pr
     res.json({ success: true });
   } catch {
     res.status(500).json({ success: false, message: 'Unable to revoke clients' });
+  }
+};
+
+const queryText = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim() ? value.trim().slice(0, 255) : undefined;
+
+const queryDate = (value: unknown): Date | null | undefined => {
+  const text = queryText(value);
+  if (text === undefined) return undefined;
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+// The caller's own call history: which client called which tool of which service, when, and how
+// it ended. The user comes from the session only. Tool input and output are never returned,
+// and neither is the recorded error text: a failure is reported as a short category.
+export const listWorkspaceActivity = async (req: Request, res: Response): Promise<void> => {
+  const user = requireWorkspaceUser(req, res);
+  if (!user) return;
+  // History is only stored in database mode; the page explains that instead of failing.
+  if (!isActivityHistoryAvailable()) {
+    res.json({ success: true, data: { available: false } });
+    return;
+  }
+
+  const bad = (message: string) => res.status(400).json({ success: false, message });
+  const filters: ActivityHistoryFilters = {
+    server: queryText(req.query.server),
+    clientId: queryText(req.query.clientId),
+  };
+
+  const status = queryText(req.query.status);
+  if (status !== undefined) {
+    if (status !== 'success' && status !== 'error' && status !== 'blocked') {
+      bad('status must be success, error or blocked');
+      return;
+    }
+    filters.status = status;
+  }
+  const clientKind = queryText(req.query.clientKind);
+  if (clientKind !== undefined) {
+    if (clientKind !== 'oauth' && clientKind !== 'key') {
+      bad('clientKind must be oauth or key');
+      return;
+    }
+    filters.clientKind = clientKind;
+  }
+  const since = queryDate(req.query.since);
+  const until = queryDate(req.query.until);
+  if (since === null || until === null) {
+    bad('since and until must be dates');
+    return;
+  }
+  filters.since = since;
+  filters.until = until;
+
+  let limit = DEFAULT_HISTORY_PAGE_SIZE;
+  if (req.query.limit !== undefined) {
+    limit = Number(queryText(req.query.limit));
+    if (!Number.isInteger(limit) || limit < 1 || limit > MAX_HISTORY_PAGE_SIZE) {
+      bad(`limit must be an integer from 1 to ${MAX_HISTORY_PAGE_SIZE}`);
+      return;
+    }
+  }
+  const cursorText = queryText(req.query.cursor);
+  const cursor = cursorText === undefined ? undefined : decodeCursor(cursorText);
+  if (cursor === null) {
+    bad('cursor is not valid');
+    return;
+  }
+
+  try {
+    const page = await listUserActivity(user.username, {
+      filters,
+      limit,
+      cursor,
+      systemConfig: getCachedSystemConfig(),
+    });
+    res.json({ success: true, data: { available: true, ...page } });
+  } catch {
+    res.status(500).json({ success: false, message: 'Unable to load activity' });
   }
 };

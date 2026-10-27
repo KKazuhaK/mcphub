@@ -2234,7 +2234,28 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
 
     const hasSessionRebuildUpdate = typeof enableSessionRebuild === 'boolean';
 
-    const hasActivityLogUpdate = activityLog && typeof activityLog.storeToolPayload === 'boolean';
+    // Administrator activity retention: an integer number of days, or null to keep forever.
+    const hasActivityRetentionUpdate = activityLog && activityLog.retentionDays !== undefined;
+    if (
+      hasActivityRetentionUpdate &&
+      activityLog.retentionDays !== null &&
+      !(
+        typeof activityLog.retentionDays === 'number' &&
+        Number.isInteger(activityLog.retentionDays) &&
+        activityLog.retentionDays >= 1 &&
+        activityLog.retentionDays <= 3650
+      )
+    ) {
+      res.status(400).json({
+        success: false,
+        message: 'activityLog.retentionDays must be an integer from 1 to 3650, or null',
+      });
+      return;
+    }
+
+    const hasActivityLogUpdate =
+      activityLog &&
+      (typeof activityLog.storeToolPayload === 'boolean' || hasActivityRetentionUpdate);
 
     const hasWorkspaceIdleUpdate = workspace && workspace.clientIdleDays !== undefined;
     if (
@@ -2253,8 +2274,28 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
       return;
     }
 
+    const hasWorkspaceRetentionUpdate = workspace && workspace.activityRetentionDays !== undefined;
+    if (
+      hasWorkspaceRetentionUpdate &&
+      !(
+        typeof workspace.activityRetentionDays === 'number' &&
+        Number.isInteger(workspace.activityRetentionDays) &&
+        workspace.activityRetentionDays >= 1 &&
+        workspace.activityRetentionDays <= 3650
+      )
+    ) {
+      res.status(400).json({
+        success: false,
+        message: 'workspace.activityRetentionDays must be an integer from 1 to 3650',
+      });
+      return;
+    }
+
     const hasWorkspaceUpdate =
-      workspace && (typeof workspace.enabled === 'boolean' || hasWorkspaceIdleUpdate);
+      workspace &&
+      (typeof workspace.enabled === 'boolean' ||
+        hasWorkspaceIdleUpdate ||
+        hasWorkspaceRetentionUpdate);
 
     const hasOAuthServerUpdate =
       oauthServer &&
@@ -2945,11 +2986,16 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
       systemConfig.enableSessionRebuild = enableSessionRebuild;
     }
 
-    if (activityLog && typeof activityLog.storeToolPayload === 'boolean') {
-      systemConfig.activityLog = {
-        ...systemConfig.activityLog,
-        storeToolPayload: activityLog.storeToolPayload,
-      };
+    if (hasActivityLogUpdate) {
+      const next = { ...systemConfig.activityLog };
+      if (typeof activityLog.storeToolPayload === 'boolean') {
+        next.storeToolPayload = activityLog.storeToolPayload;
+      }
+      if (hasActivityRetentionUpdate) {
+        if (activityLog.retentionDays === null) delete next.retentionDays;
+        else next.retentionDays = activityLog.retentionDays;
+      }
+      systemConfig.activityLog = next;
     }
 
     // enabledAt is only ever stamped here: a stored value that is malformed or in the future
@@ -2970,6 +3016,9 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
         ...systemConfig.workspace,
         ...(typeof workspace.enabled === 'boolean' ? { enabled: workspace.enabled } : {}),
         ...(hasWorkspaceIdleUpdate ? { clientIdleDays: workspace.clientIdleDays } : {}),
+        ...(hasWorkspaceRetentionUpdate
+          ? { activityRetentionDays: workspace.activityRetentionDays }
+          : {}),
         // Idle time is never measured from before the mode was switched on.
         ...(workspaceToggled && workspace.enabled === true
           ? { enabledAt: new Date().toISOString() }

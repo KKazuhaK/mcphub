@@ -67,3 +67,7 @@ _Avoid_: block, ban, per-user disable
 **Connected Client**:
 Anything that can act as one user on MCP routes: an OAuth client holding a live access or refresh token for that user from MCPHub's own authorization server (one entry per client and user, however many tokens it has rotated through), or a user-level bearer key the user owns. A user lists and revokes their own under Workspace Mode (`/api/workspace/clients`); revoking one leaves their other clients and their endpoint URL unchanged. Each records a last-use time, and one unused for `workspace.clientIdleDays` (default 90, 0 off, measured from no earlier than the moment the mode was enabled) is refused like a revoked one.
 _Avoid_: session (a live MCP connection opened by a client), integration, app
+
+**My Activity**:
+A user's own call history under Workspace Mode (`GET /api/workspace/activity`, database mode only): which Connected Client called which tool of which service, when, how long it took, and whether it succeeded, failed or was blocked by a Server Status. Metadata only: tool input and output are never returned, nor is the recorded error text (a failure is a fixed category such as `upstream_error`; a blocked call carries its status code). The view shows the last `workspace.activityRetentionDays` (default 90); only an explicit administrator `activityLog.retentionDays` ever deletes activity.
+_Avoid_: audit log (the admin view, which keeps payloads when configured), usage

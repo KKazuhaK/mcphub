@@ -875,6 +875,9 @@ export const handleSseMessage = async (req: Request, res: Response): Promise<voi
     requestContextService.setUsernameContext(username);
     requestContextService.setHostedAuthContext(currentHostedAuth);
     requestContextService.setKeyKindContext(bearerAuthResult.kind);
+    requestContextService.setCredentialContext(
+      bearerAuthResult.credential || transportData.credential,
+    );
 
     await (transport as SSEServerTransport).handlePostMessage(req, res);
   });
@@ -1028,6 +1031,7 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
       requestContextService.setGroupContext(group);
       requestContextService.setUsernameContext(username);
       requestContextService.setKeyKindContext(bearerAuthResult.kind);
+      requestContextService.setCredentialContext(bearerAuthResult.credential);
       requestContextService.setHostedAuthContext(bearerAuthResult.hostedAuth);
 
       const context = requestContextService.getRequestContext()!;
@@ -1167,6 +1171,11 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
     requestContextService.setGroupContext(group);
     requestContextService.setUsernameContext(username);
     requestContextService.setKeyKindContext(bearerAuthResult.kind);
+    // A reused session keeps the credential it was opened with when this request carries none
+    // (bearer auth off), as /messages does.
+    requestContextService.setCredentialContext(
+      bearerAuthResult.credential || transportInfo?.credential,
+    );
     requestContextService.setHostedAuthContext(
       bearerAuthResult.hostedAuth || transportInfo?.hostedAuth,
     );

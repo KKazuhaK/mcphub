@@ -1120,7 +1120,16 @@
     "smartRoutingIndexReindexConfirmMessage": "将清空所有现有向量并从头重新生成。此操作可能需要较长时间，并会消耗 embedding API 额度。",
     "smartRoutingIndexPersonalCredentials": "需个人凭据的服务器",
     "smartRoutingIndexSkippedReason": "已跳过",
-    "smartRoutingIndexIndexedAs": "以 {{principals}} 的身份索引"
+    "smartRoutingIndexIndexedAs": "以 {{principals}} 的身份索引",
+    "activityRetention": "活动保留天数",
+    "activityRetentionDescription": "工具调用活动的保留时长。留空表示永久保留。不会短于用户在其工作区中看到的历史窗口。",
+    "activityRetentionWarning": "警告：超过该天数的活动将被永久删除，无法恢复。",
+    "activityRetentionPlaceholder": "永久保留",
+    "activityRetentionInvalid": "请输入 1 到 3650 之间的整数天数，或留空。",
+    "activityRetentionConfirmTitle": "永久删除旧活动？",
+    "activityRetentionConfirmMessage": "超过 {{days}} 天的活动将在下一次每小时清理时被永久删除，此操作无法撤销。（实际天数不会少于用户历史窗口，即使您输入的是 {{entered}}。）",
+    "activityRetentionConfirm": "保存并删除旧活动",
+    "activityRetentionUpdateFailed": "更新活动保留设置失败"
   },
   "mcpb": {
     "upload": "上传",
@@ -1607,6 +1616,52 @@
     "disabled": "工作区已不可用，可能是管理员将其关闭了。",
     "reload": "重新加载",
     "settingsFailed": "无法读取服务器设置，因此显示标准导航。",
-    "popupBlocked": "浏览器拦截了登录窗口，请使用服务下方显示的链接。"
+    "popupBlocked": "浏览器拦截了登录窗口，请使用服务下方显示的链接。",
+    "activity": {
+      "tab": "活动",
+      "title": "最近活动",
+      "description": "哪个客户端在何时调用了哪个服务的哪个工具，以及结果如何。此处不会显示输入和返回内容。",
+      "empty": "暂无活动。客户端发起的调用会显示在这里。",
+      "emptyFiltered": "没有符合筛选条件的活动。",
+      "loadFailed": "无法加载活动。",
+      "unavailableTitle": "活动记录需要数据库模式",
+      "unavailableBody": "此服务器不保存调用记录，因此没有可显示的内容。请联系管理员使用数据库运行 MCPHub。",
+      "loadMore": "加载更多",
+      "loadingMore": "加载中…",
+      "shown_other": "已显示 {{count}} 条记录",
+      "columns": {
+        "time": "时间",
+        "service": "服务",
+        "tool": "工具",
+        "client": "客户端",
+        "result": "结果",
+        "reason": "原因",
+        "duration": "耗时"
+      },
+      "filters": {
+        "label": "筛选活动",
+        "service": "服务",
+        "result": "结果",
+        "client": "客户端",
+        "allServices": "全部服务",
+        "allResults": "全部结果",
+        "allClients": "全部客户端"
+      },
+      "result": {
+        "success": "成功",
+        "error": "失败",
+        "blocked": "已拦截"
+      },
+      "reason": {
+        "tool_error": "工具返回了错误",
+        "credential_server_error": "使用你个人凭据的服务调用失败",
+        "unavailable": "该工具不可用",
+        "upstream_error": "服务返回了错误"
+      },
+      "noClient": "控制台或系统",
+      "unknownClient": "未知客户端（已不再连接）",
+      "clientGone": "{{name}}（已不再连接）",
+      "duration": "{{ms}} 毫秒"
+    }
   }
 }
