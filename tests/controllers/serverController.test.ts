@@ -671,6 +671,39 @@ describe('serverController - getAllSettings', () => {
     });
   });
 
+  it('leaves last-use bookkeeping out of the settings payload', async () => {
+    mockOAuthTokenDao.findAll.mockResolvedValue([
+      {
+        accessToken: 'a',
+        accessTokenExpiresAt: new Date(),
+        clientId: 'c',
+        username: 'alice',
+        grantCreatedAt: '2026-01-01T00:00:00.000Z',
+        lastUsedAt: '2026-01-02T00:00:00.000Z',
+      },
+    ]);
+    mockBearerKeyDao.findAll.mockResolvedValue([
+      {
+        id: 'k',
+        name: 'k',
+        token: 'mcphub_abcdefghijklmnopqrstuvwxyz',
+        enabled: true,
+        kind: 'user',
+        owner: 'alice',
+        accessType: 'all',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        lastUsedAt: '2026-01-02T00:00:00.000Z',
+      },
+    ]);
+    const res = { json: jest.fn(), status: jest.fn().mockReturnThis() } as unknown as Response;
+    await getAllSettings({ user: { username: 'admin', isAdmin: true } } as unknown as Request, res);
+    const data = (res.json as jest.Mock).mock.calls[0][0].data;
+    expect(data.oauthTokens[0]).not.toHaveProperty('lastUsedAt');
+    expect(data.oauthTokens[0]).not.toHaveProperty('grantCreatedAt');
+    expect(data.bearerKeys[0]).not.toHaveProperty('lastUsedAt');
+    expect(data.bearerKeys[0].createdAt).toBe('2026-01-01T00:00:00.000Z');
+  });
+
   describe('smart routing dashboard reflects SMART_ROUTING_ENABLED', () => {
     const originalEnv = process.env.SMART_ROUTING_ENABLED;
     const originalLegacyEnv = process.env.ENABLE_SMART_ROUTING;
@@ -873,15 +906,74 @@ describe('serverController - updateSystemConfig', () => {
     mockRequest.body = { workspace: { enabled: true } };
     await updateSystemConfig(mockRequest as Request, mockResponse as Response);
     expect(mockSystemConfigDao.update).toHaveBeenLastCalledWith(
-      expect.objectContaining({ workspace: { enabled: true } }),
+      expect.objectContaining({
+        workspace: { enabled: true, enabledAt: expect.any(String) },
+      }),
     );
     expect(mockBroadcastToolListChanged).toHaveBeenCalledTimes(1);
 
     mockBroadcastToolListChanged.mockClear();
-    mockSystemConfigDao.get.mockResolvedValue({ workspace: { enabled: true } });
+    mockSystemConfigDao.update.mockClear();
+    const enabledAt = '2026-01-01T00:00:00.000Z';
+    mockSystemConfigDao.get.mockResolvedValue({ workspace: { enabled: true, enabledAt } });
     await updateSystemConfig(mockRequest as Request, mockResponse as Response);
     expect(mockBroadcastToolListChanged).not.toHaveBeenCalled();
+    // Saving the same state again keeps the original enable time.
+    expect(mockSystemConfigDao.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ workspace: { enabled: true, enabledAt } }),
+    );
   });
+
+  it('restarts the idle clock whenever the workspace is switched back on', async () => {
+    mockSystemConfigDao.get.mockResolvedValue({
+      workspace: { enabled: false, enabledAt: '2020-01-01T00:00:00.000Z' },
+    });
+    mockRequest.body = { workspace: { enabled: true } };
+    await updateSystemConfig(mockRequest as Request, mockResponse as Response);
+    const saved = mockSystemConfigDao.update.mock.calls.at(-1)![0].workspace;
+    expect(saved.enabledAt).not.toBe('2020-01-01T00:00:00.000Z');
+  });
+
+  it.each(['garbage', '2999-01-01T00:00:00.000Z'])(
+    'drops an invalid stored enabledAt (%s) and re-stamps it while the mode is on',
+    async (bad) => {
+      mockSystemConfigDao.get.mockResolvedValue({ workspace: { enabled: true, enabledAt: bad } });
+      mockRequest.body = { workspace: { clientIdleDays: 30 } };
+      await updateSystemConfig(mockRequest as Request, mockResponse as Response);
+      const saved = mockSystemConfigDao.update.mock.calls.at(-1)![0].workspace;
+      expect(saved.enabledAt).not.toBe(bad);
+      expect(Date.parse(saved.enabledAt)).toBeLessThanOrEqual(Date.now());
+    },
+  );
+
+  it.each([0, 1, 90, 3650])(
+    'saves clientIdleDays %s without touching the enabled state',
+    async (days) => {
+      mockSystemConfigDao.get.mockResolvedValue({ workspace: { enabled: true, enabledAt: '2026-01-01T00:00:00.000Z' } });
+      mockRequest.body = { workspace: { clientIdleDays: days } };
+      await updateSystemConfig(mockRequest as Request, mockResponse as Response);
+      expect(mockSystemConfigDao.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          workspace: {
+          enabled: true,
+          enabledAt: '2026-01-01T00:00:00.000Z',
+          clientIdleDays: days,
+        },
+        }),
+      );
+      expect(mockBroadcastToolListChanged).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['30', 1.5, -1, 3651, null, NaN, true, [30]])(
+    'rejects clientIdleDays %p with 400 and saves nothing',
+    async (days) => {
+      mockRequest.body = { workspace: { enabled: true, clientIdleDays: days } };
+      await updateSystemConfig(mockRequest as Request, mockResponse as Response);
+      expect(mockStatus).toHaveBeenCalledWith(400);
+      expect(mockSystemConfigDao.update).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([null, {}, { allowedCidrs: '192.168.1.0/24' }, { allowedCidrs: ['192.168.1.0/33'] }])(
     'rejects invalid network configuration %s without saving',

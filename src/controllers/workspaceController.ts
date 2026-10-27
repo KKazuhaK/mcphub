@@ -4,6 +4,12 @@ import { getGroupDao, getServerDao } from '../dao/DaoFactory.js';
 import type { RequestPrincipal } from '../services/authorizationService.js';
 import { getDataService } from '../services/services.js';
 import {
+  listConnectedClients,
+  revokeAllConnectedClients,
+  revokeConnectedClient,
+  type ConnectedClientKind,
+} from '../services/connectedClientService.js';
+import {
   getSelectedServerNames,
   isWorkspaceEnabled,
   setServerSelected,
@@ -189,5 +195,50 @@ export const getWorkspaceEndpoints = async (req: Request, res: Response): Promis
     res.json({ success: true, data: { aggregate, servers } });
   } catch {
     res.status(500).json({ success: false, message: 'Unable to build workspace endpoints' });
+  }
+};
+
+// Every credential that can act as the caller on MCP routes. Secrets are never returned.
+export const listWorkspaceClients = async (req: Request, res: Response): Promise<void> => {
+  const user = requireWorkspaceUser(req, res);
+  if (!user) return;
+  try {
+    res.json({
+      success: true,
+      data: await listConnectedClients(user.username, getCachedSystemConfig()),
+    });
+  } catch {
+    res.status(500).json({ success: false, message: 'Unable to list connected clients' });
+  }
+};
+
+// Revokes one of the caller's own clients. An id that belongs to someone else and one that
+// does not exist answer identically.
+export const revokeWorkspaceClient = async (req: Request, res: Response): Promise<void> => {
+  const user = requireWorkspaceUser(req, res);
+  if (!user) return;
+  const { kind, id } = req.params;
+  try {
+    const revoked =
+      (kind === 'oauth' || kind === 'key') &&
+      (await revokeConnectedClient(user.username, kind as ConnectedClientKind, id));
+    if (!revoked) {
+      res.status(404).json({ success: false, message: 'Client not found' });
+      return;
+    }
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ success: false, message: 'Unable to revoke the client' });
+  }
+};
+
+export const revokeAllWorkspaceClients = async (req: Request, res: Response): Promise<void> => {
+  const user = requireWorkspaceUser(req, res);
+  if (!user) return;
+  try {
+    await revokeAllConnectedClients(user.username);
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ success: false, message: 'Unable to revoke clients' });
   }
 };

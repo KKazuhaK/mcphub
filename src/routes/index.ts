@@ -4,7 +4,10 @@ import { listMyCredentials, updateMyCredential } from '../controllers/credential
 import {
   getWorkspaceEndpoints,
   getWorkspaceSummary,
+  listWorkspaceClients,
   listWorkspaceServers,
+  revokeAllWorkspaceClients,
+  revokeWorkspaceClient,
   updateWorkspaceSelection,
 } from '../controllers/workspaceController.js';
 import express from 'express';
@@ -284,6 +287,9 @@ export const initRoutes = async (app: express.Application): Promise<void> => {
   authenticatedRouter.put('/workspace/servers/:name/selection', updateWorkspaceSelection);
   authenticatedRouter.get('/workspace/summary', getWorkspaceSummary);
   authenticatedRouter.get('/workspace/endpoints', getWorkspaceEndpoints);
+  authenticatedRouter.get('/workspace/clients', listWorkspaceClients);
+  authenticatedRouter.delete('/workspace/clients/:kind/:id', revokeWorkspaceClient);
+  authenticatedRouter.delete('/workspace/clients', revokeAllWorkspaceClients);
   authenticatedRouter.get('/servers', getAllServers);
   authenticatedRouter.get('/servers/:name/share-candidates', getServerShareCandidates);
   authenticatedRouter.get('/servers/:name', getServerConfig);

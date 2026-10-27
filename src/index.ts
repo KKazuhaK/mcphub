@@ -3,6 +3,7 @@ import AppServer from './server.js';
 import { initializeDatabaseMode } from './utils/migration.js';
 import { createFetchWithProxy, getProxyConfigFromEnv } from './services/proxy.js';
 import { isRetryableDbError } from './utils/dbRetry.js';
+import { ensureWorkspaceEnabledAt } from './services/connectedClientService.js';
 import { hydrateSystemConfigCache, getCachedSystemConfig } from './utils/systemConfigCache.js';
 import { logger } from './utils/logger.js';
 import {
@@ -180,6 +181,8 @@ async function boot() {
     }
 
     await hydrateSystemConfigCache();
+    // Not awaited: stamping is best effort and must not delay startup.
+    void ensureWorkspaceEnabledAt().catch(() => undefined);
 
     // GHSA-wmv9-3qh3-9rpw: skipAuth disables dashboard authentication entirely
     // and treats every API caller as an implicit admin. Make sure operators

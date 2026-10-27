@@ -109,6 +109,17 @@ export class OAuthTokenRepository {
   }
 
   /**
+   * Stamp last use with a targeted UPDATE ... WHERE: a token revoked meanwhile stays gone
+   * (no row matches) and no other column is read back or rewritten.
+   */
+  async recordLastUsed(accessToken: string, at: Date): Promise<boolean> {
+    return this.withRetry(async () => {
+      const result = await this.repository.update({ accessToken }, { lastUsedAt: at });
+      return (result.affected ?? 0) > 0;
+    }, 'recordLastUsed');
+  }
+
+  /**
    * Delete an OAuth token by access token
    */
   async delete(accessToken: string): Promise<boolean> {
@@ -174,6 +185,16 @@ export class OAuthTokenRepository {
       const result = await this.repository.delete({ clientId });
       return result.affected ?? 0;
     }, 'revokeClientTokens');
+  }
+
+  /**
+   * Revoke the tokens one client holds for one user, leaving other users' tokens intact
+   */
+  async revokeUserClientTokens(username: string, clientId: string): Promise<number> {
+    return this.withRetry(async () => {
+      const result = await this.repository.delete({ username, clientId });
+      return result.affected ?? 0;
+    }, 'revokeUserClientTokens');
   }
 
   /**

@@ -92,6 +92,7 @@ import {
 } from '../utils/smartRouting.js';
 import { TOOL_DEFINITION_FIELDS } from '../constants/smartRoutingDefaults.js';
 import { previewOpenApiToolStats } from '../services/openApiToolStatsService.js';
+import { isValidEnabledAt } from '../services/connectedClientService.js';
 import { logger } from '../utils/logger.js';
 import { findToolConfigKey, resolveRuntimeToolName } from '../utils/toolConfig.js';
 
@@ -555,8 +556,11 @@ export const getAllSettings = async (req: Request, res: Response): Promise<void>
       systemConfig: systemConfigForResponse,
       userConfigs,
       oauthClients,
-      oauthTokens,
-      bearerKeys: bearerKeys.map((key) => ({
+      // Last-use bookkeeping is operational state, not configuration.
+      oauthTokens: oauthTokens.map(
+        ({ lastUsedAt: _lastUsed, grantCreatedAt: _grantCreated, ...token }) => token,
+      ),
+      bearerKeys: bearerKeys.map(({ lastUsedAt: _lastUsed, ...key }) => ({
         ...key,
         kind: key.kind ?? 'system',
         token:
@@ -2228,7 +2232,25 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
 
     const hasActivityLogUpdate = activityLog && typeof activityLog.storeToolPayload === 'boolean';
 
-    const hasWorkspaceUpdate = workspace && typeof workspace.enabled === 'boolean';
+    const hasWorkspaceIdleUpdate = workspace && workspace.clientIdleDays !== undefined;
+    if (
+      hasWorkspaceIdleUpdate &&
+      !(
+        typeof workspace.clientIdleDays === 'number' &&
+        Number.isInteger(workspace.clientIdleDays) &&
+        workspace.clientIdleDays >= 0 &&
+        workspace.clientIdleDays <= 3650
+      )
+    ) {
+      res.status(400).json({
+        success: false,
+        message: 'workspace.clientIdleDays must be an integer from 0 to 3650',
+      });
+      return;
+    }
+
+    const hasWorkspaceUpdate =
+      workspace && (typeof workspace.enabled === 'boolean' || hasWorkspaceIdleUpdate);
 
     const hasOAuthServerUpdate =
       oauthServer &&
@@ -2926,10 +2948,32 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
       };
     }
 
+    // enabledAt is only ever stamped here: a stored value that is malformed or in the future
+    // is dropped (and re-stamped below while the mode is on).
+    if (
+      systemConfig.workspace?.enabledAt !== undefined &&
+      !isValidEnabledAt(systemConfig.workspace.enabledAt)
+    ) {
+      const { enabledAt: _dropped, ...rest } = systemConfig.workspace;
+      systemConfig.workspace = rest;
+    }
     const workspaceToggled =
-      hasWorkspaceUpdate && (systemConfig.workspace?.enabled === true) !== workspace.enabled;
+      hasWorkspaceUpdate &&
+      typeof workspace.enabled === 'boolean' &&
+      (systemConfig.workspace?.enabled === true) !== workspace.enabled;
     if (hasWorkspaceUpdate) {
-      systemConfig.workspace = { ...systemConfig.workspace, enabled: workspace.enabled };
+      systemConfig.workspace = {
+        ...systemConfig.workspace,
+        ...(typeof workspace.enabled === 'boolean' ? { enabled: workspace.enabled } : {}),
+        ...(hasWorkspaceIdleUpdate ? { clientIdleDays: workspace.clientIdleDays } : {}),
+        // Idle time is never measured from before the mode was switched on.
+        ...(workspaceToggled && workspace.enabled === true
+          ? { enabledAt: new Date().toISOString() }
+          : {}),
+      };
+    }
+    if (systemConfig.workspace?.enabled === true && !systemConfig.workspace.enabledAt) {
+      systemConfig.workspace.enabledAt = new Date().toISOString();
     }
 
     if (hasNetworkUpdate) {

@@ -23,6 +23,8 @@ export class BearerKeyDaoDbImpl implements BearerKeyDao {
       accessType: entity.accessType,
       allowedGroups: entity.allowedGroups ?? [],
       allowedServers: entity.allowedServers ?? [],
+      createdAt: entity.createdAt ? new Date(entity.createdAt).toISOString() : undefined,
+      lastUsedAt: entity.lastUsedAt ? new Date(entity.lastUsedAt).toISOString() : undefined,
     };
   }
 
@@ -61,6 +63,8 @@ export class BearerKeyDaoDbImpl implements BearerKeyDao {
       accessType: data.accessType,
       allowedGroups: data.allowedGroups ?? [],
       allowedServers: data.allowedServers ?? [],
+      ...(data.createdAt ? { createdAt: new Date(data.createdAt) } : {}),
+      lastUsedAt: data.lastUsedAt ? new Date(data.lastUsedAt) : undefined,
     } as any);
     return this.toModel(entity as any);
   }
@@ -80,6 +84,10 @@ export class BearerKeyDaoDbImpl implements BearerKeyDao {
       allowedServers: data.allowedServers,
     } as any);
     return entity ? this.toModel(entity as any) : null;
+  }
+
+  async recordLastUsed(id: string, at: string): Promise<void> {
+    await this.repository.recordLastUsed(id, new Date(at));
   }
 
   async delete(id: string): Promise<boolean> {

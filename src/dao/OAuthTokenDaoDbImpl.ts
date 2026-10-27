@@ -51,6 +51,8 @@ export class OAuthTokenDaoDbImpl implements OAuthTokenDao {
       clientId: entity.clientId,
       username: entity.username,
       sessionVersion: entity.sessionVersion,
+      grantCreatedAt: entity.grantCreatedAt ? new Date(entity.grantCreatedAt) : undefined,
+      lastUsedAt: entity.lastUsedAt ? new Date(entity.lastUsedAt) : undefined,
     });
     return this.mapToOAuthToken(token);
   }
@@ -63,6 +65,10 @@ export class OAuthTokenDaoDbImpl implements OAuthTokenDao {
       scope: entity.scope,
     });
     return token ? this.mapToOAuthToken(token) : null;
+  }
+
+  async recordLastUsed(accessToken: string, at: string): Promise<void> {
+    await this.repository.recordLastUsed(accessToken, new Date(at));
   }
 
   async delete(accessToken: string): Promise<boolean> {
@@ -89,6 +95,10 @@ export class OAuthTokenDaoDbImpl implements OAuthTokenDao {
     return await this.repository.revokeClientTokens(clientId);
   }
 
+  async revokeUserClientTokens(username: string, clientId: string): Promise<number> {
+    return await this.repository.revokeUserClientTokens(username, clientId);
+  }
+
   async cleanupExpired(): Promise<number> {
     return await this.repository.cleanupExpired();
   }
@@ -110,6 +120,8 @@ export class OAuthTokenDaoDbImpl implements OAuthTokenDao {
     clientId: string;
     username: string;
     sessionVersion?: string;
+    grantCreatedAt?: Date | null;
+    lastUsedAt?: Date | null;
   }): IOAuthToken {
     return {
       accessToken: token.accessToken,
@@ -120,6 +132,10 @@ export class OAuthTokenDaoDbImpl implements OAuthTokenDao {
       clientId: token.clientId,
       username: token.username,
       sessionVersion: token.sessionVersion,
+      grantCreatedAt: token.grantCreatedAt
+        ? new Date(token.grantCreatedAt).toISOString()
+        : undefined,
+      lastUsedAt: token.lastUsedAt ? new Date(token.lastUsedAt).toISOString() : undefined,
     };
   }
 }

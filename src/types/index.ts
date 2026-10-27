@@ -319,6 +319,12 @@ export interface SystemConfig {
     // When enabled, a user's personal MCP endpoints expose only the servers that
     // user has selected. Admin-defined group routes are not affected.
     enabled?: boolean;
+    // Days a user-level bearer key or OAuth grant may go unused before it is rejected
+    // as if revoked. Default 90; 0 disables. Only effective while the workspace is enabled.
+    clientIdleDays?: number;
+    // ISO time the mode was last switched on. Idle time is never measured from before it,
+    // so enabling the mode cannot expire credentials that predate usage tracking.
+    enabledAt?: string;
   };
 }
 
@@ -375,6 +381,8 @@ export interface IOAuthToken {
   clientId: string; // Client ID
   sessionVersion?: string; // Credential version at issuance
   username: string; // Username
+  grantCreatedAt?: string; // ISO time the grant (client + user) was first authorized; carried across refresh rotation
+  lastUsedAt?: string; // ISO time this grant last authenticated an MCP request; carried across refresh rotation
 }
 
 // OAuth Server Configuration
@@ -415,6 +423,8 @@ export interface BearerKey {
   accessType: BearerKeyAccessType; // Access scope type
   allowedGroups?: string[]; // Allowed group names when accessType === 'groups' or 'custom'
   allowedServers?: string[]; // Allowed server names when accessType === 'servers' or 'custom'
+  createdAt?: string; // ISO creation time; absent on keys created before it was recorded
+  lastUsedAt?: string; // ISO time the key last authenticated an MCP request
 }
 
 // Represents the settings for MCP servers

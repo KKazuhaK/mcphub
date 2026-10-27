@@ -25,8 +25,15 @@ import {
 import { UserContextService } from './userContextService.js';
 import { RequestContextService } from './requestContextService.js';
 import { IUser, BearerKey, BearerKeyKind } from '../types/index.js';
-import { resolveOAuthUserFromToken } from '../utils/oauthBearer.js';
+import { resolveOAuthGrantFromToken } from '../utils/oauthBearer.js';
+import {
+  isKeyIdle,
+  recordBearerKeyUse,
+  recordOAuthTokenUse,
+  type SessionCredential,
+} from './connectedClientService.js';
 import { safeCompare } from '../utils/safeCompare.js';
+import { getCachedSystemConfig } from '../utils/systemConfigCache.js';
 import {
   getBearerAuthHeaderValue,
   getBearerTokenFromHeaders,
@@ -51,6 +58,8 @@ export interface SessionContext {
   keyName?: string;
   hostedAuth?: HostedAuthContext;
   username?: string;
+  /** The OAuth grant or user-level key the session was opened with, for revocation. */
+  credential?: SessionCredential;
 }
 
 export const transports: {
@@ -133,6 +142,29 @@ export const getSessionContext = (
 export const getSessionUsername = (sessionId: string): string | undefined =>
   transports[sessionId]?.username;
 
+/**
+ * Close the live sessions `username` opened with a revoked credential. Without a
+ * credential, closes every session that was opened with an OAuth grant or a user-level key.
+ */
+export const closeSessionsForCredential = (
+  username: string,
+  credential?: SessionCredential,
+): number => {
+  let closed = 0;
+  for (const [sessionId, session] of Object.entries(transports)) {
+    if (session.username !== username || !session.credential) continue;
+    if (
+      credential &&
+      (session.credential.kind !== credential.kind || session.credential.id !== credential.id)
+    ) {
+      continue;
+    }
+    cleanupSessionState(sessionId);
+    closed++;
+  }
+  return closed;
+};
+
 const cleanupSessionState = (sessionId: string): void => {
   const session = transports[sessionId];
   if (session?.transport && typeof session.transport.close === 'function') {
@@ -186,6 +218,7 @@ type BearerAuthResult =
       keyName?: string;
       kind?: BearerKeyKind;
       hostedAuth?: HostedAuthContext;
+      credential?: SessionCredential;
     }
   | {
       valid: false;
@@ -392,7 +425,29 @@ const resolveUserLevelKeyUser = async (req: Request, key: BearerKey): Promise<Be
     return { valid: false, reason: 'forbidden' };
   }
 
-  return { valid: true, user, keyId: key.id, keyName: key.name, kind: 'user' };
+  return {
+    valid: true,
+    user,
+    keyId: key.id,
+    keyName: key.name,
+    kind: 'user',
+    credential: { kind: 'key', id: key.id },
+  };
+};
+
+// A user-level key authenticated this request: note the use without delaying the response.
+const noteKeyUse = (key: BearerKey): void => {
+  if (key.kind === 'user') void recordBearerKeyUse(key.id);
+};
+
+// Resolve an OAuth bearer token. A grant that authenticates is noted as used.
+const authenticateOAuthBearer = async (
+  token: string,
+): Promise<{ user: IUser; credential: SessionCredential } | null> => {
+  const grant = await resolveOAuthGrantFromToken(token);
+  if (!grant) return null;
+  void recordOAuthTokenUse(token);
+  return { user: grant.user, credential: { kind: 'oauth', id: grant.clientId } };
 };
 
 const validateBearerAuth = async (req: Request): Promise<BearerAuthResult> => {
@@ -401,7 +456,12 @@ const validateBearerAuth = async (req: Request): Promise<BearerAuthResult> => {
   const enableBearerAuth = systemConfig?.routing?.enableBearerAuth ?? true;
 
   const bearerKeyDao = getBearerKeyDao();
-  const enabledKeys = await bearerKeyDao.findEnabled();
+  // A user-level key idle past the workspace window is dropped like a disabled one.
+  const idleCheckedAt = Date.now();
+  const enabledKeys = (await bearerKeyDao.findEnabled()).filter(
+    // Same source as the OAuth check (oauthBearer), so both kinds follow one setting.
+    (key) => !isKeyIdle(key, getCachedSystemConfig(), idleCheckedAt),
+  );
 
   const authHeader = getBearerAuthHeaderValue(req.headers, systemConfig);
   const hasBearerHeader = parseBearerAuthorization(authHeader) !== null;
@@ -484,6 +544,7 @@ const validateBearerAuth = async (req: Request): Promise<BearerAuthResult> => {
         logger.log(
           `Bearer key recognized (auth disabled): id=${matchingKey.id}, name=${matchingKey.name}, accessType=${matchingKey.accessType}`,
         );
+        noteKeyUse(matchingKey);
         return userKeyResult;
       }
 
@@ -493,10 +554,15 @@ const validateBearerAuth = async (req: Request): Promise<BearerAuthResult> => {
       return { valid: true };
     }
 
-    const oauthUser = await resolveOAuthUserFromToken(token);
-    if (oauthUser) {
+    const oauth = await authenticateOAuthBearer(token);
+    if (oauth) {
       logger.log('Recognized OAuth bearer token (auth disabled)');
-      return { valid: true, user: oauthUser, keyName: OAUTH_AUTH_METHOD_LABEL };
+      return {
+        valid: true,
+        user: oauth.user,
+        keyName: OAUTH_AUTH_METHOD_LABEL,
+        credential: oauth.credential,
+      };
     }
 
     return { valid: true };
@@ -512,10 +578,15 @@ const validateBearerAuth = async (req: Request): Promise<BearerAuthResult> => {
   }
 
   if (enabledKeys.length === 0) {
-    const oauthUser = await resolveOAuthUserFromToken(token);
-    if (oauthUser) {
+    const oauth = await authenticateOAuthBearer(token);
+    if (oauth) {
       logger.log('Authenticated request using OAuth bearer token without configured keys');
-      return { valid: true, user: oauthUser, keyName: OAUTH_AUTH_METHOD_LABEL };
+      return {
+        valid: true,
+        user: oauth.user,
+        keyName: OAUTH_AUTH_METHOD_LABEL,
+        credential: oauth.credential,
+      };
     }
 
     logger.warn(
@@ -541,13 +612,19 @@ const validateBearerAuth = async (req: Request): Promise<BearerAuthResult> => {
     logger.log(
       `Bearer key authenticated: id=${matchingKey.id}, name=${matchingKey.name}, accessType=${matchingKey.accessType}`,
     );
+    noteKeyUse(matchingKey);
     return userKeyResult;
   }
 
-  const oauthUser = await resolveOAuthUserFromToken(token);
-  if (oauthUser) {
+  const oauth = await authenticateOAuthBearer(token);
+  if (oauth) {
     logger.log('Authenticated request using OAuth bearer token (no matching static key)');
-    return { valid: true, user: oauthUser, keyName: OAUTH_AUTH_METHOD_LABEL };
+    return {
+      valid: true,
+      user: oauth.user,
+      keyName: OAUTH_AUTH_METHOD_LABEL,
+      credential: oauth.credential,
+    };
   }
 
   logger.warn('Bearer authentication failed: token did not match any key or OAuth user');
@@ -721,6 +798,7 @@ export const handleSseConnection = async (req: Request, res: Response): Promise<
     keyName: bearerAuthResult.keyName,
     hostedAuth: bearerAuthResult.hostedAuth,
     username,
+    credential: bearerAuthResult.credential,
   };
 
   res.on('close', () => {
@@ -808,6 +886,7 @@ async function createSessionWithId(
   group: string,
   username?: string,
   hostedAuth?: HostedAuthContext,
+  credential?: SessionCredential,
 ): Promise<NodeStreamableHTTPServerTransport> {
   logger.log(
     `[SESSION REBUILD] Starting session rebuild for ID: ${sessionId}${username ? ` for user: ${username}` : ''}`,
@@ -823,7 +902,7 @@ async function createSessionWithId(
         `[SESSION REBUILD] onsessioninitialized triggered for ID: ${initializedSessionId}`,
       ); // New log
       if (initializedSessionId === sessionId) {
-        transports[sessionId] = { transport, group, hostedAuth, username };
+        transports[sessionId] = { transport, group, hostedAuth, username, credential };
         logger.log(
           `[SESSION REBUILD] Session ${sessionId} initialized successfully${username ? ` for user: ${username}` : ''}`,
         );
@@ -850,7 +929,7 @@ async function createSessionWithId(
     throw new Error('Failed to rebuild session transport state');
   }
 
-  transports[sessionId] = { transport, group, hostedAuth, username };
+  transports[sessionId] = { transport, group, hostedAuth, username, credential };
 
   logger.log(`[SESSION REBUILD] Rehydrated session ${sessionId} for immediate request handling.`);
 
@@ -862,6 +941,7 @@ async function createNewSession(
   group: string,
   username?: string,
   hostedAuth?: HostedAuthContext,
+  credential?: SessionCredential,
 ): Promise<NodeStreamableHTTPServerTransport> {
   const newSessionId = randomUUID();
   logger.log(
@@ -871,7 +951,7 @@ async function createNewSession(
   const transport = new NodeStreamableHTTPServerTransport({
     sessionIdGenerator: () => newSessionId,
     onsessioninitialized: (sessionId) => {
-      transports[sessionId] = { transport, group, hostedAuth, username };
+      transports[sessionId] = { transport, group, hostedAuth, username, credential };
       logger.log(
         `[SESSION NEW] New session ${sessionId} initialized successfully${username ? ` for user: ${username}` : ''}`,
       );
@@ -998,6 +1078,7 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
           group,
           username,
           bearerAuthResult.hostedAuth,
+          bearerAuthResult.credential,
         );
       } else {
         logger.log(
@@ -1044,7 +1125,12 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
     logger.log(
       `[SESSION CREATE] No session ID provided for initialize request, creating new session${username ? ` for user: ${username}` : ''}`,
     );
-    transport = await createNewSession(group, username, bearerAuthResult.hostedAuth);
+    transport = await createNewSession(
+      group,
+      username,
+      bearerAuthResult.hostedAuth,
+      bearerAuthResult.credential,
+    );
   } else if (
     req.body &&
     typeof req.body.method === 'string' &&
@@ -1161,6 +1247,7 @@ export const handleMcpOtherRequest = async (req: Request, res: Response) => {
           group,
           currentUser.username,
           bearerAuthResult.hostedAuth,
+          bearerAuthResult.credential,
         );
         if (rebuiltSession) {
           logger.log(

@@ -44,6 +44,12 @@ export class OAuthToken {
   @Column({ name: 'session_version', type: 'varchar', length: 64, nullable: true })
   sessionVersion?: string;
 
+  @Column({ name: 'grant_created_at', type: 'timestamp', nullable: true })
+  grantCreatedAt?: Date | null;
+
+  @Column({ name: 'last_used_at', type: 'timestamp', nullable: true })
+  lastUsedAt?: Date | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;
 

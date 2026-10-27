@@ -83,7 +83,13 @@ describe('ConfigController - getMcpSettingsJson', () => {
     mockSystemConfigDao.get.mockResolvedValue({});
     mockUserConfigDao.getAll.mockResolvedValue({});
     mockOAuthClientDao.findAll.mockResolvedValue([
-      { clientId: 'client-1', clientSecret: 'secret', name: 'client', redirectUris: [], grants: [] },
+      {
+        clientId: 'client-1',
+        clientSecret: 'secret',
+        name: 'client',
+        redirectUris: [],
+        grants: [],
+      },
     ]);
     mockOAuthTokenDao.findAll.mockResolvedValue([
       {
@@ -107,13 +113,66 @@ describe('ConfigController - getMcpSettingsJson', () => {
         groups: [],
         systemConfig: {},
         userConfigs: {},
-        oauthClients: [
-          { clientId: 'client-1', name: 'client', redirectUris: [], grants: [] },
-        ],
+        oauthClients: [{ clientId: 'client-1', name: 'client', redirectUris: [], grants: [] }],
         oauthTokens: [{ clientId: 'client-1', username: 'admin' }],
         bearerKeys: [{ id: 'key-1', name: 'key', enabled: true, accessType: 'all' }],
       },
     });
+  });
+
+  it('leaves the instance-local workspace enabledAt out of the export', async () => {
+    mockServerDao.findAll.mockResolvedValue([]);
+    mockUserDao.findAll.mockResolvedValue([]);
+    mockGroupDao.findAll.mockResolvedValue([]);
+    mockSystemConfigDao.get.mockResolvedValue({
+      workspace: { enabled: true, clientIdleDays: 30, enabledAt: '2026-01-01T00:00:00.000Z' },
+    });
+    mockUserConfigDao.getAll.mockResolvedValue({});
+    mockOAuthClientDao.findAll.mockResolvedValue([]);
+    mockOAuthTokenDao.findAll.mockResolvedValue([]);
+    mockBearerKeyDao.findAll.mockResolvedValue([]);
+
+    await getMcpSettingsJson(mockRequest as Request, mockResponse as Response);
+
+    expect(mockJson.mock.calls[0][0].data.systemConfig).toEqual({
+      workspace: { enabled: true, clientIdleDays: 30 },
+    });
+  });
+
+  it('leaves last-use bookkeeping out of the export', async () => {
+    mockServerDao.findAll.mockResolvedValue([]);
+    mockUserDao.findAll.mockResolvedValue([]);
+    mockGroupDao.findAll.mockResolvedValue([]);
+    mockSystemConfigDao.get.mockResolvedValue({});
+    mockUserConfigDao.getAll.mockResolvedValue({});
+    mockOAuthClientDao.findAll.mockResolvedValue([]);
+    mockOAuthTokenDao.findAll.mockResolvedValue([
+      {
+        accessToken: 'a',
+        clientId: 'c',
+        username: 'u',
+        grantCreatedAt: '2026-01-01T00:00:00.000Z',
+        lastUsedAt: '2026-01-02T00:00:00.000Z',
+      },
+    ]);
+    mockBearerKeyDao.findAll.mockResolvedValue([
+      {
+        id: 'k',
+        name: 'k',
+        token: 't',
+        enabled: true,
+        accessType: 'all',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        lastUsedAt: '2026-01-02T00:00:00.000Z',
+      },
+    ]);
+
+    await getMcpSettingsJson(mockRequest as Request, mockResponse as Response);
+
+    const data = mockJson.mock.calls[0][0].data;
+    expect(data.oauthTokens).toEqual([{ clientId: 'c', username: 'u' }]);
+    expect(data.bearerKeys[0]).not.toHaveProperty('lastUsedAt');
+    expect(data.bearerKeys[0].createdAt).toBe('2026-01-01T00:00:00.000Z');
   });
 
   describe('Individual Server Export', () => {

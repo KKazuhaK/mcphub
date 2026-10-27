@@ -28,7 +28,7 @@ jest.mock('../../src/services/vectorSearchService.js', () => ({
 }));
 
 jest.mock('../../src/utils/oauthBearer.js', () => ({
-  resolveOAuthUserFromToken: jest.fn(),
+  resolveOAuthGrantFromToken: jest.fn(),
 }));
 
 // Mock DAO accessors used by sseService (avoid file-based DAOs and migrations)
@@ -47,7 +47,7 @@ jest.mock('../../src/config/index.js', () => ({
 
 import { Request, Response } from 'express';
 import { handleSseConnection, transports } from '../../src/services/sseService.js';
-import { resolveOAuthUserFromToken } from '../../src/utils/oauthBearer.js';
+import { resolveOAuthGrantFromToken } from '../../src/utils/oauthBearer.js';
 import * as mcpService from '../../src/services/mcpService.js';
 import * as configModule from '../../src/config/index.js';
 import * as daoIndex from '../../src/dao/index.js';
@@ -299,10 +299,9 @@ describe('Keepalive Functionality', () => {
       };
       (daoIndex.getBearerKeyDao as unknown as jest.Mock).mockReturnValue(mockBearerKeyDao);
 
-      (resolveOAuthUserFromToken as jest.Mock).mockResolvedValue({
-        username: 'oauth-user',
-        password: '',
-        isAdmin: false,
+      (resolveOAuthGrantFromToken as jest.Mock).mockResolvedValue({
+        user: { username: 'oauth-user', password: '', isAdmin: false },
+        clientId: 'oauth-client',
       });
 
       mockReq.headers = { authorization: 'Bearer a-valid-oauth-token' };

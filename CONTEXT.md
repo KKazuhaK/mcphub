@@ -63,3 +63,7 @@ _Avoid_: downtime, disabled (reserved for the global `enabled` flag)
 **Per-user Pause**:
 A server's `pausedUsers` list: the server is `paused` for the listed usernames only (administrators included) on every route, and unaffected for everyone else. Readable and writable by admins only. An access control, not a selection. Effective only under Workspace Mode.
 _Avoid_: block, ban, per-user disable
+
+**Connected Client**:
+Anything that can act as one user on MCP routes: an OAuth client holding a live access or refresh token for that user from MCPHub's own authorization server (one entry per client and user, however many tokens it has rotated through), or a user-level bearer key the user owns. A user lists and revokes their own under Workspace Mode (`/api/workspace/clients`); revoking one leaves their other clients and their endpoint URL unchanged. Each records a last-use time, and one unused for `workspace.clientIdleDays` (default 90, 0 off, measured from no earlier than the moment the mode was enabled) is refused like a revoked one.
+_Avoid_: session (a live MCP connection opened by a client), integration, app
