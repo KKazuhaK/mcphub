@@ -56,17 +56,25 @@ jest.mock('../../src/services/mcpService.js', () => ({
 jest.mock('../../src/services/credentialBindingService.js', () => ({
   getCredentialBindingStatus: (...args: unknown[]) => mockGetCredentialBindingStatus(...args),
 }));
+const mockPersonalOAuthLoad = jest.fn();
 jest.mock('../../src/services/personalOAuthService.js', () => ({
-  hasPersonalOAuth: () => false,
-  PersonalOAuthContext: {},
+  hasPersonalOAuth: (config?: { oauth?: { identityMode?: string } }) =>
+    config?.oauth?.identityMode === 'personal',
+  PersonalOAuthContext: { load: (...args: unknown[]) => mockPersonalOAuthLoad(...args) },
 }));
 
 import {
   getWorkspaceEndpoints,
+  getWorkspaceSummary,
   listWorkspaceServers,
   updateWorkspaceSelection,
 } from '../../src/controllers/workspaceController.js';
+import { initI18n } from '../../src/utils/i18n.js';
 import { clearServerSelectionCache } from '../../src/services/userServerSelectionService.js';
+import {
+  clearUserServerFailures,
+  recordUserServerFailure,
+} from '../../src/services/userServerFailureStore.js';
 
 const buildApp = () => {
   const app = express();
@@ -75,9 +83,12 @@ const buildApp = () => {
   app.use((req, _res, next) => {
     const header = req.headers['x-test-user'];
     if (typeof header === 'string') (req as any).user = JSON.parse(header);
+    const language = req.headers['x-test-language'];
+    if (typeof language === 'string') (req as any).language = language;
     next();
   });
   app.get('/api/workspace/servers', listWorkspaceServers);
+  app.get('/api/workspace/summary', getWorkspaceSummary);
   app.put('/api/workspace/servers/:name/selection', updateWorkspaceSelection);
   app.get('/api/workspace/endpoints', getWorkspaceEndpoints);
   return app;
@@ -93,6 +104,8 @@ describe('workspace API', () => {
     selectionRows.length = 0;
     groupNames = [];
     clearServerSelectionCache();
+    clearUserServerFailures();
+    mockPersonalOAuthLoad.mockReset();
     workspaceConfig = { workspace: { enabled: true } };
     mockGetCredentialBindingStatus.mockResolvedValue({ configured: false });
     servers = [
@@ -154,6 +167,7 @@ describe('workspace API', () => {
           toolCount: 3,
           requiresPersonalCredential: false,
           credentialConfigured: true,
+          status: { code: 'available', action: null, message: expect.any(String) },
         },
         {
           name: 'alice-tool',
@@ -162,6 +176,7 @@ describe('workspace API', () => {
           toolCount: 3,
           requiresPersonalCredential: false,
           credentialConfigured: true,
+          status: { code: 'not_selected', action: 'select', message: expect.any(String) },
         },
         {
           name: 'needs-key',
@@ -170,6 +185,7 @@ describe('workspace API', () => {
           toolCount: 3,
           requiresPersonalCredential: true,
           credentialConfigured: false,
+          status: { code: 'not_selected', action: 'select', message: expect.any(String) },
         },
       ]);
       expect(mockGetCredentialBindingStatus).toHaveBeenCalledWith(
@@ -199,6 +215,174 @@ describe('workspace API', () => {
         .expect(200);
 
       expect(response.body.data).toHaveLength(4);
+    });
+  });
+
+  describe('server status', () => {
+    const select = (username: string, ...names: string[]) =>
+      names.forEach((serverName) =>
+        selectionRows.push({ username, serverName, selected: true, updatedAt: '2026-01-01' }),
+      );
+    const statusOf = async (user = 'alice', headers: Record<string, string> = {}) => {
+      const response = await request(app)
+        .get('/api/workspace/servers')
+        .set({ 'x-test-user': asUser(user), ...headers })
+        .expect(200);
+      return Object.fromEntries(
+        response.body.data.map((server: { name: string; status: unknown }) => [
+          server.name,
+          server.status,
+        ]),
+      ) as Record<string, { code: string; action: string | null; message: string; since?: string }>;
+    };
+
+    it('reports the first state that applies to each server', async () => {
+      select('alice', 'public-tool', 'alice-tool', 'needs-key');
+      const status = await statusOf();
+      expect(status['public-tool']).toMatchObject({ code: 'available', action: null });
+      expect(status['alice-tool']).toMatchObject({ code: 'paused', action: 'contact_admin' });
+      expect(status['needs-key']).toMatchObject({ code: 'needs_auth', action: 'connect' });
+      expect(status['needs-key'].message).toContain('needs-key');
+    });
+
+    it('reports an unselected server as not_selected whatever else is wrong with it', async () => {
+      expect((await statusOf())['alice-tool']).toMatchObject({
+        code: 'not_selected',
+        action: 'select',
+      });
+    });
+
+    it('treats a configured credential as available', async () => {
+      select('alice', 'needs-key');
+      mockGetCredentialBindingStatus.mockResolvedValue({ configured: true });
+      expect((await statusOf())['needs-key'].code).toBe('available');
+    });
+
+    it('sends a user who cannot hold personal credentials to the administrator', async () => {
+      select('alice', 'needs-key');
+      const response = await request(app)
+        .get('/api/workspace/servers')
+        .set('x-test-user', JSON.stringify({ username: 'alice', credentialEligible: false }))
+        .expect(200);
+      const entry = response.body.data.find(
+        (server: { name: string }) => server.name === 'needs-key',
+      );
+      expect(entry.status).toMatchObject({ code: 'needs_auth', action: 'contact_admin' });
+    });
+
+    it('reports a rejected credential only for the user it was rejected for', async () => {
+      select('alice', 'needs-key');
+      select('bob', 'needs-key');
+      mockGetCredentialBindingStatus.mockResolvedValue({ configured: true });
+      recordUserServerFailure('alice', 'needs-key', 'auth');
+      const alice = (await statusOf('alice'))['needs-key'];
+      expect(alice).toMatchObject({ code: 'credential_invalid', action: 'connect' });
+      expect(alice.since).toEqual(expect.any(String));
+      expect((await statusOf('bob'))['needs-key'].code).toBe('available');
+    });
+
+    it('reports a remembered non-auth failure as error', async () => {
+      select('alice', 'public-tool');
+      recordUserServerFailure('alice', 'public-tool', 'runtime');
+      expect((await statusOf())['public-tool']).toMatchObject({
+        code: 'error',
+        action: 'retry_later',
+      });
+    });
+
+    it('distinguishes a disconnected personal OAuth server from one never connected', async () => {
+      servers.push({
+        name: 'oauth-tool',
+        owner: 'admin',
+        visibility: 'public',
+        oauth: { identityMode: 'personal' },
+      } as ServerRecord);
+      select('alice', 'oauth-tool');
+      mockPersonalOAuthLoad.mockResolvedValue({
+        config: { oauth: {} },
+        disconnected: true,
+      });
+      expect((await statusOf())['oauth-tool']).toMatchObject({
+        code: 'revoked',
+        action: 'connect',
+      });
+      mockPersonalOAuthLoad.mockResolvedValue({ config: { oauth: {} }, disconnected: false });
+      expect((await statusOf())['oauth-tool'].code).toBe('needs_auth');
+      mockPersonalOAuthLoad.mockResolvedValue({
+        config: { oauth: { accessToken: 'secret' } },
+        disconnected: false,
+      });
+      expect((await statusOf())['oauth-tool'].code).toBe('available');
+    });
+
+    it('translates the message into the request language', async () => {
+      await initI18n();
+      select('alice', 'needs-key');
+      const status = await statusOf('alice', { 'x-test-language': 'zh' });
+      expect(status['needs-key'].message).toContain('needs-key');
+      expect(status['needs-key'].message).toMatch(/[\u4e00-\u9fff]/);
+    });
+  });
+
+  describe('GET /workspace/summary', () => {
+    const select = (username: string, ...names: string[]) =>
+      names.forEach((serverName) =>
+        selectionRows.push({ username, serverName, selected: true, updatedAt: '2026-01-01' }),
+      );
+    const summary = async (user = 'alice') =>
+      (
+        await request(app)
+          .get('/api/workspace/summary')
+          .set('x-test-user', asUser(user))
+          .expect(200)
+      ).body.data;
+
+    it('answers 404 when the workspace setting is off', async () => {
+      workspaceConfig = {};
+      await request(app)
+        .get('/api/workspace/summary')
+        .set('x-test-user', asUser('alice'))
+        .expect(404);
+    });
+
+    it('requires an authenticated user', async () => {
+      await request(app).get('/api/workspace/summary').expect(401);
+    });
+
+    it('is empty when nothing is selected', async () => {
+      expect(await summary()).toEqual({
+        endpointState: 'empty',
+        counts: {
+          available: 0,
+          not_selected: 3,
+          paused: 0,
+          needs_auth: 0,
+          revoked: 0,
+          credential_invalid: 0,
+          error: 0,
+        },
+      });
+    });
+
+    it('is normal when everything selected is available', async () => {
+      select('alice', 'public-tool');
+      expect(await summary()).toMatchObject({
+        endpointState: 'normal',
+        counts: { available: 1, not_selected: 2 },
+      });
+    });
+
+    it('is partial when some selected server is not available', async () => {
+      select('alice', 'public-tool', 'needs-key');
+      expect(await summary()).toMatchObject({
+        endpointState: 'partial',
+        counts: { available: 1, needs_auth: 1, not_selected: 1 },
+      });
+    });
+
+    it('is empty when every selected server is unavailable', async () => {
+      select('alice', 'needs-key');
+      expect((await summary()).endpointState).toBe('empty');
     });
   });
 

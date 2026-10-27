@@ -1474,5 +1474,16 @@
     "showAll": "Afficher tous les serveurs",
     "loading": "Chargement…",
     "empty": "Aucun serveur partagé ne nécessite d’identifiants personnels."
+  },
+  "workspace": {
+    "status": {
+      "available": "« {{serverName}} » est disponible.",
+      "not_selected": "« {{serverName}} » ne fait pas partie de votre espace de travail. Sélectionnez-le dans Tableau de bord → Espace de travail pour l'utiliser.",
+      "paused": "« {{serverName}} » a été mis en pause par un administrateur.",
+      "needs_auth": "« {{serverName}} » nécessite vos identifiants ou votre autorisation personnels. Connectez-le dans Tableau de bord → Identifiants ou Serveurs.",
+      "revoked": "Vous avez déconnecté votre autorisation pour « {{serverName}} ». Reconnectez-la dans Tableau de bord → Serveurs.",
+      "credential_invalid": "Vos identifiants pour « {{serverName}} » ont été refusés. Mettez-les à jour dans Tableau de bord → Identifiants ou reconnectez-vous dans Tableau de bord → Serveurs.",
+      "error": "« {{serverName}} » est actuellement indisponible. Réessayez plus tard."
+    }
   }
 }

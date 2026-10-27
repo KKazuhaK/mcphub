@@ -3,6 +3,7 @@ import { managePersonalOAuth } from '../controllers/personalOAuthController.js';
 import { listMyCredentials, updateMyCredential } from '../controllers/credentialBindingController.js';
 import {
   getWorkspaceEndpoints,
+  getWorkspaceSummary,
   listWorkspaceServers,
   updateWorkspaceSelection,
 } from '../controllers/workspaceController.js';
@@ -281,6 +282,7 @@ export const initRoutes = async (app: express.Application): Promise<void> => {
   authenticatedRouter.delete('/credentials/:name', updateMyCredential);
   authenticatedRouter.get('/workspace/servers', listWorkspaceServers);
   authenticatedRouter.put('/workspace/servers/:name/selection', updateWorkspaceSelection);
+  authenticatedRouter.get('/workspace/summary', getWorkspaceSummary);
   authenticatedRouter.get('/workspace/endpoints', getWorkspaceEndpoints);
   authenticatedRouter.get('/servers', getAllServers);
   authenticatedRouter.get('/servers/:name/share-candidates', getServerShareCandidates);

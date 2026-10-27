@@ -1473,5 +1473,16 @@
     "showAll": "Tüm sunucuları göster",
     "loading": "Yükleniyor…",
     "empty": "Kişisel kimlik bilgisi gerektiren paylaşılan sunucu yok."
+  },
+  "workspace": {
+    "status": {
+      "available": "{{serverName}} kullanılabilir.",
+      "not_selected": "{{serverName}} çalışma alanınızda değil. Kullanmak için Pano → Çalışma Alanı bölümünden seçin.",
+      "paused": "{{serverName}} bir yönetici tarafından duraklatıldı.",
+      "needs_auth": "{{serverName}} için kişisel kimlik bilgileriniz veya yetkilendirmeniz gerekli. Pano → Kimlik Bilgileri veya Sunucular bölümünden bağlayın.",
+      "revoked": "{{serverName}} için yetkilendirmenizin bağlantısını kestiniz. Pano → Sunucular bölümünden yeniden bağlayın.",
+      "credential_invalid": "{{serverName}} için kimlik bilgileriniz reddedildi. Pano → Kimlik Bilgileri bölümünde güncelleyin veya Pano → Sunucular bölümünden yeniden bağlanın.",
+      "error": "{{serverName}} şu anda kullanılamıyor. Daha sonra tekrar deneyin."
+    }
   }
 }

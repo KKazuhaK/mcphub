@@ -2,6 +2,16 @@ import type { CredentialSlot, ServerConfig } from '../types/index.js';
 
 export class CredentialBindingError extends Error {}
 
+// A personal binding is absent or incomplete: the user has to supply it.
+export class MissingCredentialError extends CredentialBindingError {}
+
+// The binding changed while a request was using it; repeating the request resolves it.
+export class CredentialBindingConflictError extends CredentialBindingError {}
+
+// The credential store itself cannot be used (key missing, unreadable or wrong): an
+// administrator has to fix it.
+export class CredentialBindingConfigError extends CredentialBindingError {}
+
 // Runtime-only values must never become part of a serializable server configuration.
 export const argumentCredentialBindings = new WeakMap<ServerConfig, Record<string, string>>();
 const argumentSlotPattern = /\{\{args\.([A-Za-z_][A-Za-z0-9_]*)\}\}/g;

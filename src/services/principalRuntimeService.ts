@@ -7,7 +7,11 @@ import {
 import { getServerDao } from '../dao/DaoFactory.js';
 import { credentialBindingEvents, resolveCredentialBinding } from './credentialBindingService.js';
 import { authorizationService, type RequestPrincipal } from './authorizationService.js';
-import { CredentialBindingError, hasPersonalAuthentication } from '../utils/credentialTemplate.js';
+import {
+  CredentialBindingConflictError,
+  MissingCredentialError,
+  hasPersonalAuthentication,
+} from '../utils/credentialTemplate.js';
 import { expandServerConfig } from './serverConfigEnvironment.js';
 import type { CapabilityScope } from './capabilitySnapshotService.js';
 import type { ServerConfig, ServerInfo } from '../types/index.js';
@@ -60,7 +64,7 @@ export class PrincipalRuntimeService {
     toolsOnly = false,
   ): Promise<{ info: ServerInfo; release: () => void }> {
     if (principal.credentialEligible === false)
-      throw new CredentialBindingError('Personal authentication is required');
+      throw new MissingCredentialError('Personal authentication is required');
     const definition = await getServerDao().findById(serverName);
     if (
       !definition ||
@@ -68,7 +72,7 @@ export class PrincipalRuntimeService {
       !hasPersonalAuthentication(definition) ||
       !authorizationService.can('server.invoke', definition, principal)
     ) {
-      throw new CredentialBindingError('Server not available');
+      throw new CredentialBindingConflictError('Server not available');
     }
     // These snapshots only detect runtime changes in memory; they are never persisted or logged.
     const definitionSnapshot = JSON.stringify(definition);
@@ -94,7 +98,7 @@ export class PrincipalRuntimeService {
         const latest = await resolver(serverName, principal.username, definition);
         const current = await getServerDao().findById(serverName);
         if (latest.revision !== resolved.revision || JSON.stringify(current) !== definitionSnapshot)
-          throw new CredentialBindingError(
+          throw new CredentialBindingConflictError(
             'Personal credentials or server configuration changed; retry the request',
           );
         return { info: cached, release: () => {} };
@@ -147,7 +151,7 @@ export class PrincipalRuntimeService {
                   (personalOAuthContexts.get(resolved.config)?.version || resolved.revision) ||
                 JSON.stringify(currentDefinition) !== definitionSnapshot
               ) {
-                throw new CredentialBindingError(
+                throw new CredentialBindingConflictError(
                   'Personal credentials or server configuration changed; retry the request',
                 );
               }
@@ -191,7 +195,7 @@ export class PrincipalRuntimeService {
     try {
       const info = await held.promise;
       if (!held.valid)
-        throw new CredentialBindingError('Personal credentials changed; retry the request');
+        throw new CredentialBindingConflictError('Personal credentials changed; retry the request');
       return { info, release };
     } catch (error) {
       release();

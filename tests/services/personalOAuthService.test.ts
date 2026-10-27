@@ -21,6 +21,10 @@ const mockDefinition: ServerConfigWithName = {
   visibility: 'public',
   oauth: { identityMode: 'personal', clientId: 'client' },
 };
+const mockReportCredentialRejected = jest.fn();
+jest.mock('../../src/services/userServerStatusService.js', () => ({
+  reportCredentialRejected: (...args: unknown[]) => mockReportCredentialRejected(...args),
+}));
 jest.mock('../../src/dao/DaoFactory.js', () => ({
   getCredentialBindingDao: () =>
     new (jest.requireActual('../../src/dao/CredentialBindingDao.js').CredentialBindingDaoImpl)(),
@@ -153,6 +157,23 @@ test('an unpersisted successful refresh expires while concurrent calls share its
   } finally {
     jest.useRealTimers();
   }
+});
+
+test.each([
+  ['invalid_grant', true],
+  ['server_error', false],
+])('a refresh answered with %s reports a rejected credential: %s', async (error, reported) => {
+  mockReportCredentialRejected.mockClear();
+  const context = await PersonalOAuthContext.load('gitlab', 'alice', mockDefinition);
+  const wrapped = context.wrapFetch(
+    async () => new Response(JSON.stringify({ error }), { status: 400 }),
+  );
+  const init = { body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: 'r' }) };
+  const response = await wrapped('https://example.com/token', init);
+  expect(response.status).toBe(400);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  if (reported) expect(mockReportCredentialRejected).toHaveBeenCalledWith('alice', 'gitlab');
+  else expect(mockReportCredentialRejected).not.toHaveBeenCalled();
 });
 
 test('unrelated declaration edits keep the personal binding intact (#1362)', async () => {

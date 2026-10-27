@@ -47,12 +47,32 @@ import {
 } from './capabilitySnapshotService.js';
 import { PrincipalRuntimeService } from './principalRuntimeService.js';
 import { UserContextService } from './userContextService.js';
-import { deleteCredentialBindings, missingCredentialError } from './credentialBindingService.js';
+import {
+  credentialBindingEvents,
+  deleteCredentialBindings,
+  missingCredentialError,
+} from './credentialBindingService.js';
 import {
   deleteUserServerSelections,
   getSelectedServerNames,
   isWorkspaceEnabled,
 } from './userServerSelectionService.js';
+import { clearUserServerFailures } from './userServerFailureStore.js';
+import {
+  clearUserListedNames,
+  hasUserListedName,
+  recordUserListedNames,
+} from './userServerListedNamesStore.js';
+import {
+  getUserServerStatus,
+  isBlockingStatus,
+  isStructuredCredentialError,
+  reportCredentialRejected,
+  reportRuntimePreparationFailure,
+  reportRuntimeReady,
+  reportUpstreamSuccess,
+  type UserServerStatusSubject,
+} from './userServerStatusService.js';
 import {
   CredentialBindingError,
   hasCredentialTemplate,
@@ -90,6 +110,7 @@ import { getUserDao } from '../dao/index.js';
 import {
   ServerInfo,
   ServerConfig,
+  UserServerStatus,
   Tool,
   Resource,
   ProxychainsConfig,
@@ -684,6 +705,13 @@ export const notifyUserListsChanged = (username: string): void => {
   broadcastListChanged('resource', (server) => server.sendResourceListChanged(), belongsToUser);
   broadcastListChanged('prompt', (server) => server.sendPromptListChanged(), belongsToUser);
 };
+
+// Changing or removing credentials, or a user or server going away, makes any remembered
+// upstream failure for the affected (user, server) pairs obsolete.
+credentialBindingEvents.on('invalidate', (filter?: { serverName?: string; username?: string }) => {
+  clearUserServerFailures(filter ?? {});
+  clearUserListedNames(filter ?? {});
+});
 
 export const updateServerInfoVisibility = (
   serverName: string,
@@ -4361,7 +4389,7 @@ const handleListToolsRequestImpl = async (_: any, extra: any) => {
   };
 };
 
-const handleCallToolRequestImpl = async (request: any, extra: any) => {
+const callToolImpl = async (request: any, extra: any, outcome: { info?: ServerInfo }) => {
   logger.log('Handling CallToolRequest for tool', summarizeToolRequestForLogging(request.params));
   const startTime = Date.now();
   const activityLogger = getActivityLoggingService();
@@ -4530,6 +4558,7 @@ const handleCallToolRequestImpl = async (request: any, extra: any) => {
       }
 
       setMetricsServer(targetServerInfo.name);
+      outcome.info = targetServerInfo;
 
       // If the target is an on-demand server that is not yet running, wake it up now.
       // Concurrent callers are serialised via ensureServerReady's singleton promise.
@@ -4779,6 +4808,7 @@ const handleCallToolRequestImpl = async (request: any, extra: any) => {
     }
     assertToolAvailableForRoute(tool, appsRouteContext);
     setMetricsServer(serverInfo.name);
+    outcome.info = serverInfo;
 
     // Wake the on-demand server before invoking the tool. It may be asleep with
     // a cached tool list (visible above) but no live client. Mirrors the
@@ -5032,6 +5062,46 @@ const handleCallToolRequestImpl = async (request: any, extra: any) => {
     clientStateLease?.release();
     releaseOnDemandToolCall?.();
   }
+};
+
+// Reads this call's own outcome, on every route, to keep the user's remembered state for
+// the server current. A tool result the upstream marks as a rejected credential keeps
+// its content; the status is added alongside it. Nothing else about the result changes.
+const handleCallToolRequestImpl = async (request: any, extra: any) => {
+  const outcome: { info?: ServerInfo } = {};
+  const result = await callToolImpl(request, extra, outcome);
+  const user = UserContextService.getInstance().getCurrentUser();
+  if (!outcome.info || !user?.username || !isWorkspaceEnabled()) return result;
+  // Only a personal credential can be "rejected" for this user; a shared server's tool
+  // returning such a code (say, a key validator) is an ordinary result.
+  if (!hasPersonalAuthentication(outcome.info.config) || !isStructuredCredentialError(result)) {
+    if (!result?.isError) reportUpstreamSuccess(user.username, outcome.info.name);
+    return result;
+  }
+  reportCredentialRejected(user.username, outcome.info.name);
+  if (isDashboardOrRestCall(extra)) return result;
+  const scope = workspaceSelectionScope.getStore();
+  const status = await getUserServerStatus({
+    user: user as RequestPrincipal,
+    subject: statusSubjectOf(outcome.info),
+    selected: scope ? scope.has(outcome.info.name) : true,
+  });
+  if (status.code === 'available') return result;
+  return {
+    ...result,
+    content: [
+      ...(Array.isArray(result.content) ? result.content : []),
+      { type: 'text', text: status.message },
+    ],
+    _meta: {
+      ...result._meta,
+      [STATUS_META_KEY]: {
+        server: outcome.info.name,
+        code: status.code,
+        action: status.action,
+      },
+    },
+  };
 };
 
 const handleGetPromptRequestImpl = async (request: any, extra: any) => {
@@ -5765,6 +5835,158 @@ const withModernLists =
     }
   };
 
+type McpOperation = 'list' | 'tools-list' | 'tool' | 'prompt' | 'resource';
+
+const STATUS_META_KEY = 'mcphub/status';
+
+const statusSubjectOf = (info: ServerInfo): UserServerStatusSubject => ({
+  name: info.name,
+  config: info.config ?? ({} as ServerConfig),
+  enabled: info.enabled !== false,
+  info,
+});
+
+// What a call gets back instead of reaching the upstream. Callers only build this for a
+// server the user can see, so naming it and its state reveals nothing new.
+const workspaceStatusResult = (
+  operation: McpOperation,
+  request: any,
+  serverName: string,
+  status: UserServerStatus,
+) => {
+  const _meta = {
+    [STATUS_META_KEY]: { server: serverName, code: status.code, action: status.action },
+  };
+  if (operation === 'resource')
+    return {
+      contents: [{ uri: request.params?.uri || '', mimeType: 'text/plain', text: status.message }],
+      _meta,
+    };
+  return { content: [{ type: 'text', text: status.message }], isError: true, _meta };
+};
+
+// The server a call addresses, among everything the user may see regardless of their
+// selection. Group routes never get here: they are the admin's curation. A server is
+// only named when the route is that single server, or it exposes the requested name: in
+// its shared cached lists, or in the lists the requesting user's own runtime last
+// returned (a server needing personal credentials has no shared lists). Another user's
+// names are never consulted, and anything else keeps the generic "not available" answer.
+const findWorkspaceCallTarget = (
+  request: any,
+  extra: any,
+  operation: McpOperation,
+  selected: Set<string>,
+  username: string,
+): ServerInfo | undefined => {
+  const visible = getDataService().filterData(serverInfos);
+  const lookupGroup = getGroupLookupName(getMcpRequestGroup(extra));
+  if (lookupGroup) return visible.find((info) => info.name === lookupGroup);
+
+  const name = ['call_tool', 'describe_tool'].includes(request?.params?.name)
+    ? request.params.arguments?.toolName
+    : operation === 'resource'
+      ? request?.params?.uri
+      : request?.params?.name;
+  if (typeof name !== 'string') return undefined;
+
+  const kind =
+    operation === 'resource' ? 'resources' : operation === 'prompt' ? 'prompts' : 'tools';
+  const matches = visible.filter(
+    (info) =>
+      (
+        (kind === 'resources'
+          ? (info.resources ?? []).map((item: Resource) => item.uri)
+          : (
+              ((kind === 'prompts' ? info.prompts : info.tools) as
+                | Array<{ name: string }>
+                | undefined) ?? []
+            ).map((item) => item.name)) as string[]
+      ).includes(name) || hasUserListedName(username, info.name, kind, name),
+  );
+  return matches.find((info) => info.enabled !== false && selected.has(info.name)) ?? matches[0];
+};
+
+// A call stopped by the status gate leaves the same trace as the generic "not available"
+// failure it replaces, with the status code as the internal reason.
+const logBlockedWorkspaceCall = async (
+  operation: McpOperation,
+  request: any,
+  extra: any,
+  target: ServerInfo,
+  status: UserServerStatus,
+  startedAt: number,
+): Promise<void> => {
+  const unavailable = new ToolUnavailableError(status.message, status.code);
+  const group = getMcpRequestGroup(extra);
+  const requestContextService = RequestContextService.getInstance();
+  const bearerKeyContext = requestContextService.getBearerKeyContext();
+  const username =
+    requestContextService.getUsernameContext() ||
+    extra?.username ||
+    UserContextService.getInstance().getCurrentUser()?.username;
+  const summary = { ...summarizeErrorForLogging(unavailable), reason: status.code };
+  if (operation === 'prompt') {
+    logger.error('Error handling GetPromptRequest', summary);
+    return;
+  }
+  if (operation === 'resource') {
+    logger.error('Error handling ReadResourceRequest', summary);
+    return;
+  }
+  const toolName = getActivityToolNameFromRequest(request);
+  logger.error('Error handling CallToolRequest', {
+    group,
+    username,
+    callerId: bearerKeyContext.keyId || extra?.keyId || undefined,
+    callerLabel: bearerKeyContext.keyName || extra?.keyName || undefined,
+    toolName,
+    ...summary,
+  });
+  await getActivityLoggingService().logToolCall({
+    server: target.name,
+    tool: stripToolServerPrefix(toolName, target.name),
+    duration: Date.now() - startedAt,
+    status: 'error',
+    input: getActivityInputFromToolRequest(request),
+    group,
+    username,
+    keyId: bearerKeyContext.keyId || extra?.keyId || undefined,
+    keyName: bearerKeyContext.keyName || extra?.keyName || undefined,
+    sourceIp: requestContextService.getRequestContext()?.remoteAddress || undefined,
+    hasCredentialTemplate: hasPersonalAuthentication(target.config),
+    errorMessage: `${unavailable.message} (reason: ${unavailable.reason})`,
+  });
+};
+
+// Under Workspace Mode a call to a server the user can see but cannot use because of
+// configuration (not selected, paused, credentials missing or disconnected) gets that
+// server's status instead of a generic error. A target the user cannot see is not
+// resolved here, so it keeps the generic "not available" answer.
+const runWithWorkspaceStatus = async <T>(
+  call: { request: any; extra: any; operation: McpOperation },
+  selected: Set<string>,
+  run: () => Promise<T>,
+): Promise<T> => {
+  const { request, extra, operation } = call;
+  const target = findWorkspaceCallTarget(
+    request,
+    extra,
+    operation,
+    selected,
+    UserContextService.getInstance().getCurrentUser()?.username ?? '',
+  );
+  if (!target) return run();
+  const startedAt = Date.now();
+  const status = await getUserServerStatus({
+    user: UserContextService.getInstance().getCurrentUser() as RequestPrincipal,
+    subject: statusSubjectOf(target),
+    selected: selected.has(target.name),
+  });
+  if (!isBlockingStatus(status.code)) return run();
+  await logBlockedWorkspaceCall(operation, request, extra, target, status, startedAt);
+  return workspaceStatusResult(operation, request, target.name, status) as T;
+};
+
 // Runs `fn` with the requesting user's server selection applied to everything that
 // resolves visible servers. Selection applies to MCP transport requests that have an
 // authenticated user and do not target an admin-defined group (the all-servers route,
@@ -5773,6 +5995,7 @@ const runWithWorkspaceSelection = async <T>(
   group: string | undefined,
   exempt: boolean,
   fn: () => Promise<T>,
+  call?: { request: any; extra: any; operation: McpOperation },
 ): Promise<T> => {
   if (!isWorkspaceEnabled() || exempt) return fn();
   const username = UserContextService.getInstance().getCurrentUser()?.username;
@@ -5780,7 +6003,9 @@ const runWithWorkspaceSelection = async <T>(
   const lookupGroup = getGroupLookupName(group);
   if (lookupGroup && (await findRouteGroup(lookupGroup))) return fn();
   const selected = await getSelectedServerNames(username);
-  return workspaceSelectionScope.run(selected, fn);
+  const scoped = () => workspaceSelectionScope.run(selected, fn);
+  if (!call || call.operation === 'list' || call.operation === 'tools-list') return scoped();
+  return runWithWorkspaceStatus(call, selected, scoped);
 };
 
 // Dashboard and REST callers are not MCP transport requests: they either name their target
@@ -5788,18 +6013,45 @@ const runWithWorkspaceSelection = async <T>(
 const isDashboardOrRestCall = (extra: any): boolean => Boolean(extra?.server || extra?.dashboard);
 
 const withWorkspaceSelection =
-  (handler: McpHandler): McpHandler =>
+  (handler: McpHandler, operation: McpOperation): McpHandler =>
   (request, extra) =>
-    runWithWorkspaceSelection(getMcpRequestGroup(extra), isDashboardOrRestCall(extra), () =>
-      handler(request, extra),
+    runWithWorkspaceSelection(
+      getMcpRequestGroup(extra),
+      isDashboardOrRestCall(extra),
+      () => handler(request, extra),
+      { request, extra, operation },
     );
 
+// Under Workspace Mode, a failure to prepare a personal runtime is reported through the
+// status model so the caller learns why and what to do. Returns undefined when the
+// failure keeps today's message (setting off, dashboard/REST calls, lists).
+const workspaceFailureResult = async (
+  operation: McpOperation,
+  request: any,
+  extra: any,
+  info: ServerInfo,
+  user: RequestPrincipal | null,
+  startedAt: number,
+) => {
+  if (!isWorkspaceEnabled() || !user?.username || isDashboardOrRestCall(extra)) return undefined;
+  if (operation === 'list' || operation === 'tools-list') return undefined;
+  const scope = workspaceSelectionScope.getStore();
+  const status = await getUserServerStatus({
+    user,
+    subject: statusSubjectOf(info),
+    // Group routes are not narrowed by selection.
+    selected: scope ? scope.has(info.name) : true,
+  });
+  if (status.code === 'available') return undefined;
+  // Same trace as a call the gate stopped.
+  await logBlockedWorkspaceCall(operation, request, extra, info, status, startedAt);
+  return workspaceStatusResult(operation, request, info.name, status);
+};
+
 const withPrincipalRuntimes =
-  (
-    handler: McpHandler,
-    operation: 'list' | 'tools-list' | 'tool' | 'prompt' | 'resource',
-  ): McpHandler =>
+  (handler: McpHandler, operation: McpOperation): McpHandler =>
   async (request, extra) => {
+    const startedAt = Date.now();
     if (!serverInfos.some((info) => hasPersonalAuthentication(info.config)))
       return handler(request, extra);
     // Built-in content does not require an upstream credential.
@@ -5852,15 +6104,15 @@ const withPrincipalRuntimes =
     const releases: Array<() => void> = [];
     const scoped = new Map(serverInfos.map((info) => [info.name, info]));
     const failures = new Map<string, Error>();
+    const ineligible =
+      !user?.username ||
+      user.credentialEligible === false ||
+      RequestContextService.getInstance().getKeyKindContext() === 'system';
     try {
       await Promise.all(
         templated.map(async (info) => {
           try {
-            if (
-              !user?.username ||
-              user.credentialEligible === false ||
-              RequestContextService.getInstance().getKeyKindContext() === 'system'
-            )
+            if (ineligible)
               throw hasPersonalOAuth(info.config)
                 ? personalAuthorizationRequired(info.name)
                 : missingCredentialError(info.name);
@@ -5871,7 +6123,18 @@ const withPrincipalRuntimes =
             );
             releases.push(lease.release);
             scoped.set(info.name, lease.info);
+            reportRuntimeReady(user?.username, info.name);
+            if (user?.username && isWorkspaceEnabled())
+              recordUserListedNames(user.username, info.name, lease.info);
           } catch (error) {
+            if (!ineligible)
+              reportRuntimePreparationFailure(
+                user?.username,
+                info.name,
+                error,
+                Date.now(),
+                info.config,
+              );
             failures.set(
               info.name,
               error instanceof CredentialBindingError || error instanceof UpstreamRequestError
@@ -5891,6 +6154,15 @@ const withPrincipalRuntimes =
           : undefined);
       const failure = requiredTarget ? failures.get(requiredTarget.name) : undefined;
       if (failure) {
+        const workspaceResult = await workspaceFailureResult(
+          operation,
+          request,
+          extra,
+          requiredTarget!,
+          user,
+          startedAt,
+        );
+        if (workspaceResult) return workspaceResult;
         if (operation === 'resource')
           return {
             contents: [
@@ -5932,10 +6204,8 @@ const withPrincipalRuntimes =
   };
 
 // Every MCP list/call handler resolves servers inside the user's selection scope first.
-const withPrincipalServers = (
-  handler: McpHandler,
-  operation: 'list' | 'tools-list' | 'tool' | 'prompt' | 'resource',
-): McpHandler => withWorkspaceSelection(withPrincipalRuntimes(handler, operation));
+const withPrincipalServers = (handler: McpHandler, operation: McpOperation): McpHandler =>
+  withWorkspaceSelection(withPrincipalRuntimes(handler, operation), operation);
 
 type ListField = 'tools' | 'prompts' | 'resources' | 'resourceTemplates';
 

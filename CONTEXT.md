@@ -51,3 +51,7 @@ _Avoid_: subscription, enablement (reserved for the global `enabled` flag), favo
 **Personal Endpoint**:
 A user's all-servers MCP route (`/:user/mcp`, or `/:user/mcp/$smart` under Smart Routing). Under Workspace Mode it exposes exactly that user's selected, visible, enabled servers, so its URL stays the same while the selection changes.
 _Avoid_: personal URL (ambiguous with personal URL credential slots), aggregate endpoint
+
+**Server Status**:
+What one user would meet calling one visible server under Workspace Mode: a stable `code` (`available`, `not_selected`, `paused`, `needs_auth`, `revoked`, `credential_invalid`, `error`), a short message, and the `action` that resolves it (`select`, `connect`, `contact_admin`, `retry_later`, or none). Reported for servers the user can see only; a server they cannot see keeps the generic "not available" answer. `paused` is the global `enabled` flag; `revoked` means the user disconnected personal OAuth; `credential_invalid` and recorded `error` describe the user's most recent attempt, never block a call, and heal on the next success.
+_Avoid_: health, availability (ambiguous with the shared connection state)

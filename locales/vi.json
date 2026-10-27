@@ -1476,5 +1476,16 @@
     "showAll": "Hiển thị tất cả các máy chủ",
     "loading": "Đang tải…",
     "empty": "Không có máy chủ dùng chung nào yêu cầu thông tin xác thực cá nhân."
+  },
+  "workspace": {
+    "status": {
+      "available": "'{{serverName}}' đang khả dụng.",
+      "not_selected": "'{{serverName}}' không nằm trong không gian làm việc của bạn. Hãy chọn nó trong Bảng điều khiển → Không gian làm việc để sử dụng.",
+      "paused": "'{{serverName}}' đã bị quản trị viên tạm dừng.",
+      "needs_auth": "'{{serverName}}' cần thông tin xác thực hoặc quyền truy cập cá nhân của bạn. Hãy kết nối trong Bảng điều khiển → Thông tin xác thực hoặc Máy chủ.",
+      "revoked": "Bạn đã ngắt ủy quyền cho '{{serverName}}'. Hãy kết nối lại trong Bảng điều khiển → Máy chủ.",
+      "credential_invalid": "Thông tin xác thực của bạn cho '{{serverName}}' bị từ chối. Hãy cập nhật trong Bảng điều khiển → Thông tin xác thực hoặc kết nối lại trong Bảng điều khiển → Máy chủ.",
+      "error": "'{{serverName}}' hiện không khả dụng. Vui lòng thử lại sau."
+    }
   }
 }
