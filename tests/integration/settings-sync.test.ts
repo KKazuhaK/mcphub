@@ -694,3 +694,54 @@ it('round-trips the upstream protocol override and clears it back to automatic n
   await syncSettingsToDatabase('upsert');
   expect((await dao.findById('remote'))?.protocolNegotiation).toBeUndefined();
 });
+
+test('leaves maintenance and the pause list to the dashboard and keeps OAuth when they change', async () => {
+  write({ mcpServers: { remote: { ...remote, oauth: { scopes: ['read'] } } } });
+  await syncSettingsToDatabase();
+  await persistTokens('remote', { accessToken: 'live' });
+  const hash = servers.get('remote')?.settingsSyncHash;
+  const dao = new ServerDaoDbImpl();
+
+  // An admin toggles maintenance and pauses a user from the dashboard.
+  await dao.update('remote', {
+    maintenance: { until: '2026-10-27T18:00:00.000Z', message: 'Upgrading.' },
+    pausedUsers: ['bob'],
+  });
+  expect(servers.get('remote')?.settingsSyncHash).toBe(hash);
+
+  // A restart reconciles the unchanged declaration without touching either field.
+  await syncSettingsToDatabase();
+  expect(servers.get('remote')).toMatchObject({
+    maintenance: { until: '2026-10-27T18:00:00.000Z', message: 'Upgrading.' },
+    pausedUsers: ['bob'],
+    settingsSyncHash: hash,
+  });
+  expect((servers.get('remote')?.oauth as Record<string, unknown>).accessToken).toBe('live');
+
+  // Declaring them is not a way to set them, and does not change the fingerprint.
+  write({
+    mcpServers: {
+      remote: {
+        ...remote,
+        oauth: { scopes: ['read'] },
+        maintenance: { until: 'not a date' },
+        pausedUsers: 'carol',
+      },
+    },
+  });
+  await syncSettingsToDatabase();
+  expect(servers.get('remote')).toMatchObject({
+    maintenance: { until: '2026-10-27T18:00:00.000Z', message: 'Upgrading.' },
+    pausedUsers: ['bob'],
+    settingsSyncHash: hash,
+  });
+  expect((servers.get('remote')?.oauth as Record<string, unknown>).accessToken).toBe('live');
+});
+
+test('first boot migration carries maintenance and the pause list into the database', async () => {
+  delete process.env.MCPHUB_SETTINGS_SYNC;
+  const maintenance = { until: '2026-10-27T18:00:00.000Z', message: 'Upgrading.' };
+  write({ mcpServers: { remote: { ...remote, pausedUsers: ['bob'], maintenance } } });
+  await expect(initializeDatabaseMode()).resolves.toBe(true);
+  expect(servers.get('remote')).toMatchObject({ pausedUsers: ['bob'], maintenance });
+});

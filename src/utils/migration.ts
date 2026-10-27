@@ -103,6 +103,8 @@ export async function migrateToDatabase(seedServersAndGroups = true): Promise<bo
             owner: config.owner,
             visibility: config.visibility ?? 'private',
             sharedWithUsers: config.sharedWithUsers,
+            pausedUsers: config.pausedUsers,
+            maintenance: config.maintenance,
             enableKeepAlive: config.enableKeepAlive,
             protocolNegotiation: config.protocolNegotiation,
             keepAliveInterval: config.keepAliveInterval,

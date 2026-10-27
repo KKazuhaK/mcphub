@@ -60,6 +60,10 @@ const mockCloseServer = jest.fn();
 const mockToggleServerStatus = jest.fn();
 const mockReconnectServer = jest.fn();
 const mockUpdateServerInfoVisibility = jest.fn();
+const mockUpdateServerInfoAvailability = jest.fn();
+const mockHandleAvailabilityChange = jest.fn();
+const mockScheduleMaintenanceExpiry = jest.fn();
+const mockClearMaintenanceExpiry = jest.fn();
 const mockGetServersInfo = jest.fn();
 const mockGetCurrentUser = jest.fn();
 const mockDisconnectUpstreamOAuth = jest.fn();
@@ -97,6 +101,19 @@ jest.mock('../../src/services/mcpService.js', () => ({
   updateServerInfoVisibility: jest.fn((...args: unknown[]) =>
     mockUpdateServerInfoVisibility(...args),
   ),
+  updateServerInfoAvailability: jest.fn((...args: unknown[]) =>
+    mockUpdateServerInfoAvailability(...args),
+  ),
+}));
+
+jest.mock('../../src/services/serverMaintenanceService.js', () => ({
+  handleServerAvailabilityChange: jest.fn((...args: unknown[]) =>
+    mockHandleAvailabilityChange(...args),
+  ),
+  scheduleMaintenanceExpiry: jest.fn((...args: unknown[]) =>
+    mockScheduleMaintenanceExpiry(...args),
+  ),
+  clearMaintenanceExpiry: jest.fn((...args: unknown[]) => mockClearMaintenanceExpiry(...args)),
 }));
 
 jest.mock('../../src/services/vectorSearchService.js', () => ({
@@ -3441,5 +3458,381 @@ describe('batchToggleTools', () => {
     await batchToggleTools(request({ enabled: false, tools: ['*'] }), res);
     expect(res.status).toHaveBeenCalledWith(409);
     expect(mockServerDao.updateTools).not.toHaveBeenCalled();
+  });
+});
+
+describe('serverController - maintenance and per-user pause', () => {
+  const UNTIL = '2026-10-27T18:00:00.000Z';
+  const base = {
+    type: 'sse',
+    url: 'https://example.com/sse',
+    enabled: true,
+    visibility: 'private',
+  };
+  let json: jest.Mock;
+  let status: jest.Mock;
+  let res: Response;
+  let dateSpy: jest.SpyInstance;
+
+  afterEach(() => {
+    dateSpy.mockRestore();
+  });
+
+  const update = (user: { username: string; isAdmin: boolean }, config: object) =>
+    updateServer(
+      {
+        params: { name: 'test-server' },
+        body: { config: { ...base, ...config } },
+        user,
+      } as unknown as Request,
+      res,
+    );
+  const admin = { username: 'admin', isAdmin: true };
+  const alice = { username: 'alice', isAdmin: false };
+  const updatesOf = () => mockServerDao.update.mock.calls[0][1] as Record<string, unknown>;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    dateSpy = jest.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-27T12:00:00.000Z'));
+    json = jest.fn();
+    status = jest.fn().mockReturnThis();
+    res = { json, status } as unknown as Response;
+    mockServerDao.findById.mockResolvedValue({
+      name: 'test-server',
+      ...base,
+      owner: 'alice',
+      pausedUsers: ['bob'],
+      maintenance: { message: 'Old' },
+    });
+    mockServerDao.update = jest.fn().mockResolvedValue({ name: 'test-server' });
+    mockAddServer.mockResolvedValue({ success: true });
+  });
+
+  it('lets an admin set both fields, normalizes them and announces the change', async () => {
+    await update(admin, {
+      pausedUsers: [' carol ', 'carol', 'dave'],
+      maintenance: { until: '2026-10-27T20:00:00+02:00', message: ' Upgrading. ' },
+    });
+
+    expect(status).not.toHaveBeenCalled();
+    expect(updatesOf()).toMatchObject({
+      pausedUsers: ['carol', 'dave'],
+      maintenance: { until: UNTIL, message: 'Upgrading.' },
+    });
+    const after = {
+      pausedUsers: ['carol', 'dave'],
+      maintenance: { until: UNTIL, message: 'Upgrading.' },
+    };
+    expect(mockUpdateServerInfoAvailability).toHaveBeenCalledWith('test-server', after);
+    expect(mockHandleAvailabilityChange).toHaveBeenCalledWith(
+      'test-server',
+      { pausedUsers: ['bob'], maintenance: { message: 'Old' } },
+      after,
+    );
+  });
+
+  it('keeps stored values when the request leaves the keys out, and clears on null or empty', async () => {
+    await update(admin, {});
+    expect(updatesOf()).not.toHaveProperty('pausedUsers');
+    expect(updatesOf()).not.toHaveProperty('maintenance');
+    expect(mockHandleAvailabilityChange).toHaveBeenCalledWith(
+      'test-server',
+      { pausedUsers: ['bob'], maintenance: { message: 'Old' } },
+      { pausedUsers: ['bob'], maintenance: { message: 'Old' } },
+    );
+
+    mockServerDao.update.mockClear();
+    mockHandleAvailabilityChange.mockClear();
+    await update(admin, { pausedUsers: [], maintenance: null });
+    expect(updatesOf()).toHaveProperty('pausedUsers', undefined);
+    expect(updatesOf()).toHaveProperty('maintenance', undefined);
+    expect(mockHandleAvailabilityChange.mock.calls[0][2]).toEqual({
+      pausedUsers: undefined,
+      maintenance: undefined,
+    });
+  });
+
+  it('refuses a non-admin request that carries either key at all, whatever the value', async () => {
+    const message = {
+      pausedUsers: 'Only admins can pause a server for specific users',
+      maintenance: 'Only admins can set server maintenance',
+    };
+    const cases: Array<[keyof typeof message, unknown]> = [
+      ['pausedUsers', ['carol']],
+      ['pausedUsers', ['bob']], // equal to the stored list
+      ['pausedUsers', []],
+      ['pausedUsers', null],
+      ['maintenance', { message: 'Mine' }],
+      ['maintenance', null],
+      ['maintenance', {}],
+    ];
+    for (const [key, value] of cases) {
+      status.mockClear();
+      json.mockClear();
+      await update(alice, { [key]: value });
+      expect(status).toHaveBeenCalledWith(403);
+      expect(json).toHaveBeenLastCalledWith({ success: false, message: message[key] });
+    }
+    expect(mockServerDao.update).not.toHaveBeenCalled();
+    expect(mockHandleAvailabilityChange).not.toHaveBeenCalled();
+  });
+
+  it('answers the same 403 whether or not the key has anything stored', async () => {
+    const refusals: unknown[] = [];
+    for (const stored of [undefined, ['bob']]) {
+      mockServerDao.findById.mockResolvedValue({
+        name: 'test-server',
+        ...base,
+        owner: 'alice',
+        pausedUsers: stored,
+      });
+      json.mockClear();
+      await update(alice, { pausedUsers: ['bob'] });
+      refusals.push(json.mock.calls[0][0]);
+    }
+    expect(refusals[0]).toEqual(refusals[1]);
+  });
+
+  it('leaves the stored values alone when a non-admin save does not carry the keys', async () => {
+    await update(alice, { description: 'mine' });
+
+    expect(status).not.toHaveBeenCalled();
+    expect(updatesOf()).not.toHaveProperty('pausedUsers');
+    expect(updatesOf()).not.toHaveProperty('maintenance');
+  });
+
+  it('refuses a non-admin pause list on create, single or batch', async () => {
+    await createServer(
+      {
+        body: { name: 'fresh', config: { ...base, pausedUsers: ['bob'] } },
+        user: alice,
+      } as unknown as Request,
+      res,
+    );
+    expect(status).toHaveBeenCalledWith(403);
+    expect(mockAddServer).not.toHaveBeenCalled();
+
+    await batchCreateServers(
+      {
+        body: { servers: [{ name: 'fresh', config: { ...base, pausedUsers: ['bob'] } }] },
+        user: alice,
+      } as unknown as Request,
+      res,
+    );
+    expect(mockAddServer).not.toHaveBeenCalled();
+  });
+
+  it('arms the expiry timer for a server created in maintenance', async () => {
+    await createServer(
+      {
+        body: { name: 'fresh', config: { ...base, maintenance: { until: UNTIL } } },
+        user: admin,
+      } as unknown as Request,
+      res,
+    );
+
+    expect(mockAddServer).toHaveBeenCalled();
+    expect(mockScheduleMaintenanceExpiry).toHaveBeenCalledWith(
+      'fresh',
+      expect.objectContaining({ maintenance: { until: UNTIL } }),
+    );
+  });
+
+  it('clears the old timer when a server is renamed', async () => {
+    mockServerDao.exists.mockResolvedValue(false);
+    mockServerDao.rename.mockResolvedValue(true);
+    await updateServer(
+      {
+        params: { name: 'test-server' },
+        body: { config: { ...base, maintenance: { until: UNTIL } }, newName: 'renamed' },
+        user: admin,
+      } as unknown as Request,
+      res,
+    );
+
+    expect(mockClearMaintenanceExpiry).toHaveBeenCalledWith('test-server');
+    expect(mockScheduleMaintenanceExpiry).toHaveBeenCalledWith('renamed', expect.anything());
+    expect(mockHandleAvailabilityChange).toHaveBeenCalledWith(
+      'renamed',
+      expect.anything(),
+      expect.objectContaining({ maintenance: { until: UNTIL } }),
+    );
+  });
+
+  it.each([
+    ['an invalid end time', { maintenance: { until: 'tomorrow' } }, /ISO 8601/],
+    ['an end time without a zone', { maintenance: { until: '2026-10-27T20:00:00' } }, /time zone/],
+    ['a date without a time', { maintenance: { until: '2026-10-28' } }, /time zone/],
+    ['an impossible date', { maintenance: { until: '2026-02-30T10:00:00Z' } }, /ISO 8601/],
+    [
+      'an end time that is not in the future',
+      { maintenance: { until: '2026-10-27T11:00:00Z' } },
+      /in the future/,
+    ],
+    [
+      'an end time that is exactly now',
+      { maintenance: { until: '2026-10-27T12:00:00Z' } },
+      /in the future/,
+    ],
+    ['a message with a bidi override', { maintenance: { message: 'abc\u202Edef' } }, /plain text/],
+    ['a message with a zero-width space', { maintenance: { message: 'a\u200Bb' } }, /plain text/],
+    ['a non-date end time', { maintenance: { until: 5 } }, /ISO 8601/],
+    ['an overlong message', { maintenance: { message: 'x'.repeat(201) } }, /at most 200/],
+    ['a message with a line break', { maintenance: { message: 'a\nb' } }, /plain text/],
+    ['a message with a control character', { maintenance: { message: 'a\u0007b' } }, /plain text/],
+    ['a non-object maintenance', { maintenance: 'now' }, /must be an object/],
+    ['a non-array pause list', { pausedUsers: 'bob' }, /array of usernames/],
+    ['a non-string pause entry', { pausedUsers: ['bob', 3] }, /array of usernames/],
+    [
+      'more than 1000 users',
+      { pausedUsers: Array.from({ length: 1001 }, (_, index) => `user${index}`) },
+      /at most 1000/,
+    ],
+  ])('rejects %s with 400', async (_name, config, message) => {
+    await update(admin, config);
+
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenLastCalledWith({
+      success: false,
+      message: expect.stringMatching(message),
+    });
+    expect(mockServerDao.update).not.toHaveBeenCalled();
+  });
+
+  it('saves the stored end time back unchanged even after it has passed', async () => {
+    mockServerDao.findById.mockResolvedValue({
+      name: 'test-server',
+      ...base,
+      owner: 'admin',
+      maintenance: { until: '2026-10-27T06:00:00.000Z' },
+    });
+
+    await update(admin, { maintenance: { until: '2026-10-27T06:00:00.000Z' } });
+
+    expect(status).not.toHaveBeenCalled();
+    expect(mockServerDao.update).toHaveBeenCalled();
+  });
+
+  it('lets an unrelated edit through when the stored values are corrupted', async () => {
+    mockServerDao.findById.mockResolvedValue({
+      name: 'test-server',
+      ...base,
+      owner: 'alice',
+      pausedUsers: 'not-an-array',
+      maintenance: { until: 'garbage', message: 7 },
+    });
+
+    await update(alice, { description: 'just a description' });
+
+    expect(status).not.toHaveBeenCalled();
+    expect(mockServerDao.update).toHaveBeenCalledTimes(1);
+    expect(updatesOf()).toMatchObject({ description: 'just a description' });
+    expect(updatesOf()).not.toHaveProperty('maintenance');
+  });
+
+  it('lets an admin clear a corrupted stored value', async () => {
+    mockServerDao.findById.mockResolvedValue({
+      name: 'test-server',
+      ...base,
+      owner: 'admin',
+      maintenance: { until: 'garbage' },
+    });
+
+    await update(admin, { maintenance: null });
+
+    expect(status).not.toHaveBeenCalled();
+    expect(updatesOf()).toHaveProperty('maintenance', undefined);
+  });
+
+  it('lets an admin clear a malformed stored pause list without validating it', async () => {
+    mockServerDao.findById.mockResolvedValue({
+      name: 'test-server',
+      ...base,
+      owner: 'admin',
+      pausedUsers: 'not-an-array',
+    });
+
+    await update(admin, { pausedUsers: null });
+
+    expect(status).not.toHaveBeenCalled();
+    expect(updatesOf()).toHaveProperty('pausedUsers', undefined);
+    expect(mockHandleAvailabilityChange.mock.calls[0][1]).toEqual({
+      pausedUsers: 'not-an-array',
+      maintenance: undefined,
+    });
+  });
+
+  it('keeps the old expiry timer armed when the rename fails', async () => {
+    mockServerDao.exists.mockResolvedValue(false);
+    mockServerDao.rename.mockResolvedValue(false);
+    await updateServer(
+      {
+        params: { name: 'test-server' },
+        body: { config: { ...base, maintenance: { until: UNTIL } }, newName: 'renamed' },
+        user: admin,
+      } as unknown as Request,
+      res,
+    );
+
+    expect(status).toHaveBeenCalledWith(404);
+    expect(mockClearMaintenanceExpiry).not.toHaveBeenCalled();
+    expect(mockScheduleMaintenanceExpiry).not.toHaveBeenCalled();
+    expect(mockHandleAvailabilityChange).not.toHaveBeenCalled();
+
+    mockServerDao.rename.mockRejectedValue(new Error('disk full'));
+    await updateServer(
+      {
+        params: { name: 'test-server' },
+        body: { config: { ...base }, newName: 'renamed' },
+        user: admin,
+      } as unknown as Request,
+      res,
+    );
+    expect(mockClearMaintenanceExpiry).not.toHaveBeenCalled();
+  });
+
+  it('counts 1000 distinct users after deduplication as valid', async () => {
+    const users = Array.from({ length: 1000 }, (_, index) => `user${index}`);
+    await update(admin, { pausedUsers: [...users, ...users] });
+
+    expect(status).not.toHaveBeenCalled();
+    expect(updatesOf().pausedUsers).toHaveLength(1000);
+  });
+
+  describe('reading a server configuration', () => {
+    const read = async (user: { username: string; isAdmin: boolean }) => {
+      await getServerConfig({ params: { name: 'test-server' }, user } as unknown as Request, res);
+      return (json.mock.calls[0][0] as { data: { config: Record<string, unknown> } }).data.config;
+    };
+
+    beforeEach(() => {
+      mockGetServersInfo.mockResolvedValue([]);
+    });
+
+    it('shows an admin both fields', async () => {
+      const config = await read(admin);
+      expect(config.pausedUsers).toEqual(['bob']);
+      expect(config.maintenance).toEqual({ message: 'Old' });
+    });
+
+    it('hides the pause list from the owner and shows maintenance', async () => {
+      const config = await read(alice);
+      expect(config).not.toHaveProperty('pausedUsers');
+      expect(config.maintenance).toEqual({ message: 'Old' });
+    });
+
+    it('hides the pause list from a user the server is shared with, and withholds maintenance configuration', async () => {
+      mockServerDao.findById.mockResolvedValue({
+        name: 'test-server',
+        ...base,
+        visibility: 'public',
+        owner: 'alice',
+        pausedUsers: ['bob'],
+        maintenance: { message: 'Old' },
+      });
+      const config = await read({ username: 'bob', isAdmin: false });
+      expect(config).not.toHaveProperty('pausedUsers');
+      expect(JSON.stringify(config)).not.toContain('bob');
+    });
   });
 });

@@ -2,7 +2,10 @@ import { OpenAPIV3 } from 'openapi-types';
 import { Tool } from '../types/index.js';
 import { getServersInfo } from './mcpService.js';
 import config, { getNameSeparator } from '../config/index.js';
-import { getSystemConfigDao } from '../dao/index.js';
+import { getServerDao, getSystemConfigDao } from '../dao/index.js';
+import { UserContextService } from './userContextService.js';
+import { isWorkspaceEnabled } from './userServerSelectionService.js';
+import { isAdminBlockedForUser } from './userServerStatusService.js';
 import { resolveInstallBaseUrl } from '../utils/installBaseUrl.js';
 import { filterModelVisibleTools } from '../utils/mcpApps.js';
 import { applyHiddenParams } from '../utils/toolConfig.js';
@@ -169,6 +172,16 @@ export async function generateOpenAPISpec(
       server.status === 'connected' &&
       (!options.serverFilter || options.serverFilter.includes(server.name)),
   );
+
+  // Under Workspace Mode a server paused for the requester, or in maintenance, is left out
+  // just as it is from their lists.
+  if (isWorkspaceEnabled()) {
+    const user = UserContextService.getInstance().getCurrentUser();
+    const stored = new Map((await getServerDao().findAll()).map((server) => [server.name, server]));
+    filteredServers = filteredServers.filter(
+      (server) => !isAdminBlockedForUser(stored.get(server.name), user),
+    );
+  }
 
   // Apply group filter if specified
   const groupConfig: Map<string, string[] | 'all'> = new Map();

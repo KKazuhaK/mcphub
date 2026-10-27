@@ -137,6 +137,7 @@ interface SystemSettings {
     activityLog?: {
       storeToolPayload?: boolean;
     };
+    workspace?: { enabled?: boolean };
   };
   bearerKeys?: BearerKey[];
 }
@@ -164,6 +165,7 @@ interface SettingsContextValue {
   allowedCidrs: string[];
   updateAllowedCidrs: (value: string[]) => Promise<boolean>;
   storeToolPayload: boolean;
+  workspaceEnabled: boolean;
   bearerKeys: BearerKey[];
   loading: boolean;
   error: string | null;
@@ -417,6 +419,7 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
   const [enableSessionRebuild, setEnableSessionRebuild] = useState<boolean>(false);
   const [allowedCidrs, setAllowedCidrs] = useState<string[]>([]);
   const [storeToolPayload, setStoreToolPayload] = useState<boolean>(true);
+  const [workspaceEnabled, setWorkspaceEnabled] = useState<boolean>(false);
   const [bearerKeys, setBearerKeys] = useState<BearerKey[]>([]);
 
   const [loading, setLoading] = useState(false);
@@ -564,6 +567,7 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
       if (data.success && data.data?.systemConfig?.enableSessionRebuild !== undefined) {
         setEnableSessionRebuild(data.data.systemConfig.enableSessionRebuild);
       }
+      setWorkspaceEnabled(data.data?.systemConfig?.workspace?.enabled === true);
       if (data.success && data.data?.systemConfig?.activityLog?.storeToolPayload !== undefined) {
         setStoreToolPayload(data.data.systemConfig.activityLog.storeToolPayload);
       }
@@ -1241,6 +1245,7 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
     allowedCidrs,
     updateAllowedCidrs,
     storeToolPayload,
+    workspaceEnabled,
     bearerKeys,
     loading,
     error,

@@ -136,6 +136,18 @@ export const deleteUser = async (username: string): Promise<boolean> => {
           const { updateServerInfoVisibility } = await import('./mcpService.js');
           updateServerInfoVisibility(server.name, server.visibility, sharedWithUsers);
         }
+        // A user created later under the same name must not inherit the pause.
+        if (server.pausedUsers?.includes(username)) {
+          const pausedUsers = server.pausedUsers.filter((name) => name !== username);
+          await serverDao.update(server.name, {
+            pausedUsers: pausedUsers.length ? pausedUsers : undefined,
+          });
+          const { updateServerInfoAvailability } = await import('./mcpService.js');
+          updateServerInfoAvailability(server.name, {
+            pausedUsers: pausedUsers.length ? pausedUsers : undefined,
+            maintenance: server.maintenance,
+          });
+        }
       }
     }
     return userToDelete ? await userDao.delete(username) : false;

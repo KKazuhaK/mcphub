@@ -6,6 +6,13 @@ import {
   deleteCredentialBindings,
 } from '../services/credentialBindingService.js';
 import { renameServerSelections } from '../services/userServerSelectionService.js';
+import { assertMaintenanceEndsInFuture } from '../utils/serverMaintenance.js';
+import {
+  handleServerAvailabilityChange,
+  scheduleMaintenanceExpiry,
+  clearMaintenanceExpiry,
+  type ServerAvailabilityState,
+} from '../services/serverMaintenanceService.js';
 import { StdioOptionsError } from '../utils/stdioOptions.js';
 import { CredentialBindingError } from '../utils/credentialTemplate.js';
 import { isDeepStrictEqual } from 'node:util';
@@ -39,6 +46,7 @@ import {
   reconnectServer,
   reinstallServer,
   updateServerInfoVisibility,
+  updateServerInfoAvailability,
 } from '../services/mcpService.js';
 import { clearAllCaches } from '../utils/cacheUtils.js';
 import {
@@ -171,6 +179,31 @@ const ensureNonAdminCanManageConfig = (
   return true;
 };
 
+const hasOwnKey = (value: object, key: string): boolean =>
+  Object.prototype.hasOwnProperty.call(value, key);
+
+// Pause lists and maintenance are administrator access controls. A non-admin request that
+// carries either key at all is refused, whatever its value, so the answer reveals nothing
+// about what is stored.
+const adminOnlyFieldRefusal = (
+  currentUser: RequestUser | null | undefined,
+  config: object,
+): string | undefined => {
+  if (currentUser?.isAdmin === true) return undefined;
+  if (hasOwnKey(config, 'pausedUsers')) return 'Only admins can pause a server for specific users';
+  if (hasOwnKey(config, 'maintenance')) return 'Only admins can set server maintenance';
+  return undefined;
+};
+
+// Admin availability state after an edit: a key the request leaves out keeps its stored value.
+const availabilityAfterEdit = (
+  existing: ServerConfig,
+  config: ServerConfig,
+): ServerAvailabilityState => ({
+  pausedUsers: hasOwnKey(config, 'pausedUsers') ? config.pausedUsers : existing.pausedUsers,
+  maintenance: hasOwnKey(config, 'maintenance') ? config.maintenance : existing.maintenance,
+});
+
 const assignServerOwner = (req: Request, config: ServerConfig, existingOwner?: string): void => {
   const currentUser = getRequestUser(req);
   if (!currentUser) {
@@ -261,7 +294,13 @@ type ConnectionRelevantServerConfig = Pick<
 const toConnectionRelevantConfig = (
   config: ServerConfig | ServerRecord,
 ): ConnectionRelevantServerConfig => {
-  const normalized = normalizeServerConfigForPersistence(config) as Record<string, unknown>;
+  // Only incoming values are validated: a stored pause list or maintenance window does not
+  // take part in the comparison and must never make an unrelated edit fail.
+  const { pausedUsers: _pausedUsers, maintenance: _maintenance, ...withoutRuntimeState } = config;
+  const normalized = normalizeServerConfigForPersistence(withoutRuntimeState) as Record<
+    string,
+    unknown
+  >;
   const picked: Record<string, unknown> = {};
   for (const field of CONNECTION_RELEVANT_CONFIG_FIELDS) {
     // Database mode reads unset columns (e.g. `proxy`) back as null, while a
@@ -620,7 +659,14 @@ export const createServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    const refusal = adminOnlyFieldRefusal(getRequestUser(req), config);
+    if (refusal) {
+      res.status(403).json({ success: false, message: refusal });
+      return;
+    }
+
     const normalizedConfig = normalizeServerConfigForPersistence(config);
+    assertMaintenanceEndsInFuture(normalizedConfig.maintenance, undefined);
 
     if (
       !normalizedConfig.url &&
@@ -707,6 +753,7 @@ export const createServer = async (req: Request, res: Response): Promise<void> =
 
     const result = await addServer(serverName, normalizedConfig);
     if (result.success) {
+      scheduleMaintenanceExpiry(serverName, normalizedConfig);
       res.json({
         success: true,
         message: 'Server added successfully',
@@ -876,6 +923,13 @@ export const batchCreateServers = async (req: Request, res: Response): Promise<v
       const serverName = validation.normalizedName ?? name;
 
       try {
+        const refusal = adminOnlyFieldRefusal(currentUser as RequestUser | null, config);
+        if (refusal) {
+          results.push({ name: serverName, success: false, message: refusal });
+          failureCount++;
+          continue;
+        }
+
         // Set default keep-alive interval for SSE servers if not specified
         const normalizedConfig = normalizeServerConfigForPersistence(config);
 
@@ -902,6 +956,8 @@ export const batchCreateServers = async (req: Request, res: Response): Promise<v
           continue;
         }
 
+        assertMaintenanceEndsInFuture(normalizedConfig.maintenance, undefined);
+
         // Set owner property if not provided
         normalizedConfig.owner = currentUser?.isAdmin
           ? normalizedConfig.owner || defaultOwner
@@ -910,6 +966,7 @@ export const batchCreateServers = async (req: Request, res: Response): Promise<v
         // Attempt to add server
         const result = await addServer(serverName, normalizedConfig);
         if (result.success) {
+          scheduleMaintenanceExpiry(serverName, normalizedConfig);
           results.push({
             name: serverName,
             success: true,
@@ -1092,6 +1149,12 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    const refusal = adminOnlyFieldRefusal(getRequestUser(req), config);
+    if (refusal) {
+      res.status(403).json({ success: false, message: refusal });
+      return;
+    }
+
     const normalizedConfig = normalizeServerConfigForPersistence(config);
 
     if (
@@ -1180,6 +1243,13 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    assertMaintenanceEndsInFuture(normalizedConfig.maintenance, existingServer.maintenance);
+    const availabilityBefore: ServerAvailabilityState = {
+      pausedUsers: existingServer.pausedUsers,
+      maintenance: existingServer.maintenance,
+    };
+    const availabilityAfter = availabilityAfterEdit(existingServer, normalizedConfig);
+
     // Set default keep-alive interval for SSE servers if not specified
     if (
       (normalizedConfig.type === 'sse' || (!normalizedConfig.type && normalizedConfig.url)) &&
@@ -1250,6 +1320,10 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
         });
         return;
       }
+
+      // The expiry timer is keyed by name: move it only now that the rename has succeeded.
+      clearMaintenanceExpiry(name);
+      scheduleMaintenanceExpiry(targetName, existingServer);
 
       // Close the runtime still keyed by the OLD name. addOrUpdateServer below
       // closes by `finalName` (the new name), which finds nothing - the entry is
@@ -1329,7 +1403,9 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
         normalizedConfig.visibility ?? 'private',
         normalizedConfig.sharedWithUsers,
       );
+      updateServerInfoAvailability(finalName, availabilityAfter);
       broadcastToolListChanged();
+      await handleServerAvailabilityChange(finalName, availabilityBefore, availabilityAfter);
 
       res.json({
         success: true,
@@ -1340,6 +1416,7 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
 
     const result = await addOrUpdateServer(finalName, normalizedConfig, true); // Allow override for updates
     if (result.success) {
+      await handleServerAvailabilityChange(finalName, availabilityBefore, availabilityAfter);
       // On-demand servers repopulate their tool cache via primeOnDemandServers
       // inside initializeClientsFromSettings, which is awaited for a targeted
       // reload. Await it here too: the dashboard refreshes the server list as

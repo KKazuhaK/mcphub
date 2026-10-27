@@ -42,6 +42,7 @@ import {
   buildUserServerStatus,
   classifyRuntimePreparationFailure,
   countUserServerStatuses,
+  isAdminBlockedForUser,
   isBlockingStatus,
   isStructuredCredentialError,
   reportCredentialRejected,
@@ -71,6 +72,8 @@ describe('resolveUserServerState', () => {
   it.each<[string, Partial<UserServerStateInputs>, UserServerStatusCode]>([
     ['not selected', { selected: false }, 'not_selected'],
     ['paused', { enabled: false }, 'paused'],
+    ['paused for this user only', { pausedForUser: true }, 'paused'],
+    ['under maintenance', { maintenance: {} }, 'maintenance'],
     ['personal auth missing', { personalAuth: 'missing' }, 'needs_auth'],
     ['a user who cannot hold credentials', { personalAuth: 'ineligible' }, 'needs_auth'],
     ['personal OAuth disconnected', { personalAuth: 'revoked' }, 'revoked'],
@@ -89,6 +92,8 @@ describe('resolveUserServerState', () => {
     const everything: UserServerStateInputs = {
       selected: false,
       enabled: false,
+      pausedForUser: true,
+      maintenance: {},
       personalAuth: 'missing',
       sharedConnectionFailed: true,
       failure: { kind: 'auth', at: 1 },
@@ -96,10 +101,43 @@ describe('resolveUserServerState', () => {
     const order: Array<[Partial<UserServerStateInputs>, UserServerStatusCode]> = [
       [{}, 'not_selected'],
       [{ selected: true }, 'paused'],
-      [{ selected: true, enabled: true }, 'needs_auth'],
-      [{ selected: true, enabled: true, personalAuth: 'revoked' }, 'revoked'],
-      [{ selected: true, enabled: true, personalAuth: 'configured' }, 'credential_invalid'],
-      [{ selected: true, enabled: true, personalAuth: 'configured', failure: undefined }, 'error'],
+      [{ selected: true, enabled: true }, 'paused'],
+      [{ selected: true, enabled: true, pausedForUser: false }, 'maintenance'],
+      [
+        { selected: true, enabled: true, pausedForUser: false, maintenance: undefined },
+        'needs_auth',
+      ],
+      [
+        {
+          selected: true,
+          enabled: true,
+          pausedForUser: false,
+          maintenance: undefined,
+          personalAuth: 'revoked',
+        },
+        'revoked',
+      ],
+      [
+        {
+          selected: true,
+          enabled: true,
+          pausedForUser: false,
+          maintenance: undefined,
+          personalAuth: 'configured',
+        },
+        'credential_invalid',
+      ],
+      [
+        {
+          selected: true,
+          enabled: true,
+          pausedForUser: false,
+          maintenance: undefined,
+          personalAuth: 'configured',
+          failure: undefined,
+        },
+        'error',
+      ],
     ];
     for (const [overrides, code] of order)
       expect(resolveUserServerState({ ...everything, ...overrides }).code).toBe(code);
@@ -130,7 +168,35 @@ describe('resolveUserServerState', () => {
 
   it('blocks calls only for states that follow from configuration', () => {
     const blocking = USER_SERVER_STATUS_CODES.filter(isBlockingStatus);
-    expect(blocking.sort()).toEqual(['needs_auth', 'not_selected', 'paused', 'revoked']);
+    expect(blocking.sort()).toEqual([
+      'maintenance',
+      'needs_auth',
+      'not_selected',
+      'paused',
+      'revoked',
+    ]);
+  });
+});
+
+describe('isAdminBlockedForUser', () => {
+  const NOW = Date.parse('2026-10-27T12:00:00.000Z');
+  const window = { maintenance: { until: '2026-10-27T18:00:00.000Z' } };
+
+  it('lets administrators bypass maintenance but not a pause that lists them', () => {
+    expect(isAdminBlockedForUser(window, { username: 'root', isAdmin: true }, NOW)).toBe(false);
+    expect(isAdminBlockedForUser(window, { username: 'bob', isAdmin: false }, NOW)).toBe(true);
+    expect(
+      isAdminBlockedForUser({ pausedUsers: ['root'] }, { username: 'root', isAdmin: true }, NOW),
+    ).toBe(true);
+  });
+
+  it('blocks a request without a user during maintenance only', () => {
+    expect(isAdminBlockedForUser(window, null, NOW)).toBe(true);
+    expect(isAdminBlockedForUser({ pausedUsers: ['bob'] }, undefined, NOW)).toBe(false);
+  });
+
+  it('ends with the window', () => {
+    expect(isAdminBlockedForUser(window, null, Date.parse('2026-10-27T18:00:00.000Z'))).toBe(false);
   });
 });
 
@@ -142,6 +208,7 @@ describe('status presentation', () => {
         'available',
         'credential_invalid',
         'error',
+        'maintenance',
         'needs_auth',
         'not_selected',
         'paused',
@@ -152,6 +219,7 @@ describe('status presentation', () => {
       available: null,
       not_selected: 'select',
       paused: 'contact_admin',
+      maintenance: 'retry_later',
       needs_auth: 'connect',
       revoked: 'connect',
       credential_invalid: 'connect',
@@ -165,6 +233,37 @@ describe('status presentation', () => {
     }
   });
 
+  it('words a maintenance status with its end time and the admin message', () => {
+    const until = '2026-10-27T18:00:00.000Z';
+    expect(buildUserServerStatus({ code: 'maintenance', maintenance: {} }, 'alpha', 'en')).toEqual({
+      code: 'maintenance',
+      message: "'alpha' is under maintenance. Try again later.",
+      action: 'retry_later',
+    });
+    expect(
+      buildUserServerStatus(
+        { code: 'maintenance', maintenance: { until, message: 'Back soon.' } },
+        'alpha',
+        'en',
+      ),
+    ).toEqual({
+      code: 'maintenance',
+      message: `'alpha' is under maintenance until ${until}. Try again later. Back soon.`,
+      action: 'retry_later',
+      until,
+    });
+  });
+
+  it('ignores a message that does not belong to a maintenance status', () => {
+    const status = buildUserServerStatus(
+      { code: 'paused', maintenance: { message: 'secret' } },
+      'alpha',
+      'en',
+    );
+    expect(status.message).toBe("'alpha' is paused by an administrator.");
+    expect(status).not.toHaveProperty('until');
+  });
+
   it('includes since only when known', () => {
     expect(buildUserServerStatus({ code: 'error' }, 'a', 'en')).not.toHaveProperty('since');
     expect(buildUserServerStatus({ code: 'error', since: 'T' }, 'a', 'en').since).toBe('T');
@@ -175,6 +274,7 @@ describe('status presentation', () => {
       available: 2,
       not_selected: 0,
       paused: 1,
+      maintenance: 0,
       needs_auth: 0,
       revoked: 0,
       credential_invalid: 0,

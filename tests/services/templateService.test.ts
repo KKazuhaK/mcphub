@@ -166,6 +166,47 @@ describe('templateService', () => {
       expect(template.servers.s1.oauth?.authorizationServerMetadata).toEqual(authorizationServerMetadata);
     });
 
+    it('does not let an imported template set maintenance or the pause list', async () => {
+      mockServerDao.findAll.mockResolvedValue([]);
+      mockGroupDao.findAll.mockResolvedValue([]);
+      mockGroupDao.findByName.mockResolvedValue(null);
+      mockAddServer.mockResolvedValue(undefined);
+
+      await importTemplate(
+        {
+          version: '1.0',
+          name: 'Test',
+          createdAt: new Date().toISOString(),
+          servers: {
+            s1: { type: 'sse', url: 'http://localhost:3001', pausedUsers: ['bob'], maintenance: {} },
+          },
+          groups: [],
+          requiredEnvVars: [],
+        } as never,
+        'alice',
+      );
+
+      expect(mockAddServer).toHaveBeenCalledTimes(1);
+      const config = mockAddServer.mock.calls[0][1];
+      expect(config).not.toHaveProperty('pausedUsers');
+      expect(config).not.toHaveProperty('maintenance');
+    });
+
+    it('leaves maintenance and the pause list out of exported templates', async () => {
+      mockServerDao.findAll.mockResolvedValue([
+        {
+          name: 's1',
+          type: 'sse',
+          url: 'http://localhost:3001',
+          pausedUsers: ['bob'],
+          maintenance: { message: 'Upgrading.' },
+        },
+      ]);
+      mockGroupDao.findAll.mockResolvedValue([{ id: 'g1', name: 'G', servers: ['s1'] }]);
+      const template = await exportTemplate({ name: 'Test' });
+      expect(JSON.stringify(template)).not.toMatch(/pausedUsers|maintenance|bob|Upgrading/);
+    });
+
     it('should preserve existing ${PLACEHOLDER} patterns', async () => {
       mockServerDao.findAll.mockResolvedValue([
         { name: 's1', command: 'npx', env: { TOKEN: '${MY_TOKEN}', REGION: 'us-east-1' } },
