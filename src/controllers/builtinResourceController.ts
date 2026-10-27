@@ -135,7 +135,7 @@ export const readResource = async (req: Request, res: Response): Promise<void> =
       res.status(400).json({ success: false, message: 'uri is required' });
       return;
     }
-    const result = await handleReadResourceRequest({ params: { uri } }, {});
+    const result = await handleReadResourceRequest({ params: { uri } }, { dashboard: true });
     const response: ApiResponse = { success: true, data: result };
     res.json(response);
   } catch (error) {

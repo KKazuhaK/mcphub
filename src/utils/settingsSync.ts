@@ -7,6 +7,7 @@ import { getSettingsPath } from '../config/index.js';
 import { getAppDataSource } from '../db/connection.js';
 import { Server } from '../db/entities/Server.js';
 import { CredentialBinding } from '../db/entities/CredentialBinding.js';
+import { UserServerSelectionRecord } from '../db/entities/UserServerSelectionRecord.js';
 import { Group } from '../db/entities/Group.js';
 import { expandServerConfig } from '../services/serverConfigEnvironment.js';
 import { ServerConfig } from '../types/index.js';
@@ -292,6 +293,7 @@ export async function syncSettingsToDatabase(): Promise<void> {
         );
         for (const serverName of removedServers) {
           await manager.getRepository(CredentialBinding).delete({ serverName });
+          await manager.getRepository(UserServerSelectionRecord).delete({ serverName });
           if (exists) {
             await manager.query(
               `DELETE FROM vector_embeddings

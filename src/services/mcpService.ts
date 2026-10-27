@@ -49,6 +49,11 @@ import { PrincipalRuntimeService } from './principalRuntimeService.js';
 import { UserContextService } from './userContextService.js';
 import { deleteCredentialBindings, missingCredentialError } from './credentialBindingService.js';
 import {
+  deleteUserServerSelections,
+  getSelectedServerNames,
+  isWorkspaceEnabled,
+} from './userServerSelectionService.js';
+import {
   CredentialBindingError,
   hasCredentialTemplate,
   hasPersonalAuthentication,
@@ -95,7 +100,7 @@ import { expandEnvVars, replaceEnvVars, getNameSeparator } from '../config/index
 import config from '../config/index.js';
 import { validateMaxBufferSize } from '../utils/stdioOptions.js';
 import { validateServerName } from '../utils/serverNameValidation.js';
-import { getGroup } from './sseService.js';
+import { getGroup, getSessionUsername } from './sseService.js';
 import { getServerConfigInGroup, normalizeGroupServers } from './groupService.js';
 import {
   removeServerToolEmbeddings,
@@ -427,7 +432,9 @@ const getMcpServerDescriptor = async (group?: string): Promise<McpServerDescript
     };
   }
 
-  const { filteredServerInfos } = await getFilteredServerInfosForGroup(group);
+  const { filteredServerInfos } = await runWithWorkspaceSelection(group, false, () =>
+    getFilteredServerInfosForGroup(group),
+  );
   if (filteredServerInfos.length === 1) {
     const [serverInfo] = filteredServerInfos;
     return {
@@ -643,8 +650,10 @@ export const notifyToolChanged = async (
 const broadcastListChanged = (
   listType: 'tool' | 'resource' | 'prompt',
   sendNotification: (server: Server) => Promise<void>,
+  shouldNotify?: (sessionId: string) => boolean,
 ): void => {
-  Object.values(servers).forEach((server) => {
+  Object.entries(servers).forEach(([sessionId, server]) => {
+    if (shouldNotify && !shouldNotify(sessionId)) return;
     sendNotification(server)
       .then(() => {
         logger.log(`${listType} list changed notification sent successfully`);
@@ -665,6 +674,15 @@ export const broadcastResourceListChanged = (): void => {
 
 export const broadcastPromptListChanged = (): void => {
   broadcastListChanged('prompt', (server) => server.sendPromptListChanged());
+};
+
+// Notifies only the MCP sessions that belong to one user, e.g. after that user's
+// server selection changed.
+export const notifyUserListsChanged = (username: string): void => {
+  const belongsToUser = (sessionId: string) => getSessionUsername(sessionId) === username;
+  broadcastListChanged('tool', (server) => server.sendToolListChanged(), belongsToUser);
+  broadcastListChanged('resource', (server) => server.sendResourceListChanged(), belongsToUser);
+  broadcastListChanged('prompt', (server) => server.sendPromptListChanged(), belongsToUser);
 };
 
 export const updateServerInfoVisibility = (
@@ -1023,8 +1041,16 @@ const principalServerScope = new AsyncLocalStorage<ServerInfo[]>();
 // Header-dependent discovery must never publish descriptors or embeddings globally.
 const requestDiscoveryInfos = new WeakSet<ServerInfo>();
 
+// Servers the requesting user selected, set only for MCP requests that workspace
+// selection applies to (see withWorkspaceSelection).
+const workspaceSelectionScope = new AsyncLocalStorage<Set<string>>();
+
 const getVisibleServerInfos = (): ServerInfo[] => {
-  return getDataService().filterData(principalServerScope.getStore() ?? serverInfos);
+  const visible = getDataService().filterData(principalServerScope.getStore() ?? serverInfos);
+  const selected = workspaceSelectionScope.getStore();
+  return selected
+    ? visible.filter((info) => info.enabled !== false && selected.has(info.name))
+    : visible;
 };
 
 const getVisibleServerByName = (name: string): ServerInfo | undefined => {
@@ -3275,6 +3301,7 @@ export const removeServer = async (
   // that leaks memory until the container is restarted.
   closeServer(name);
   await deleteCredentialBindings({ serverName: name });
+  await deleteUserServerSelections({ serverName: name });
 
   try {
     await removeServerToolEmbeddings(name);
@@ -5738,7 +5765,36 @@ const withModernLists =
     }
   };
 
-const withPrincipalServers =
+// Runs `fn` with the requesting user's server selection applied to everything that
+// resolves visible servers. Selection applies to MCP transport requests that have an
+// authenticated user and do not target an admin-defined group (the all-servers route,
+// bare $smart, or a single server). A group name wins over a server name, as in routing.
+const runWithWorkspaceSelection = async <T>(
+  group: string | undefined,
+  exempt: boolean,
+  fn: () => Promise<T>,
+): Promise<T> => {
+  if (!isWorkspaceEnabled() || exempt) return fn();
+  const username = UserContextService.getInstance().getCurrentUser()?.username;
+  if (!username) return fn();
+  const lookupGroup = getGroupLookupName(group);
+  if (lookupGroup && (await findRouteGroup(lookupGroup))) return fn();
+  const selected = await getSelectedServerNames(username);
+  return workspaceSelectionScope.run(selected, fn);
+};
+
+// Dashboard and REST callers are not MCP transport requests: they either name their target
+// server explicitly or mark themselves with `extra.dashboard`.
+const isDashboardOrRestCall = (extra: any): boolean => Boolean(extra?.server || extra?.dashboard);
+
+const withWorkspaceSelection =
+  (handler: McpHandler): McpHandler =>
+  (request, extra) =>
+    runWithWorkspaceSelection(getMcpRequestGroup(extra), isDashboardOrRestCall(extra), () =>
+      handler(request, extra),
+    );
+
+const withPrincipalRuntimes =
   (
     handler: McpHandler,
     operation: 'list' | 'tools-list' | 'tool' | 'prompt' | 'resource',
@@ -5875,6 +5931,12 @@ const withPrincipalServers =
     }
   };
 
+// Every MCP list/call handler resolves servers inside the user's selection scope first.
+const withPrincipalServers = (
+  handler: McpHandler,
+  operation: 'list' | 'tools-list' | 'tool' | 'prompt' | 'resource',
+): McpHandler => withWorkspaceSelection(withPrincipalRuntimes(handler, operation));
+
 type ListField = 'tools' | 'prompts' | 'resources' | 'resourceTemplates';
 
 // Re-read authoritative inputs across awaits; no projected response is cached.
@@ -5962,7 +6024,7 @@ const withCacheHints =
       return {
         ...result,
         ttlMs:
-          stable && !generated && !unknownPermissions
+          stable && !generated && !unknownPermissions && !workspaceSelectionScope.getStore()
             ? remainingListTtl(dependencies, startedAt, performance.now())
             : 0,
         cacheScope: 'private',

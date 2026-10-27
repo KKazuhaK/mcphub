@@ -315,6 +315,11 @@ export interface SystemConfig {
     // Defaults to true.
     storeToolPayload?: boolean;
   };
+  workspace?: {
+    // When enabled, a user's personal MCP endpoints expose only the servers that
+    // user has selected. Admin-defined group routes are not affected.
+    enabled?: boolean;
+  };
 }
 
 export interface UserConfig {
@@ -455,6 +460,15 @@ export interface StoredCredentialBinding {
   serverName: string;
   username: string;
   encryptedValues: string;
+  updatedAt: string;
+}
+
+// A user's explicit choice to include a server in their personal MCP endpoints.
+// An absent record means not selected.
+export interface UserServerSelection {
+  username: string;
+  serverName: string;
+  selected: boolean;
   updatedAt: string;
 }
 

@@ -2,6 +2,8 @@ import { assertSmartRoutingSettingsAvailable } from './smartRoutingPath.js';
 import { syncSettingsToDatabase } from './settingsSync.js';
 import { CredentialBindingDaoImpl } from '../dao/CredentialBindingDao.js';
 import { CredentialBindingDaoDbImpl } from '../dao/CredentialBindingDaoDbImpl.js';
+import { UserServerSelectionDaoImpl } from '../dao/UserServerSelectionDao.js';
+import { UserServerSelectionDaoDbImpl } from '../dao/UserServerSelectionDaoDbImpl.js';
 import { loadOriginalSettings } from '../config/index.js';
 import { initializeDatabase } from '../db/connection.js';
 import { setDaoFactory } from '../dao/DaoFactory.js';
@@ -128,6 +130,14 @@ export async function migrateToDatabase(seedServersAndGroups = true): Promise<bo
         await credentialDao.save(binding);
     }
 
+    const selectionDao = new UserServerSelectionDaoDbImpl();
+    for (const selection of new UserServerSelectionDaoImpl().readAll()) {
+      const existing = (await selectionDao.listByUsername(selection.username)).find(
+        (row) => row.serverName === selection.serverName,
+      );
+      if (!existing) await selectionDao.save(selection);
+    }
+
     // Migrate groups
     if (seedServersAndGroups && settings.groups && settings.groups.length > 0) {
       logger.log(`Migrating ${settings.groups.length} groups...`);
@@ -166,6 +176,7 @@ export async function migrateToDatabase(seedServersAndGroups = true): Promise<bo
         auth: settings.systemConfig.auth || {},
         enableSessionRebuild: settings.systemConfig.enableSessionRebuild,
         discovery: settings.systemConfig.discovery || {},
+        workspace: settings.systemConfig.workspace || {},
       };
       await systemConfigRepo.update(systemConfig);
       logger.log('  - System configuration updated');
