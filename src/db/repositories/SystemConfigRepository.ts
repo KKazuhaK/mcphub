@@ -49,6 +49,7 @@ export class SystemConfigRepository {
         auth: {},
         enableSessionRebuild: false,
         discovery: {},
+        workspace: {},
       });
       config = await repository.save(config);
     }

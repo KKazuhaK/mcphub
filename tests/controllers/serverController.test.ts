@@ -65,6 +65,7 @@ const mockGetCurrentUser = jest.fn();
 const mockDisconnectUpstreamOAuth = jest.fn();
 const mockDeleteCredentialBindings = jest.fn();
 const mockCopyCredentialBindings = jest.fn();
+const mockRenameServerSelections = jest.fn();
 
 jest.mock('../../src/dao/DaoFactory.js', () => ({
   getCredentialBindingDao: jest.fn(() => ({ delete: jest.fn().mockResolvedValue(undefined) })),
@@ -125,6 +126,10 @@ jest.mock('../../src/services/credentialBindingService.js', () => ({
   ...(jest.requireActual('../../src/services/credentialBindingService.js') as object),
   deleteCredentialBindings: jest.fn((...args: unknown[]) => mockDeleteCredentialBindings(...args)),
   copyCredentialBindings: jest.fn((...args: unknown[]) => mockCopyCredentialBindings(...args)),
+}));
+
+jest.mock('../../src/services/userServerSelectionService.js', () => ({
+  renameServerSelections: jest.fn((...args: unknown[]) => mockRenameServerSelections(...args)),
 }));
 
 jest.mock('../../src/services/upstreamOAuthDisconnectService.js', () => ({
@@ -845,6 +850,20 @@ describe('serverController - updateSystemConfig', () => {
         expect.objectContaining({ network: { allowedCidrs } }),
       );
     }
+  });
+
+  it('saves the workspace setting and refreshes connected sessions only when it changes', async () => {
+    mockRequest.body = { workspace: { enabled: true } };
+    await updateSystemConfig(mockRequest as Request, mockResponse as Response);
+    expect(mockSystemConfigDao.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ workspace: { enabled: true } }),
+    );
+    expect(mockBroadcastToolListChanged).toHaveBeenCalledTimes(1);
+
+    mockBroadcastToolListChanged.mockClear();
+    mockSystemConfigDao.get.mockResolvedValue({ workspace: { enabled: true } });
+    await updateSystemConfig(mockRequest as Request, mockResponse as Response);
+    expect(mockBroadcastToolListChanged).not.toHaveBeenCalled();
   });
 
   it.each([null, {}, { allowedCidrs: '192.168.1.0/24' }, { allowedCidrs: ['192.168.1.0/33'] }])(
@@ -1932,6 +1951,12 @@ describe('serverController - updateServer', () => {
         success: true,
         message: 'Server renamed and updated successfully',
       });
+    });
+
+    it('moves every user’s server selection to the new name', async () => {
+      await updateServer(mockRequest as Request, mockResponse as Response);
+
+      expect(mockRenameServerSelections).toHaveBeenCalledWith('test-server', 'renamed-server');
     });
 
     it('moves prefixed tool and prompt toggles to the new name', async () => {

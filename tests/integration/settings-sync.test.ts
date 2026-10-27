@@ -12,6 +12,7 @@ import path from 'node:path';
 import { getMetadataArgsStorage } from 'typeorm';
 import { Server } from '../../src/db/entities/Server.js';
 import { CredentialBinding } from '../../src/db/entities/CredentialBinding.js';
+import { UserServerSelectionRecord } from '../../src/db/entities/UserServerSelectionRecord.js';
 import { Group } from '../../src/db/entities/Group.js';
 import { initializeDatabaseMode } from '../../src/utils/migration.js';
 import { syncSettingsToDatabase } from '../../src/utils/settingsSync.js';
@@ -23,6 +24,7 @@ let failGroupSave = false;
 let failDelete = false;
 let vectorTableExists = true;
 const bindings = new Map<string, Record<string, unknown>>();
+const selections = new Map<string, Record<string, unknown>>();
 const embeddings = new Map<string, Record<string, unknown>>();
 const query = jest.fn(async (sql: string, parameters?: string[]) => {
   if (sql.startsWith('SELECT')) return [{ exists: vectorTableExists }];
@@ -42,12 +44,20 @@ const transaction = jest.fn(async (run: (manager: unknown) => Promise<void>) => 
   const beforeServers = new Map(servers);
   const beforeGroups = new Map(groups);
   const beforeBindings = new Map(bindings);
+  const beforeSelections = new Map(selections);
   const beforeEmbeddings = new Map(embeddings);
   try {
     await run({
       query,
       getRepository: (entity: unknown) => {
-        const rows = entity === Server ? servers : entity === Group ? groups : bindings;
+        const rows =
+          entity === Server
+            ? servers
+            : entity === Group
+              ? groups
+              : entity === UserServerSelectionRecord
+                ? selections
+                : bindings;
         return {
           metadata: {
             columns: getMetadataArgsStorage()
@@ -85,7 +95,9 @@ const transaction = jest.fn(async (run: (manager: unknown) => Promise<void>) => 
     servers.clear();
     groups.clear();
     bindings.clear();
+    selections.clear();
     embeddings.clear();
+    beforeSelections.forEach((value, key) => selections.set(key, value));
     beforeBindings.forEach((value, key) => bindings.set(key, value));
     beforeEmbeddings.forEach((value, key) => embeddings.set(key, value));
     beforeServers.forEach((value, key) => servers.set(key, value));
@@ -162,6 +174,7 @@ beforeEach(() => {
   failDelete = false;
   vectorTableExists = true;
   bindings.clear();
+  selections.clear();
   embeddings.clear();
   process.env.MCPHUB_SETTINGS_SYNC = 'upsert';
 });
@@ -574,6 +587,8 @@ test('prunes only managed entries, including legacy fingerprinted servers, and c
   });
   bindings.set('remote', { serverName: 'remote', username: 'alice' });
   bindings.set('ui', { serverName: 'ui', username: 'alice' });
+  selections.set('remote', { serverName: 'remote', username: 'alice' });
+  selections.set('ui', { serverName: 'ui', username: 'alice' });
   embeddings.set('remote', { content_type: 'server', content_id: 'remote' });
   embeddings.set('tool', { content_type: 'tool', content_id: 'remote:search' });
   embeddings.set('other', { content_type: 'tool', content_id: 'remote-other:search' });
@@ -584,6 +599,7 @@ test('prunes only managed entries, including legacy fingerprinted servers, and c
   expect([...groups.keys()]).toEqual(['ui']);
   expect(groups.get('ui')?.servers).toEqual(['ui']);
   expect([...bindings.keys()]).toEqual(['ui']);
+  expect([...selections.keys()]).toEqual(['ui']);
   expect([...embeddings.keys()]).toEqual(['other']);
   await syncSettingsToDatabase();
   expect([...servers.keys()]).toEqual(['ui']);
@@ -624,6 +640,7 @@ test('prune rolls back upserts, deletions, references and credentials on failure
   await syncSettingsToDatabase();
   groups.set('ui', { id: 'ui', name: 'ui', servers: ['remote'] });
   bindings.set('remote', { serverName: 'remote' });
+  selections.set('remote', { serverName: 'remote' });
   embeddings.set('remote', { content_type: 'server', content_id: 'remote' });
   process.env.MCPHUB_SETTINGS_SYNC = 'prune';
   write({ mcpServers: { added: remote }, groups: [] });
@@ -633,6 +650,7 @@ test('prune rolls back upserts, deletions, references and credentials on failure
   expect(groups.has('managed')).toBe(true);
   expect(groups.get('ui')?.servers).toEqual(['remote']);
   expect(bindings.has('remote')).toBe(true);
+  expect(selections.has('remote')).toBe(true);
   expect(embeddings.has('remote')).toBe(true);
 });
 

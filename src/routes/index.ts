@@ -1,6 +1,11 @@
 import { metrics } from '../controllers/metricsController.js';
 import { managePersonalOAuth } from '../controllers/personalOAuthController.js';
 import { listMyCredentials, updateMyCredential } from '../controllers/credentialBindingController.js';
+import {
+  getWorkspaceEndpoints,
+  listWorkspaceServers,
+  updateWorkspaceSelection,
+} from '../controllers/workspaceController.js';
 import express from 'express';
 import { check } from 'express-validator';
 import config from '../config/index.js';
@@ -274,6 +279,9 @@ export const initRoutes = async (app: express.Application): Promise<void> => {
   authenticatedRouter.get('/credentials', listMyCredentials);
   authenticatedRouter.put('/credentials/:name', updateMyCredential);
   authenticatedRouter.delete('/credentials/:name', updateMyCredential);
+  authenticatedRouter.get('/workspace/servers', listWorkspaceServers);
+  authenticatedRouter.put('/workspace/servers/:name/selection', updateWorkspaceSelection);
+  authenticatedRouter.get('/workspace/endpoints', getWorkspaceEndpoints);
   authenticatedRouter.get('/servers', getAllServers);
   authenticatedRouter.get('/servers/:name/share-candidates', getServerShareCandidates);
   authenticatedRouter.get('/servers/:name', getServerConfig);

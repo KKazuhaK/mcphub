@@ -6,6 +6,7 @@ import {
   handleMcpPostRequest,
   handleMcpOtherRequest,
   getGroup,
+  getSessionUsername,
   getConnectionCount,
   transports,
 } from './sseService.js';
@@ -595,6 +596,27 @@ describe('sseService', () => {
       expect(getMcpServer).toHaveBeenCalledWith('test-session-id', 'test-group');
     });
 
+    it('records the connecting user on the session', async () => {
+      setMockSystemConfig({
+        routing: {
+          enableGlobalRoute: true,
+          enableGroupNameRoute: true,
+          enableBearerAuth: false,
+          bearerAuthKey: '',
+          skipAuth: false,
+        },
+      });
+
+      await handleSseConnection(
+        createMockRequest({ params: { group: 'test-group' } }),
+        createMockResponse(),
+      );
+
+      expect(transports['test-session-id']?.username).toBe('testuser');
+      expect(getSessionUsername('test-session-id')).toBe('testuser');
+      delete transports['test-session-id'];
+    });
+
     it('should handle user context correctly', async () => {
       setMockSystemConfig({
         routing: {
@@ -843,6 +865,54 @@ describe('sseService', () => {
 
       expect(NodeStreamableHTTPServerTransport).toHaveBeenCalled();
       expect(getMcpServer).toHaveBeenCalled();
+    });
+
+    it('records the requesting user on new and rebuilt streamable sessions', async () => {
+      const construct = NodeStreamableHTTPServerTransport as jest.MockedClass<
+        typeof NodeStreamableHTTPServerTransport
+      >;
+      const initialized = (index: number, sessionId: string) =>
+        (construct.mock.calls[index][0] as any).onsessioninitialized(sessionId);
+
+      setMockSystemConfig({
+        routing: {
+          enableGlobalRoute: true,
+          enableGroupNameRoute: true,
+          enableBearerAuth: false,
+          bearerAuthKey: 'test-key',
+          skipAuth: false,
+        },
+        enableSessionRebuild: false,
+      });
+      await handleMcpPostRequest(
+        createMockRequest({ params: { group: 'test-group' }, body: { method: 'initialize' } }),
+        createMockResponse(),
+      );
+      initialized(0, 'new-session');
+      expect(getSessionUsername('new-session')).toBe('testuser');
+
+      setMockSystemConfig({
+        routing: {
+          enableGlobalRoute: true,
+          enableGroupNameRoute: true,
+          enableBearerAuth: false,
+          bearerAuthKey: 'test-key',
+          skipAuth: false,
+        },
+        enableSessionRebuild: true,
+      });
+      await handleMcpPostRequest(
+        createMockRequest({
+          params: { group: 'test-group' },
+          headers: { 'mcp-session-id': 'rebuilt-session' },
+          body: { method: 'someMethod' },
+        }),
+        createMockResponse(),
+      );
+      expect(getSessionUsername('rebuilt-session')).toBe('testuser');
+
+      delete transports['new-session'];
+      delete transports['rebuilt-session'];
     });
 
     it('should return error when session rebuild is disabled and session is invalid', async () => {

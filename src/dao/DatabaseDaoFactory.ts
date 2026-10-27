@@ -1,5 +1,6 @@
 import { CapabilitySnapshotDaoDbImpl } from './CapabilitySnapshotDaoDbImpl.js';
 import { CredentialBindingDaoDbImpl } from './CredentialBindingDaoDbImpl.js';
+import { UserServerSelectionDaoDbImpl } from './UserServerSelectionDaoDbImpl.js';
 import {
   DaoFactory,
   UserDao,
@@ -63,6 +64,10 @@ export class DatabaseDaoFactory implements DaoFactory {
 
   getCredentialBindingDao(): CredentialBindingDaoDbImpl {
     return new CredentialBindingDaoDbImpl();
+  }
+
+  getUserServerSelectionDao(): UserServerSelectionDaoDbImpl {
+    return new UserServerSelectionDaoDbImpl();
   }
 
   getUserDao(): UserDao {

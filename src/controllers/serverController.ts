@@ -5,6 +5,7 @@ import {
   copyCredentialBindings,
   deleteCredentialBindings,
 } from '../services/credentialBindingService.js';
+import { renameServerSelections } from '../services/userServerSelectionService.js';
 import { StdioOptionsError } from '../utils/stdioOptions.js';
 import { CredentialBindingError } from '../utils/credentialTemplate.js';
 import { isDeepStrictEqual } from 'node:util';
@@ -1259,6 +1260,7 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
 
       // Kept bindings now have their copies under the new name.
       await deleteCredentialBindings({ serverName: name });
+      await renameServerSelections(name, targetName);
 
       // Update references in groups
       const groupDao = getGroupDao();
@@ -2070,6 +2072,7 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
       auth,
       activityLog,
       network,
+      workspace,
     } = req.body;
     const hasNetworkUpdate = network !== undefined;
     if (hasNetworkUpdate && (!network || !validateAllowedCidrs(network.allowedCidrs))) {
@@ -2148,6 +2151,8 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
 
     const hasActivityLogUpdate = activityLog && typeof activityLog.storeToolPayload === 'boolean';
 
+    const hasWorkspaceUpdate = workspace && typeof workspace.enabled === 'boolean';
+
     const hasOAuthServerUpdate =
       oauthServer &&
       (typeof oauthServer.enabled === 'boolean' ||
@@ -2194,6 +2199,7 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
       !hasBetterAuthUpdate &&
       typeof auth?.allowRegistration !== 'boolean' &&
       !hasActivityLogUpdate &&
+      !hasWorkspaceUpdate &&
       !hasNetworkUpdate
     ) {
       res.status(400).json({
@@ -2843,6 +2849,12 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
       };
     }
 
+    const workspaceToggled =
+      hasWorkspaceUpdate && (systemConfig.workspace?.enabled === true) !== workspace.enabled;
+    if (hasWorkspaceUpdate) {
+      systemConfig.workspace = { ...systemConfig.workspace, enabled: workspace.enabled };
+    }
+
     if (hasNetworkUpdate) {
       systemConfig.network = { allowedCidrs: [...new Set<string>(network.allowedCidrs)] };
     }
@@ -2856,6 +2868,13 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
         data: systemConfig,
         message: 'System configuration updated successfully',
       });
+
+      // Connected sessions list servers differently once selection starts or stops applying.
+      if (workspaceToggled) {
+        broadcastToolListChanged();
+        broadcastPromptListChanged();
+        broadcastResourceListChanged();
+      }
 
       // If smart routing configuration changed, sync all existing server tools
       if (needsSync) {

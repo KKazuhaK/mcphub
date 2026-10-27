@@ -50,6 +50,7 @@ export interface SessionContext {
   keyId?: string;
   keyName?: string;
   hostedAuth?: HostedAuthContext;
+  username?: string;
 }
 
 export const transports: {
@@ -128,6 +129,9 @@ export const getSessionContext = (
     keyName: session?.keyName,
   };
 };
+
+export const getSessionUsername = (sessionId: string): string | undefined =>
+  transports[sessionId]?.username;
 
 const cleanupSessionState = (sessionId: string): void => {
   const session = transports[sessionId];
@@ -716,6 +720,7 @@ export const handleSseConnection = async (req: Request, res: Response): Promise<
     keyId: bearerAuthResult.keyId,
     keyName: bearerAuthResult.keyName,
     hostedAuth: bearerAuthResult.hostedAuth,
+    username,
   };
 
   res.on('close', () => {
@@ -818,7 +823,7 @@ async function createSessionWithId(
         `[SESSION REBUILD] onsessioninitialized triggered for ID: ${initializedSessionId}`,
       ); // New log
       if (initializedSessionId === sessionId) {
-        transports[sessionId] = { transport, group, hostedAuth };
+        transports[sessionId] = { transport, group, hostedAuth, username };
         logger.log(
           `[SESSION REBUILD] Session ${sessionId} initialized successfully${username ? ` for user: ${username}` : ''}`,
         );
@@ -845,7 +850,7 @@ async function createSessionWithId(
     throw new Error('Failed to rebuild session transport state');
   }
 
-  transports[sessionId] = { transport, group, hostedAuth };
+  transports[sessionId] = { transport, group, hostedAuth, username };
 
   logger.log(`[SESSION REBUILD] Rehydrated session ${sessionId} for immediate request handling.`);
 
@@ -866,7 +871,7 @@ async function createNewSession(
   const transport = new NodeStreamableHTTPServerTransport({
     sessionIdGenerator: () => newSessionId,
     onsessioninitialized: (sessionId) => {
-      transports[sessionId] = { transport, group, hostedAuth };
+      transports[sessionId] = { transport, group, hostedAuth, username };
       logger.log(
         `[SESSION NEW] New session ${sessionId} initialized successfully${username ? ` for user: ${username}` : ''}`,
       );

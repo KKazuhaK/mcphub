@@ -1,5 +1,6 @@
 import { CapabilitySnapshotDao, CapabilitySnapshotDaoImpl } from './CapabilitySnapshotDao.js';
 import { CredentialBindingDao, CredentialBindingDaoImpl } from './CredentialBindingDao.js';
+import { UserServerSelectionDao, UserServerSelectionDaoImpl } from './UserServerSelectionDao.js';
 import { UserDao, UserDaoImpl } from './UserDao.js';
 import { ServerDao, ServerDaoImpl } from './ServerDao.js';
 import { GroupDao, GroupDaoImpl } from './GroupDao.js';
@@ -19,6 +20,7 @@ import { logger } from '../utils/logger.js';
 export interface DaoFactory {
   getCapabilitySnapshotDao(): CapabilitySnapshotDao;
   getCredentialBindingDao(): CredentialBindingDao;
+  getUserServerSelectionDao(): UserServerSelectionDao;
   getUserDao(): UserDao;
   getServerDao(): ServerDao;
   getGroupDao(): GroupDao;
@@ -69,6 +71,10 @@ export class JsonFileDaoFactory implements DaoFactory {
 
   getCredentialBindingDao(): CredentialBindingDao {
     return new CredentialBindingDaoImpl();
+  }
+
+  getUserServerSelectionDao(): UserServerSelectionDao {
+    return new UserServerSelectionDaoImpl();
   }
 
   getUserDao(): UserDao {
@@ -256,4 +262,8 @@ export function getCapabilitySnapshotDao(): CapabilitySnapshotDao {
 
 export function getCredentialBindingDao(): CredentialBindingDao {
   return getDaoFactory().getCredentialBindingDao();
+}
+
+export function getUserServerSelectionDao(): UserServerSelectionDao {
+  return getDaoFactory().getUserServerSelectionDao();
 }

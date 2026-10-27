@@ -82,6 +82,7 @@ export const callTool = async (req: Request, res: Response): Promise<void> => {
     const extra = {
       sessionId: req.headers['x-session-id'] || 'api-session',
       server: server || undefined,
+      dashboard: true,
       headers: req.headers, // Include request headers for passthrough
     };
 
