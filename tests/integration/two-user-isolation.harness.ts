@@ -133,9 +133,11 @@ export const startHub = async (settingsPath: string, readyServers: string[]): Pr
   return {
     baseUrl,
     api: (method, path, username, body) => {
-      const call = request(baseUrl)
-        [method](path)
-        .set('x-auth-token', createUserToken(username, username === 'admin'));
+      const agent = request(baseUrl);
+      const call = agent[method](path).set(
+        'x-auth-token',
+        createUserToken(username, username === 'admin'),
+      );
       return body ? call.send(body) : call;
     },
     connect: async (endpointUser, bearer) => {
