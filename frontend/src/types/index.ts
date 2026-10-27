@@ -209,6 +209,8 @@ export interface MyCredentialBinding {
   configured: boolean;
   configuredSlots: string[];
   updatedAt: string | null;
+  // The service's connection settings changed after these were entered; they are not used.
+  stale?: boolean;
 }
 
 export interface ServerMaintenance {

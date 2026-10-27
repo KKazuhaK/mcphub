@@ -806,3 +806,23 @@ test('first boot migration carries tool risk controls into the database', async 
     toolRiskOverrides,
   });
 });
+
+test('first boot with sync stamps migrated bindings instead of orphaning them', async () => {
+  write({
+    users: [{ username: 'admin', password: 'hashed', isAdmin: true }],
+    mcpServers: { remote },
+  });
+  // The JSON-to-database migration copies the bindings before the sync inserts the servers.
+  bindings.set('remote:alice', {
+    serverName: 'remote',
+    username: 'alice',
+    encryptedValues: 'ciphertext',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  });
+  await expect(initializeDatabaseMode()).resolves.toBe(true);
+  expect(servers.has('remote')).toBe(true);
+  const row = bindings.get('remote:alice');
+  expect(row).toBeDefined();
+  expect(row?.destinationFingerprint).not.toBe('v1:orphaned');
+  expect(row?.destinationFingerprint).toBeUndefined();
+});

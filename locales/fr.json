@@ -1520,7 +1520,13 @@
     "showAll": "Afficher tous les serveurs",
     "loading": "Chargement…",
     "empty": "Aucun serveur partagé ne nécessite d’identifiants personnels.",
-    "missingWorkspace": "Des identifiants personnels sont requis pour « {{serverName}} ». Ajoutez-les depuis votre espace de travail."
+    "missingWorkspace": "Des identifiants personnels sont requis pour « {{serverName}} ». Ajoutez-les depuis votre espace de travail.",
+    "staleNotice": "Les paramètres de connexion de ce service ont changé après la saisie de ces valeurs ; elles ne sont donc pas utilisées. Saisissez de nouveau vos identifiants.",
+    "changed": "Les paramètres de connexion de « {{serverName}} » ont changé. Saisissez de nouveau vos identifiants personnels dans Tableau de bord → Identifiants.",
+    "changedWorkspace": "Les paramètres de connexion de « {{serverName}} » ont changé. Saisissez de nouveau vos identifiants depuis votre espace de travail.",
+    "destinationChangedWarning": "{{affected}} utilisateur(s) devront saisir de nouveau leurs identifiants pour « {{serverName}} ».",
+    "destinationChangedWarningOwner": "Les utilisateurs ayant saisi des identifiants pour « {{serverName}} » devront les saisir de nouveau.",
+    "destinationMismatch": "L'adresse de l'API de ce service ne correspond pas à son adresse déclarée ; vos identifiants n'ont donc pas été envoyés. Demandez à un administrateur de vérifier les paramètres du service."
   },
   "workspace": {
     "status": {
@@ -1530,6 +1536,7 @@
       "maintenance": "'{{serverName}}' est en maintenance. Réessayez plus tard.",
       "maintenanceUntil": "'{{serverName}}' est en maintenance jusqu'à {{until}}. Réessayez plus tard.",
       "needs_auth": "« {{serverName}} » nécessite vos identifiants ou votre autorisation personnels. Connectez-le depuis votre espace de travail.",
+      "needsAuthChanged": "Les paramètres de connexion de « {{serverName}} » ont changé. Saisissez de nouveau vos identifiants depuis votre espace de travail.",
       "revoked": "Vous avez déconnecté votre autorisation pour « {{serverName}} ». Reconnectez-la depuis votre espace de travail.",
       "credential_invalid": "Vos identifiants pour « {{serverName}} » ont été refusés. Mettez-les à jour ou reconnectez-vous depuis votre espace de travail.",
       "error": "« {{serverName}} » est actuellement indisponible. Réessayez plus tard.",

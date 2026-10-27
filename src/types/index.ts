@@ -478,6 +478,9 @@ export interface StoredCredentialBinding {
   username: string;
   encryptedValues: string;
   updatedAt: string;
+  // Keyed fingerprint of the destination the values were bound to (credential slots only).
+  // Absent on bindings stored before it existed and on personal OAuth bindings.
+  destinationFingerprint?: string | null;
 }
 
 // A user's explicit choice to include a server in their personal MCP endpoints.
@@ -517,6 +520,9 @@ export interface UserServerStatus {
   since?: string;
   // ISO timestamp of when a `maintenance` state is expected to end, when the admin set one.
   until?: string;
+  // Why a state applies when its code alone is not enough. `destination_changed`: the
+  // service's connection settings changed after the user entered their credentials.
+  reason?: 'destination_changed';
 }
 
 // Admin-set maintenance window. Takes effect only under Workspace Mode. While present and

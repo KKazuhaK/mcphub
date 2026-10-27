@@ -1,3 +1,4 @@
+import { IsNull } from 'typeorm';
 import { getAppDataSource } from '../db/connection.js';
 import { CredentialBinding } from '../db/entities/CredentialBinding.js';
 import type { StoredCredentialBinding } from '../types/index.js';
@@ -44,6 +45,33 @@ export class CredentialBindingDaoDbImpl implements CredentialBindingDao {
       .returning(['serverName'])
       .execute();
     return result.raw.length === 1;
+  }
+
+  async adoptDestinationFingerprint(
+    serverName: string,
+    username: string,
+    expectedEncryptedValues: string,
+    fingerprint: string,
+  ): Promise<boolean> {
+    // One conditional UPDATE: only a row that is still unbound and unchanged is stamped.
+    const result = await this.repository.update(
+      {
+        serverName,
+        username,
+        encryptedValues: expectedEncryptedValues,
+        destinationFingerprint: IsNull(),
+      },
+      { destinationFingerprint: fingerprint },
+    );
+    return result.affected === 1;
+  }
+
+  async listUnstamped(): Promise<StoredCredentialBinding[]> {
+    return this.repository.find({ where: { destinationFingerprint: IsNull() } });
+  }
+
+  async setServerFingerprint(serverName: string, fingerprint: string): Promise<void> {
+    await this.repository.update({ serverName }, { destinationFingerprint: fingerprint });
   }
 
   async delete(filter: { serverName?: string; username?: string }): Promise<void> {

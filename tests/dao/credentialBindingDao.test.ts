@@ -58,3 +58,63 @@ describe('CredentialBindingDaoImpl.listUsernames', () => {
     await expect(new CredentialBindingDaoImpl().listUsernames('private-api')).resolves.toEqual([]);
   });
 });
+
+describe('CredentialBindingDaoImpl.adoptDestinationFingerprint', () => {
+  let tmpDir: string;
+  let original: string | undefined;
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcphub-credential-adopt-'));
+    original = process.env.MCPHUB_SETTING_PATH;
+    process.env.MCPHUB_SETTING_PATH = path.join(tmpDir, 'mcp_settings.json');
+  });
+  afterEach(() => {
+    if (original === undefined) delete process.env.MCPHUB_SETTING_PATH;
+    else process.env.MCPHUB_SETTING_PATH = original;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('stamps only an unbound row that still holds the expected ciphertext', async () => {
+    const dao = new CredentialBindingDaoImpl();
+    await dao.save(binding('s', 'alice'));
+    await dao.save(binding('s', 'bob'));
+    expect(await dao.adoptDestinationFingerprint('s', 'alice', 'stale-ciphertext', 'v1:a')).toBe(
+      false,
+    );
+    expect(await dao.adoptDestinationFingerprint('s', 'alice', 'ciphertext-alice', 'v1:a')).toBe(
+      true,
+    );
+    expect(await dao.adoptDestinationFingerprint('s', 'alice', 'ciphertext-alice', 'v1:b')).toBe(
+      false,
+    );
+    expect(await dao.adoptDestinationFingerprint('s', 'nobody', 'x', 'v1:a')).toBe(false);
+    expect((await dao.get('s', 'alice'))?.destinationFingerprint).toBe('v1:a');
+    expect((await dao.get('s', 'bob'))?.destinationFingerprint).toBeUndefined();
+  });
+});
+
+describe('CredentialBindingDaoImpl stamping support', () => {
+  let tmpDir: string;
+  let original: string | undefined;
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcphub-credential-stamp-'));
+    original = process.env.MCPHUB_SETTING_PATH;
+    process.env.MCPHUB_SETTING_PATH = path.join(tmpDir, 'mcp_settings.json');
+  });
+  afterEach(() => {
+    if (original === undefined) delete process.env.MCPHUB_SETTING_PATH;
+    else process.env.MCPHUB_SETTING_PATH = original;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('lists only unstamped bindings and sets a server fingerprint on all of its rows', async () => {
+    const dao = new CredentialBindingDaoImpl();
+    await dao.save({ ...binding('s', 'alice'), destinationFingerprint: 'v1:a' });
+    await dao.save(binding('s', 'bob'));
+    await dao.save(binding('other', 'carol'));
+    expect((await dao.listUnstamped()).map((row) => row.username).sort()).toEqual(['bob', 'carol']);
+    await dao.setServerFingerprint('s', 'v1:orphaned');
+    expect((await dao.get('s', 'alice'))?.destinationFingerprint).toBe('v1:orphaned');
+    expect((await dao.get('s', 'bob'))?.destinationFingerprint).toBe('v1:orphaned');
+    expect((await dao.get('other', 'carol'))?.destinationFingerprint).toBeUndefined();
+  });
+});

@@ -19,6 +19,9 @@ import {
   ssrfConnectionOptions,
 } from '../utils/ssrf.js';
 import { getUserDao } from '../dao/index.js';
+import { DestinationMismatchError } from '../utils/credentialTemplate.js';
+import { getT } from '../utils/i18n.js';
+import { logger } from '../utils/logger.js';
 import { sanitizeStringForLogging, createSafeJSON } from '../utils/serialization.js';
 import {
   buildMultipartParts,
@@ -616,6 +619,37 @@ export class OpenAPIClient {
     return `${methodName}_${cleanPath || 'root'}`;
   }
 
+  // Personal credential values are only ever sent to the origin the server declares: the
+  // origin of its OpenAPI document URL (there is no separate base-URL option). The document's
+  // `servers` list can name another host, and a remote document can change without the
+  // declaration changing, so the request's actual origin is compared before any slot value is
+  // attached. A schema given inline is part of the declaration (and its fingerprint), so it
+  // needs no check.
+  private assertDeclaredOrigin(target: URL | null): void {
+    const declared = this.config.openapi?.url;
+    if (!declared) return;
+    let declaredOrigin: string;
+    try {
+      declaredOrigin = new URL(declared).origin;
+    } catch {
+      declaredOrigin = '';
+    }
+    if (target && declaredOrigin && target.origin === declaredOrigin) return;
+    logger.warn(
+      'Refusing to send personal credentials: request origin differs from the declared origin',
+      {
+        declaredOrigin,
+        requestOrigin: target?.origin ?? null,
+      },
+    );
+    throw new DestinationMismatchError(
+      getT()('credentials.destinationMismatch', {
+        defaultValue:
+          "This service's API address does not match its declared address, so your credentials were not sent. Ask an administrator to check the service's settings.",
+      }),
+    );
+  }
+
   private updateBaseUrlFromServers(): void {
     if (!this.spec?.servers || this.spec.servers.length === 0) {
       return;
@@ -1035,6 +1069,9 @@ export class OpenAPIClient {
       } catch {
         // relative path with no base — no host to validate; axios surfaces the error
       }
+      // Before anything else touches the target, including DNS: a credential-slot server only
+      // ever talks to its declared origin.
+      if (this.config.credentialTemplate?.length) this.assertDeclaredOrigin(resolvedTarget);
       if (resolvedTarget) {
         const safeTargetUrl = await assertSafeUrl(resolvedTarget.href, {
           allowInternal: this.allowInternalNetworks,

@@ -5,6 +5,18 @@ export class CredentialBindingError extends Error {}
 // A personal binding is absent or incomplete: the user has to supply it.
 export class MissingCredentialError extends CredentialBindingError {}
 
+// The service's connection settings changed after the user entered their credentials, so the
+// stored values are not used. The user has to enter them again. Still a missing credential
+// (needs_auth); the distinct class lets the wording say why.
+export class StaleCredentialError extends MissingCredentialError {}
+
+// A request meant for a credential-slot OpenAPI server would have gone to an origin other than
+// the one the server declares (the document's `servers` points elsewhere), so no slot value was
+// sent. Still a missing credential from the caller's side; `reason` tells the cases apart.
+export class DestinationMismatchError extends MissingCredentialError {
+  readonly reason = 'destination_mismatch';
+}
+
 // The binding changed while a request was using it; repeating the request resolves it.
 export class CredentialBindingConflictError extends CredentialBindingError {}
 
