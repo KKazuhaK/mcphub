@@ -7,6 +7,11 @@ import {
 } from '../services/oauthServerService.js';
 import { findOAuthClientIncludingCimd, isCimdClientId } from '../services/cimdClientService.js';
 import { getSystemConfigDao, getGroupDao, getServerDao } from '../dao/index.js';
+import {
+  isQueryTokenAllowed,
+  QUERY_CREDENTIAL_REJECTED_MESSAGE,
+  rejectsQueryCredential,
+} from '../utils/queryCredentials.js';
 import OAuth2Server from '@node-oauth/oauth2-server';
 import { resolveBetterAuthUser } from '../services/betterAuthSession.js';
 import { cloneDefaultOAuthServerConfig } from '../constants/oauthServerDefaults.js';
@@ -64,7 +69,12 @@ async function resolveBetterAuthUserForAuthorize(req: Request): Promise<Authenti
  */
 async function resolveUserFromRequest(req: Request): Promise<AuthenticatedUser | null> {
   const headerToken = req.header('x-auth-token');
-  const queryToken = typeof req.query.token === 'string' ? req.query.token : undefined;
+  const presentedQueryToken = typeof req.query.token === 'string' ? req.query.token : undefined;
+  // A credential in the URL is only honoured while the setting allows it.
+  const queryToken =
+    presentedQueryToken && isQueryTokenAllowed(await getSystemConfigDao().get())
+      ? presentedQueryToken
+      : undefined;
   const bodyToken =
     req.body && typeof (req.body as Record<string, unknown>).token === 'string'
       ? ((req.body as Record<string, string>).token as string)
@@ -319,6 +329,19 @@ export const getAuthorize = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    // Header-only hardening: a credential in the consent URL is refused, never honoured.
+    const systemConfig = await getSystemConfigDao().get();
+    const queryTokensAllowed = isQueryTokenAllowed(systemConfig);
+    const rejectedParam = rejectsQueryCredential(req.query, systemConfig);
+    if (rejectedParam) {
+      logger.warn(`Rejected /oauth/authorize carrying a credential in the URL (${rejectedParam})`);
+      res.status(401).json({
+        error: 'invalid_request',
+        error_description: QUERY_CREDENTIAL_REJECTED_MESSAGE,
+      });
+      return;
+    }
+
     // Get and validate query parameters
     // CIMD (draft-ietf-oauth-client-id-metadata-document) client_ids are HTTPS
     // URLs; registered client_ids stay restricted to the legacy safe charset.
@@ -399,13 +422,22 @@ export const getAuthorize = async (req: Request, res: Response): Promise<void> =
       user = await resolveBetterAuthUserForAuthorize(req);
     }
 
-    if (!user) {
-      // Redirect to login page with return URL
-      const returnUrl = encodeURIComponent(req.originalUrl);
-      res.redirect(`/login?returnUrl=${returnUrl}`);
+    // A browser navigation cannot carry a header, so a request with no credential at all is
+    // served the consent page unauthenticated, in both settings. The SPA then authenticates its
+    // own requests with the session it already holds, or sends the user to login and back to this
+    // token-free URL; redirecting to login from here would loop whenever login cannot attach a
+    // credential to the URL.
+    const needsSession = !user;
+
+    // The SPA's follow-up once signed in: the resource resolved to its real kind, as JSON.
+    if (
+      user &&
+      String(req.headers?.accept ?? '').includes('application/json') &&
+      req.headers?.['x-auth-token']
+    ) {
+      res.json({ resource: await resolveResourceTarget(resource as string | undefined) });
       return;
     }
-
     const requestToken = typeof req.query.token === 'string' ? req.query.token : '';
     const tokenField = requestToken
       ? `<input type="hidden" name="token" value="${escapeHtml(requestToken)}">`
@@ -439,7 +471,9 @@ export const getAuthorize = async (req: Request, res: Response): Promise<void> =
       policyUri: client.metadata?.policy_uri,
       tosUri: client.metadata?.tos_uri,
       logoUri: client.metadata?.logo_uri,
-      contacts: client.metadata?.contacts,
+      // Contacts of a dynamically registered client may be personal addresses; show them only
+      // once the visitor is signed in.
+      contacts: needsSession ? undefined : client.metadata?.contacts,
       applicationType: client.metadata?.application_type,
     };
     const consentContext: OAuthConsentContext = {
@@ -453,7 +487,14 @@ export const getAuthorize = async (req: Request, res: Response): Promise<void> =
       codeChallenge: code_challenge || undefined,
       codeChallengeMethod: code_challenge_method || undefined,
       token: requestToken || undefined,
-      resource: await resolveResourceTarget(resource),
+      needsSession: needsSession || undefined,
+      // Before sign-in the page must not reveal whether a name is a group, a server or neither:
+      // it gets the unresolved target, and the SPA asks again once its session is established.
+      resource: needsSession
+        ? resource
+          ? parseResourceTarget(resource)
+          : undefined
+        : await resolveResourceTarget(resource),
       client: consentClientInfo,
     };
 
@@ -464,6 +505,18 @@ export const getAuthorize = async (req: Request, res: Response): Promise<void> =
     const shell = injectOAuthConsentShell(consentContext);
     if (shell) {
       res.type('html').send(shell);
+      return;
+    }
+    if (needsSession) {
+      // Without the dashboard there is no SPA to present a session. Keep the pre-existing
+      // fallback: a login redirect where URL credentials are accepted, otherwise a 401.
+      if (queryTokensAllowed) {
+        res.redirect(`/login?returnUrl=${encodeURIComponent(req.originalUrl)}`);
+        return;
+      }
+      res
+        .status(401)
+        .json({ error: 'login_required', error_description: 'User not authenticated' });
       return;
     }
 
@@ -499,6 +552,16 @@ export const getAuthorize = async (req: Request, res: Response): Promise<void> =
  */
 export const postAuthorize = async (req: Request, res: Response): Promise<void> => {
   let validatedRedirectUri: string | null = null;
+  // The SPA submits with fetch (its session token travels in a header) and follows the target
+  // itself; a plain form post still gets the redirect.
+  // Only a request that carries the session header gets JSON; anything else keeps the 302.
+  const wantsJson =
+    String(req.headers?.accept ?? '').includes('application/json') &&
+    Boolean(req.headers?.['x-auth-token']);
+  const redirectTo = (target: string): void => {
+    if (wantsJson) res.json({ redirect: target });
+    else res.redirect(target);
+  };
 
   try {
     const oauth = getOAuthServer();
@@ -523,7 +586,7 @@ export const postAuthorize = async (req: Request, res: Response): Promise<void> 
       if (state) {
         redirectUrl.searchParams.set('state', state);
       }
-      res.redirect(redirectUrl.toString());
+      redirectTo(redirectUrl.toString());
       return;
     }
 
@@ -565,7 +628,7 @@ export const postAuthorize = async (req: Request, res: Response): Promise<void> 
       redirectUrl.searchParams.set('state', state);
     }
 
-    res.redirect(redirectUrl.toString());
+    redirectTo(redirectUrl.toString());
   } catch (error) {
     logger.error('Authorization error:', error);
 
@@ -584,7 +647,7 @@ export const postAuthorize = async (req: Request, res: Response): Promise<void> 
         if (state) {
           redirectUrl.searchParams.set('state', state);
         }
-        res.redirect(redirectUrl.toString());
+        redirectTo(redirectUrl.toString());
       } else {
         res.status(400).json({
           error: oauthError.name || 'server_error',

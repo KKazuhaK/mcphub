@@ -1,3 +1,4 @@
+import { describeBearerToken } from '../utils/bearerKeyHash.js';
 import { jest } from '@jest/globals';
 import jwt from 'jsonwebtoken';
 
@@ -80,7 +81,13 @@ describe('auth middleware bearer scheme case', () => {
     mockGetSystemConfig.mockImplementation(async () => currentSystemConfig);
     mockGetCachedSystemConfig.mockReturnValue(null);
     findEnabledMock.mockResolvedValue([
-      { id: 'key-1', name: 'default', token: 'test-key', enabled: true, accessType: 'all' },
+      {
+        id: 'key-1',
+        name: 'default',
+        ...describeBearerToken('test-key'),
+        enabled: true,
+        accessType: 'all',
+      },
     ]);
   });
 

@@ -552,7 +552,8 @@ export type BearerKeyKind = 'system' | 'user';
 export interface BearerKey {
   id: string;
   name: string;
-  token: string;
+  token: string; // Masked after creation; the plaintext only in the create response
+  tokenPrefix?: string;
   enabled: boolean;
   kind?: BearerKeyKind;
   owner?: string;

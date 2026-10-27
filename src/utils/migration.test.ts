@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import { createHash } from 'node:crypto';
 
 // Mocks must be defined before importing the module under test.
 
@@ -37,7 +38,9 @@ const bearerKeyCreateMock =
   jest.fn<
     (data: {
       name: string;
-      token: string;
+      token: null;
+      tokenHash: string;
+      tokenPrefix: string;
       enabled: boolean;
       accessType: string;
       allowedGroups: string[];
@@ -52,9 +55,11 @@ jest.mock('../db/repositories/BearerKeyRepository.js', () => ({
 }));
 
 const systemConfigGetMock = jest.fn<() => Promise<any>>();
+const systemConfigUpdateMock = jest.fn<(data: any) => Promise<unknown>>();
 jest.mock('../db/repositories/SystemConfigRepository.js', () => ({
   SystemConfigRepository: jest.fn().mockImplementation(() => ({
     get: systemConfigGetMock,
+    update: systemConfigUpdateMock,
   })),
 }));
 
@@ -76,8 +81,11 @@ describe('initializeDatabaseMode legacy bearer auth migration', () => {
     expect(ok).toBe(true);
     expect(initializeDatabaseMock).toHaveBeenCalled();
     expect(loadOriginalSettingsMock).not.toHaveBeenCalled();
-    expect(systemConfigGetMock).not.toHaveBeenCalled();
     expect(bearerKeyCreateMock).not.toHaveBeenCalled();
+    // The superseded legacy plaintext key is cleared, not migrated again.
+    expect(systemConfigUpdateMock).toHaveBeenCalledWith({
+      routing: { enableBearerAuth: true, bearerAuthKey: '' },
+    });
   });
 
   it('migrates legacy routing bearerAuthKey into bearerKeys when users exist and keys table is empty', async () => {
@@ -96,12 +104,18 @@ describe('initializeDatabaseMode legacy bearer auth migration', () => {
     expect(bearerKeyCreateMock).toHaveBeenCalledTimes(1);
     expect(bearerKeyCreateMock).toHaveBeenCalledWith({
       name: 'default',
-      token: 'db-key',
+      token: null,
+      tokenHash: createHash('sha256').update('db-key').digest('hex'),
+      tokenPrefix: 'db',
       enabled: true,
       kind: 'system',
       accessType: 'all',
       allowedGroups: [],
       allowedServers: [],
+    });
+    // Nothing is left behind in plaintext.
+    expect(systemConfigUpdateMock).toHaveBeenCalledWith({
+      routing: { enableBearerAuth: true, bearerAuthKey: '' },
     });
   });
 
@@ -119,5 +133,6 @@ describe('initializeDatabaseMode legacy bearer auth migration', () => {
     expect(loadOriginalSettingsMock).not.toHaveBeenCalled();
     expect(systemConfigGetMock).toHaveBeenCalledTimes(1);
     expect(bearerKeyCreateMock).not.toHaveBeenCalled();
+    expect(systemConfigUpdateMock).not.toHaveBeenCalled();
   });
 });

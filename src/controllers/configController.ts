@@ -86,6 +86,7 @@ export const getPublicConfig = async (req: Request, res: Response): Promise<void
       success: true,
       data: {
         skipAuth,
+        allowTokenInQuery: systemConfig?.routing?.allowTokenInQuery !== false,
         allowRegistration:
           systemConfig?.auth?.allowRegistration === true && !betterAuth.disablePasswordLogin,
         permissions,
@@ -216,7 +217,12 @@ export const getMcpSettingsJson = async (req: Request, res: Response): Promise<v
           'lastUsedAt',
           'grantCreatedAt',
         ]),
-        bearerKeys: omitSensitiveFields(bearerKeys, ['token', 'lastUsedAt']),
+        bearerKeys: omitSensitiveFields(bearerKeys, [
+          'token',
+          'tokenHash',
+          'tokenPrefix',
+          'lastUsedAt',
+        ]),
       };
 
       res.json({

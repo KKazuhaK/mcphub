@@ -13,6 +13,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiGet, apiPut, apiPost, apiDelete } from '@/utils/fetchInterceptor';
 import { resolveWorkspaceSetting } from '@/utils/workspace';
+import { logStreamManager } from '@/services/logService';
 
 // Define types for the settings data
 interface RoutingConfig {
@@ -23,6 +24,7 @@ interface RoutingConfig {
   bearerAuthHeaderName: string;
   jsonBodyLimit: string;
   skipAuth: boolean;
+  allowTokenInQuery: boolean;
 }
 
 interface InstallConfig {
@@ -366,6 +368,7 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
     bearerAuthHeaderName: 'Authorization',
     jsonBodyLimit: '1mb',
     skipAuth: false,
+    allowTokenInQuery: true,
   });
 
   const [tempRoutingConfig, setTempRoutingConfig] = useState<TempRoutingConfig>({
@@ -471,6 +474,7 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
             data.data.systemConfig.routing.bearerAuthHeaderName || 'Authorization',
           jsonBodyLimit: data.data.systemConfig.routing.jsonBodyLimit || '1mb',
           skipAuth: data.data.systemConfig.routing.skipAuth ?? false,
+          allowTokenInQuery: data.data.systemConfig.routing.allowTokenInQuery ?? true,
         });
       }
       if (data.success && data.data?.systemConfig?.install) {
@@ -1285,6 +1289,11 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
       triggerRefresh();
     }
   }, [auth.isAuthenticated, triggerRefresh]);
+
+  // A log stream that stopped on 401 reconnects once the user has signed in.
+  useEffect(() => {
+    if (auth.isAuthenticated) logStreamManager.resume();
+  }, [auth.isAuthenticated]);
 
   useEffect(() => {
     if (routingConfig) {

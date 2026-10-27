@@ -112,6 +112,7 @@ import { TOOL_DEFINITION_FIELDS } from '../constants/smartRoutingDefaults.js';
 import { previewOpenApiToolStats } from '../services/openApiToolStatsService.js';
 import { isValidEnabledAt } from '../services/connectedClientService.js';
 import { logger } from '../utils/logger.js';
+import { maskedBearerToken } from '../utils/bearerKeyHash.js';
 import { findToolConfigKey, resolveRuntimeToolName } from '../utils/toolConfig.js';
 
 // Runtime names of a connected server's tools, to resolve which tool a request means
@@ -663,11 +664,10 @@ export const getAllSettings = async (req: Request, res: Response): Promise<void>
       oauthTokens: oauthTokens.map(
         ({ lastUsedAt: _lastUsed, grantCreatedAt: _grantCreated, ...token }) => token,
       ),
-      bearerKeys: bearerKeys.map(({ lastUsedAt: _lastUsed, ...key }) => ({
+      bearerKeys: bearerKeys.map(({ lastUsedAt: _lastUsed, tokenHash: _tokenHash, ...key }) => ({
         ...key,
         kind: key.kind ?? 'system',
-        token:
-          key.token.length > 12 ? `${key.token.slice(0, 8)}...${key.token.slice(-4)}` : '********',
+        token: maskedBearerToken(key),
       })),
     };
 
@@ -2398,7 +2398,8 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
         typeof routing.bearerAuthKey === 'string' ||
         typeof routing.bearerAuthHeaderName === 'string' ||
         typeof routing.jsonBodyLimit === 'string' ||
-        typeof routing.skipAuth === 'boolean');
+        typeof routing.skipAuth === 'boolean' ||
+        typeof routing.allowTokenInQuery === 'boolean');
 
     const hasInstallUpdate =
       install &&
@@ -2586,6 +2587,7 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
           bearerAuthHeaderName: 'Authorization',
           jsonBodyLimit: '1mb',
           skipAuth: false,
+          allowTokenInQuery: true,
         },
         install: {
           pythonIndexUrl: '',
@@ -2634,6 +2636,7 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
         bearerAuthHeaderName: 'Authorization',
         jsonBodyLimit: '1mb',
         skipAuth: false,
+        allowTokenInQuery: true,
       };
     }
 
@@ -2723,9 +2726,8 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
         systemConfig.routing.enableBearerAuth = routing.enableBearerAuth;
       }
 
-      if (typeof routing.bearerAuthKey === 'string') {
-        systemConfig.routing.bearerAuthKey = routing.bearerAuthKey;
-      }
+      // The legacy single key is a one-time migration source only; a plaintext key is never
+      // stored here again (create a bearer key instead).
 
       if (typeof routing.bearerAuthHeaderName === 'string') {
         systemConfig.routing.bearerAuthHeaderName = routing.bearerAuthHeaderName.trim();
@@ -2737,6 +2739,10 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
 
       if (typeof routing.skipAuth === 'boolean') {
         systemConfig.routing.skipAuth = routing.skipAuth;
+      }
+
+      if (typeof routing.allowTokenInQuery === 'boolean') {
+        systemConfig.routing.allowTokenInQuery = routing.allowTokenInQuery;
       }
     }
 

@@ -1,3 +1,4 @@
+import { describeBearerToken } from '../utils/bearerKeyHash.js';
 import { Request, Response } from 'express';
 import { jest } from '@jest/globals';
 import {
@@ -70,7 +71,7 @@ jest.mock('../dao/index.js', () => ({
         {
           id: 'test-key-id',
           name: 'default',
-          token,
+          ...jest.requireActual('../utils/bearerKeyHash.js').describeBearerToken(token),
           enabled: true,
           accessType: 'all',
           allowedGroups: [],
@@ -375,6 +376,72 @@ describe('sseService', () => {
       expect(SSEServerTransport).toHaveBeenCalled();
     });
 
+    describe('credentials in the URL query (routing.allowTokenInQuery)', () => {
+      const routing = (allowTokenInQuery?: boolean) => ({
+        routing: {
+          enableGlobalRoute: true,
+          enableGroupNameRoute: true,
+          enableBearerAuth: true,
+          bearerAuthKey: 'test-key',
+          skipAuth: false,
+          ...(allowTokenInQuery === undefined ? {} : { allowTokenInQuery }),
+        },
+      });
+
+      it.each(['token', 'access_token', 'key'])(
+        'rejects ?%s= on the SSE endpoint when the setting is false, even with a valid header',
+        async (name) => {
+          setMockSystemConfig(routing(false));
+          const req = createMockRequest({
+            headers: { authorization: 'Bearer test-key' },
+            query: { [name]: 'test-key' } as any,
+            params: { group: 'test-group' },
+          });
+          const res = createMockResponse();
+
+          await handleSseConnection(req, res);
+
+          expectBearerUnauthorized(
+            res,
+            'Credentials in the URL query string are not accepted; send them in a request header',
+          );
+          expect(SSEServerTransport).not.toHaveBeenCalled();
+        },
+      );
+
+      it('rejects ?token= on the streamable MCP endpoint when the setting is false', async () => {
+        setMockSystemConfig(routing(false));
+        const req = createMockRequest({
+          headers: { authorization: 'Bearer test-key' },
+          query: { token: 'test-key' } as any,
+          params: { group: 'test-group' },
+        });
+        const res = createMockResponse();
+
+        await handleMcpPostRequest(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(401);
+      });
+
+      it.each([undefined, true])(
+        'does not reject a query token when the setting is %s (backward compatible)',
+        async (allow) => {
+          setMockSystemConfig(routing(allow));
+          const req = createMockRequest({
+            headers: { authorization: 'Bearer test-key' },
+            query: { token: 'ignored-by-bearer-auth' } as any,
+            params: { group: 'test-group' },
+          });
+          const res = createMockResponse();
+
+          await handleSseConnection(req, res);
+
+          expect(res.status).not.toHaveBeenCalledWith(401);
+          expect(SSEServerTransport).toHaveBeenCalled();
+        },
+      );
+    });
+
     it('should accept a configurable bearer auth header name', async () => {
       setMockSystemConfig({
         routing: {
@@ -415,7 +482,7 @@ describe('sseService', () => {
           {
             id: 'smart-group-key-id',
             name: 'smart-group-key',
-            token: 'group-token',
+            ...describeBearerToken('group-token'),
             enabled: true,
             accessType: 'groups',
             allowedGroups: ['my-group'],
@@ -453,7 +520,7 @@ describe('sseService', () => {
           {
             id: 'alice-key-id',
             name: 'alice-key',
-            token: 'alice-token',
+            ...describeBearerToken('alice-token'),
             enabled: true,
             kind: 'user',
             owner: 'alice',
@@ -496,7 +563,7 @@ describe('sseService', () => {
           {
             id: 'alice-key-id',
             name: 'alice-key',
-            token: 'alice-token',
+            ...describeBearerToken('alice-token'),
             enabled: true,
             kind: 'user',
             owner: 'alice',
@@ -764,7 +831,7 @@ describe('sseService', () => {
           {
             id: 'group-key-id',
             name: 'group-key',
-            token: 'group-token',
+            ...describeBearerToken('group-token'),
             enabled: true,
             accessType: 'groups',
             allowedGroups: ['my-group'],
@@ -1158,7 +1225,7 @@ describe('sseService', () => {
       const scopedKey = (overrides: Record<string, unknown> = {}) => ({
         id: 'key-1',
         name: 'contractor-key',
-        token: 'scoped-token',
+        ...describeBearerToken('scoped-token'),
         enabled: true,
         accessType: 'servers',
         allowedGroups: [],

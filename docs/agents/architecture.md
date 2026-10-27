@@ -30,6 +30,12 @@ Database mode is selected at startup by the code in `src/dao/DaoFactory.ts`: `US
 
 Bearer keys have explicit kinds. Legacy and operator-created keys use `kind: 'system'`; user-level keys use `kind: 'user'` and must have an `owner`. Do not infer the kind from whether `owner` is empty. User-level keys restore the owner's live user context on MCP transport requests and are not dashboard API credentials.
 
+Bearer-key tokens are never stored: `BearerKey` holds `tokenHash` (SHA-256, constant-time compared) and a display `tokenPrefix`. `token` exists only on the object `create()` returns, which is the one response that shows it. DAOs hash a plaintext `token` they are given, JSON reads and `migrateLegacyTokens()` (run at startup) hash plaintext left by older versions in place, and settings exports and key lists omit the token and the hash. Authentication compares `tokenHash` through `bearerHashMatches`; never compare or log `token`. See [ADR 0012](../adr/0012-security-hardening.md).
+
+## Logging and redaction
+
+Anything that can reach a log line, an activity row or an error message goes through `src/utils/redaction.ts` (URLs, headers, env, args, bodies) or the logger, which applies it by key name (`url`, `headers`, `env`, `args`) and to error objects. A resolved credential slot is registered in `resolvedCredentialValues`; `collectConfigSecrets(config)` lists every value to scrub for that runtime. A new place that logs a URL, a request, a child-process argument or an upstream response must use these helpers. `routing.allowTokenInQuery=false` rejects query-string credentials on MCP, SSE and `/api` routes.
+
 ## Personal credentials follow their destination
 
 A credential-slot binding stores `destinationFingerprint` (see `src/utils/credentialDestination.ts` for the exact field list). A binding whose fingerprint differs from the current declaration must never be injected: `resolveCredentialBinding` throws `StaleCredentialError` (a `MissingCredentialError`) before reading any value. Any new `ServerConfig` option that changes where traffic goes (a proxy, TLS or agent option, a working directory) belongs in that list. The binding functions take the stored definition and expand it themselves, once, through `expandServerConfig` (never skip it, never pass an already expanded or resolved config); startup runs `stampLegacyBindings`, and a binding without a fingerprint is stale. Applies with Workspace Mode off too; see [ADR 0011](../adr/0011-credential-destination-binding.md).

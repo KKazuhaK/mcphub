@@ -7,7 +7,15 @@
  * name for structured objects and by well-known token shapes for strings.
  */
 
-const REDACTED = '[REDACTED]';
+import {
+  REDACTED,
+  redactArgs,
+  redactEnv,
+  redactHeaders,
+  redactUrl,
+  redactUrlsInText,
+} from './redaction.js';
+
 const JWT_REDACTED = '[REDACTED_JWT]';
 const API_KEY_REDACTED = '[REDACTED_KEY]';
 
@@ -71,6 +79,15 @@ export const maskSecretPatterns = (value: string): string => {
     /\b(client_secret|access_token|refresh_token|id_token|api_key|apikey|authorization_code)=[^&\s"']+/g,
     '$1=[REDACTED]',
   );
+  // `token=` and `key=` are credentials only inside a query string, so they need a ?/& anchor.
+  result = result.replace(
+    /([?&](?:token|key|auth_token|bearer_token|authorization|x-auth-token))=[^&\s"'#]+/gi,
+    '$1=[REDACTED]',
+  );
+  // userinfo in a URL: scheme://user:pass@host
+  result = result.replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^/?#@\s"']+@/gi, '$1[REDACTED]@');
+  // Any URL left in the text loses userinfo, query values and its fragment.
+  result = redactUrlsInText(result);
   // Common API key prefixes (OpenAI/Anthropic style)
   result = result.replace(/\bsk-[A-Za-z0-9_-]{16,}\b/g, API_KEY_REDACTED);
   // GitHub tokens
@@ -97,11 +114,11 @@ const redactValue = (value: unknown, ctx: RedactionContext): unknown => {
     return '[Truncated]';
   }
 
-  // Errors are forwarded untouched so stack traces render natively and
-  // callers can assert on object identity; keyed/string redaction still
-  // applies to every other argument.
+  // Errors keep their class and stack so they render natively. When the message, the stack or
+  // an attached property (an HTTP error's request config, say) carries something to redact, a
+  // sanitized copy is logged instead; an error with nothing to redact is forwarded as is.
   if (value instanceof Error) {
-    return value;
+    return redactError(value, ctx);
   }
 
   // Pass through exotic built-ins untouched (they rarely carry keyed secrets).
@@ -158,11 +175,104 @@ const redactValue = (value: unknown, ctx: RedactionContext): unknown => {
       output[key] =
         isSensitiveKey(key) && !isNonSensitiveValue(val)
           ? REDACTED
-          : redactValue(val, { depth: depth + 1, seen });
+          : (redactStructured(key, val) ?? redactValue(val, { depth: depth + 1, seen }));
     }
     return output;
   } finally {
     seen.delete(value);
+  }
+};
+
+const URL_KEY_RE = /(^|[_-])(url|uri|href|endpoint)$|(Url|Uri|Href|Endpoint)$/;
+const HEADERS_KEY_RE = /^(headers|requestHeaders|responseHeaders|extraHeaders)$/i;
+const ENV_KEY_RE = /^(env|environment|processEnv)$/i;
+const ARGS_KEY_RE = /^(args|argv)$/i;
+
+/**
+ * Shapes whose content is credential-bearing whatever it is called: URLs lose userinfo and
+ * query values, header maps lose credential headers, env maps lose every value, argument
+ * lists lose credential flags. Returns undefined when the key says nothing special.
+ */
+const redactStructured = (key: string, value: unknown): unknown => {
+  if (typeof value === 'string' && URL_KEY_RE.test(key) && /^[a-z][a-z0-9+.-]*:\/\//i.test(value)) {
+    return redactUrl(value);
+  }
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    if (HEADERS_KEY_RE.test(key)) return redactHeaders(value as Record<string, string>);
+    if (ENV_KEY_RE.test(key)) return redactEnv(value as Record<string, unknown>);
+  }
+  if (Array.isArray(value) && ARGS_KEY_RE.test(key)) return redactArgs(value);
+  return undefined;
+};
+
+/** Most own enumerable properties of an error that are walked; the rest are counted. */
+const MAX_ERROR_PROPERTIES = 25;
+
+/**
+ * Class instances an error can carry (sockets, http requests and agents, streams, buffers) are
+ * huge, cyclic and hold credentials in places no key name reveals: they are named, not walked.
+ */
+const summarizeNonPlain = (value: unknown): string | undefined => {
+  if (!value || typeof value !== 'object') return undefined;
+  if (Buffer.isBuffer(value)) return `[Buffer ${value.length} bytes]`;
+  if (Array.isArray(value) || value instanceof Error) return undefined;
+  if (value instanceof Map || value instanceof Set || value instanceof Date) return undefined;
+  if (value instanceof RegExp) return undefined;
+  const proto = Object.getPrototypeOf(value);
+  if (proto === Object.prototype || proto === null) return undefined;
+  return `[${(value as object).constructor?.name || 'Object'}]`;
+};
+
+// Never mutates the original: a change produces a copy that keeps the class and stack.
+const redactError = (error: Error, ctx: RedactionContext): Error => {
+  if (ctx.seen.has(error)) return new Error('[Circular]');
+  if (ctx.depth >= MAX_DEPTH) return new Error('[Truncated]');
+  ctx.seen.add(error);
+  try {
+    const next = { depth: ctx.depth + 1, seen: ctx.seen };
+    const message = maskSecretPatterns(error.message);
+    const stack = typeof error.stack === 'string' ? maskSecretPatterns(error.stack) : error.stack;
+    const cause = (error as { cause?: unknown }).cause;
+    const redactedCause = cause instanceof Error ? redactError(cause, next) : cause;
+    const extras: Record<string, unknown> = {};
+    let changed = message !== error.message || stack !== error.stack || redactedCause !== cause;
+    const keys = Object.keys(error);
+    for (const key of keys.slice(0, MAX_ERROR_PROPERTIES)) {
+      const original = (error as unknown as Record<string, unknown>)[key];
+      const summary = summarizeNonPlain(original);
+      extras[key] =
+        summary ??
+        (isSensitiveKey(key) && !isNonSensitiveValue(original)
+          ? REDACTED
+          : (redactStructured(key, original) ?? redactValue(original, next)));
+      if (extras[key] !== original) changed = true;
+    }
+    if (keys.length > MAX_ERROR_PROPERTIES) {
+      extras['[truncated]'] = `${keys.length - MAX_ERROR_PROPERTIES} more properties`;
+      changed = true;
+    }
+    if (!changed) return error;
+    const copy = Object.create(Object.getPrototypeOf(error)) as Error;
+    Object.defineProperty(copy, 'message', { value: message, configurable: true, writable: true });
+    Object.defineProperty(copy, 'stack', { value: stack, configurable: true, writable: true });
+    if (cause !== undefined) {
+      Object.defineProperty(copy, 'cause', {
+        value: redactedCause,
+        configurable: true,
+        writable: true,
+      });
+    }
+    for (const [key, value] of Object.entries(extras)) {
+      Object.defineProperty(copy, key, {
+        value,
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+    }
+    return copy;
+  } finally {
+    ctx.seen.delete(error);
   }
 };
 

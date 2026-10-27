@@ -100,6 +100,7 @@ describe('ConfigController - getPublicConfig', () => {
       success: true,
       data: {
         skipAuth: true,
+        allowTokenInQuery: true,
         allowRegistration: false,
         permissions: {
           settings: ['manage'],

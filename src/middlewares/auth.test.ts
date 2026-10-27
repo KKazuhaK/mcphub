@@ -1,3 +1,4 @@
+import { describeBearerToken } from '../utils/bearerKeyHash.js';
 import { getUserSessionVersion } from '../utils/userSession.js';
 import express from 'express';
 import request from 'supertest';
@@ -76,7 +77,7 @@ describe('auth middleware', () => {
       {
         id: 'key-1',
         name: 'default',
-        token: 'test-key',
+        ...describeBearerToken('test-key'),
         enabled: true,
         accessType: 'all',
       },
@@ -127,7 +128,7 @@ describe('auth middleware', () => {
       {
         id: 'key-2',
         name: 'group-scoped',
-        token: 'group-key',
+        ...describeBearerToken('group-key'),
         enabled: true,
         accessType: 'groups',
         allowedGroups: ['engineering'],
@@ -148,7 +149,7 @@ describe('auth middleware', () => {
       {
         id: 'key-3',
         name: 'server-scoped',
-        token: 'server-key',
+        ...describeBearerToken('server-key'),
         enabled: true,
         accessType: 'servers',
         allowedServers: ['filesystem'],
@@ -169,7 +170,7 @@ describe('auth middleware', () => {
       {
         id: 'key-4',
         name: 'custom-scoped',
-        token: 'custom-key',
+        ...describeBearerToken('custom-key'),
         enabled: true,
         accessType: 'custom',
         allowedGroups: ['engineering'],
@@ -191,7 +192,7 @@ describe('auth middleware', () => {
       {
         id: 'key-5',
         name: 'alice-client',
-        token: 'user-key',
+        ...describeBearerToken('user-key'),
         enabled: true,
         kind: 'user',
         owner: 'alice',
@@ -312,7 +313,7 @@ describe('auth middleware', () => {
         {
           id: 'key-sys-1',
           name: 'system-client',
-          token: 'system-key',
+          ...describeBearerToken('system-key'),
           enabled: true,
           kind: 'system',
           accessType: 'all',
@@ -364,7 +365,7 @@ describe('auth middleware', () => {
         {
           id: 'key-sys-2',
           name: 'no-owner-system',
-          token: 'no-owner-key',
+          ...describeBearerToken('no-owner-key'),
           enabled: true,
           kind: 'system',
           accessType: 'all',
@@ -406,7 +407,7 @@ describe('auth middleware', () => {
         {
           id: 'key-user-1',
           name: 'user-client',
-          token: 'user-key',
+          ...describeBearerToken('user-key'),
           enabled: true,
           kind: 'user',
           accessType: 'all',
@@ -428,7 +429,7 @@ describe('auth middleware', () => {
         {
           id: 'key-scoped-1',
           name: 'groups-scoped',
-          token: 'groups-key',
+          ...describeBearerToken('groups-key'),
           enabled: true,
           kind: 'system',
           accessType: 'groups',
@@ -481,6 +482,69 @@ describe('auth middleware', () => {
         username: 'jwt-user',
         isAdmin: false,
       });
+    });
+  });
+
+  describe('credentials in the URL query (routing.allowTokenInQuery)', () => {
+    const jwtFor = () =>
+      jwt.sign(
+        {
+          user: {
+            username: 'jwt-user',
+            isAdmin: false,
+            sessionVersion: getUserSessionVersion({ username: 'jwt-user', password: 'hashed' }),
+          },
+        },
+        'test-secret',
+      );
+
+    it('accepts ?token= by default, keeping existing clients working', async () => {
+      const response = await request(createApp()).get(`/api/protected?token=${jwtFor()}`);
+
+      expect(response.status).toBe(200);
+    });
+
+    it('accepts ?token= when allowTokenInQuery is explicitly true', async () => {
+      (currentSystemConfig.routing as any).allowTokenInQuery = true;
+
+      const response = await request(createApp()).get(`/api/protected?token=${jwtFor()}`);
+
+      expect(response.status).toBe(200);
+      delete (currentSystemConfig.routing as any).allowTokenInQuery;
+    });
+
+    it.each(['token', 'access_token', 'key', 'api_key'])(
+      'rejects ?%s= when allowTokenInQuery is false, even next to a valid header',
+      async (name) => {
+        (currentSystemConfig.routing as any).allowTokenInQuery = false;
+        try {
+          const response = await request(createApp())
+            .get(`/api/protected?${name}=${jwtFor()}`)
+            .set('Authorization', 'Bearer test-key');
+
+          expect(response.status).toBe(401);
+          expect(response.body.message).toContain('query string');
+        } finally {
+          delete (currentSystemConfig.routing as any).allowTokenInQuery;
+        }
+      },
+    );
+
+    it('still accepts header credentials when allowTokenInQuery is false', async () => {
+      (currentSystemConfig.routing as any).allowTokenInQuery = false;
+      try {
+        const viaKey = await request(createApp())
+          .get('/api/protected')
+          .set('Authorization', 'Bearer test-key');
+        const viaJwt = await request(createApp())
+          .get('/api/protected')
+          .set('x-auth-token', jwtFor());
+
+        expect(viaKey.status).toBe(200);
+        expect(viaJwt.status).toBe(200);
+      } finally {
+        delete (currentSystemConfig.routing as any).allowTokenInQuery;
+      }
     });
   });
 

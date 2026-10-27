@@ -100,7 +100,15 @@ describe('ConfigController - getMcpSettingsJson', () => {
       },
     ]);
     mockBearerKeyDao.findAll.mockResolvedValue([
-      { id: 'key-1', name: 'key', token: 'bearer-token', enabled: true, accessType: 'all' },
+      {
+        id: 'key-1',
+        name: 'key',
+        token: 'bearer-token',
+        tokenHash: 'bearer-token-hash',
+        tokenPrefix: 'bearer-t',
+        enabled: true,
+        accessType: 'all',
+      },
     ]);
 
     await getMcpSettingsJson(mockRequest as Request, mockResponse as Response);
@@ -118,6 +126,8 @@ describe('ConfigController - getMcpSettingsJson', () => {
         bearerKeys: [{ id: 'key-1', name: 'key', enabled: true, accessType: 'all' }],
       },
     });
+    // Neither a plaintext key nor its hash is ever exported.
+    expect(JSON.stringify(mockJson.mock.calls)).not.toMatch(/bearer-token|bearer-t/);
   });
 
   it('leaves the instance-local workspace enabledAt out of the export', async () => {

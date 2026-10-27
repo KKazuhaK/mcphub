@@ -6,6 +6,12 @@ import { IUser } from '../types/index.js';
 import { resolveOAuthUserFromHeaders } from '../utils/oauthBearer.js';
 import { getBearerTokenFromHeaders } from '../utils/bearerAuth.js';
 import { logger } from '../utils/logger.js';
+import { getCachedSystemConfig } from '../utils/systemConfigCache.js';
+import {
+  isQueryTokenAllowed,
+  QUERY_CREDENTIAL_REJECTED_MESSAGE,
+  rejectsQueryCredential,
+} from '../utils/queryCredentials.js';
 
 const resolveAuthenticatedUserForSse = async (req: Request): Promise<IUser | null> => {
   const systemConfig = await getSystemConfigDao().get();
@@ -20,7 +26,10 @@ const resolveAuthenticatedUserForSse = async (req: Request): Promise<IUser | nul
   }
 
   const headerToken = req.header('x-auth-token');
-  const queryToken = typeof req.query.token === 'string' ? req.query.token : undefined;
+  const queryToken =
+    isQueryTokenAllowed(systemConfig) && typeof req.query.token === 'string'
+      ? req.query.token
+      : undefined;
   const token = headerToken || queryToken;
   return token ? resolveJwtUser(token) : null;
 };
@@ -60,6 +69,17 @@ export const sseUserContextMiddleware = async (
   try {
     const userContextService = UserContextService.getInstance();
     const username = req.params.user;
+    const rejectedQueryParam = rejectsQueryCredential(
+      req.query,
+      getCachedSystemConfig() ?? (await getSystemConfigDao().get()),
+    );
+    if (rejectedQueryParam) {
+      logger.warn(
+        `Rejected an MCP/SSE request carrying a credential in the URL query (${rejectedQueryParam})`,
+      );
+      res.status(401).json({ success: false, message: QUERY_CREDENTIAL_REJECTED_MESSAGE });
+      return;
+    }
     userContextService.runWithContext(async () => {
       if (username) {
         const authenticatedUser = await resolveAuthenticatedUserForSse(req);

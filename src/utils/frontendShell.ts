@@ -50,6 +50,9 @@ export type OAuthConsentContext = {
   codeChallenge?: string;
   codeChallengeMethod?: string;
   token?: string;
+  // True when the server could not authenticate the navigation (no credential in the URL by
+  // design): the SPA signs in with its stored session and submits the decision with a header.
+  needsSession?: boolean;
   // RFC 8707 `resource` — which MCPHub target the client wants to access.
   resource?: ResourceTarget;
   // RFC 7591 client identity / trust metadata (populated when registered).

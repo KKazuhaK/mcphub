@@ -42,15 +42,22 @@ export const clearLogs = async (): Promise<void> => {
 };
 
 /**
- * Singleton SSE connection manager.  Maintains a single EventSource shared
- * across all subscribers so that multiple components (e.g. the Logs page and
- * the embedding-sync alert listener) reuse one HTTP connection.
+ * Singleton SSE connection manager.  Maintains a single stream shared across all subscribers so
+ * that multiple components (e.g. the Logs page and the embedding-sync alert listener) reuse one
+ * HTTP connection.
+ *
+ * The stream is read with fetch, not EventSource: EventSource cannot send headers, which would
+ * put the session token in the URL (browser history, proxy logs) and break entirely once the
+ * server refuses credentials in URLs. The token always travels in a header.
  */
 class LogStreamManager {
-  private eventSource: EventSource | null = null;
+  private streamAbort: AbortController | null = null;
   private subscribers = new Set<(event: MessageEvent) => void>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private openAttempts = 0;
+  // Set when the server answered 401 (or there is no token): retrying cannot help until the
+  // user signs in again, so no timer runs. `resume()` clears it.
+  private authBlocked = false;
 
   /** Subscribe to incoming SSE messages.  Returns an unsubscribe callback. */
   subscribe(callback: (event: MessageEvent) => void): () => void {
@@ -58,7 +65,8 @@ class LogStreamManager {
     if (this.subscribers.size === 1) {
       // Reset attempts when first subscriber added
       this.openAttempts = 0;
-      this.openEventSource();
+      this.authBlocked = false;
+      void this.open();
     }
     return () => {
       this.subscribers.delete(callback);
@@ -68,65 +76,80 @@ class LogStreamManager {
     };
   }
 
-  private openEventSource() {
-    this.closeEventSource();
+  /** Call after a (re-)authentication: reconnects a stream that stopped on 401. */
+  resume() {
+    if (!this.authBlocked || this.subscribers.size === 0) return;
+    this.authBlocked = false;
+    this.openAttempts = 0;
+    void this.open();
+  }
+
+  private async open() {
+    this.closeStream();
     const token = getToken();
 
     if (!token) {
-      console.warn('[LogStreamManager] No token available, scheduling reconnect...');
-      this.scheduleReconnect();
+      // Nothing to authenticate with; wait for resume() instead of polling.
+      this.authBlocked = true;
       return;
     }
 
+    const abort = new AbortController();
+    this.streamAbort = abort;
     try {
-      const url = getApiUrl(`/logs/stream?token=${token}`);
-
-      let redactedUrl = url;
-      try {
-        const parsedUrl = new URL(url);
-        parsedUrl.search = '';
-        redactedUrl = parsedUrl.toString();
-      } catch {
-        redactedUrl = url.split('?')[0] || url;
+      const response = await fetch(getApiUrl('/logs/stream'), {
+        headers: { 'x-auth-token': token, Accept: 'text/event-stream' },
+        signal: abort.signal,
+      });
+      if (response.status === 401) {
+        console.warn('[LogStreamManager] Log stream unauthorized; waiting for sign-in');
+        this.authBlocked = true;
+        return;
       }
+      if (!response.ok || !response.body) throw new Error(`Log stream failed: ${response.status}`);
+      // Reset attempts only once the connection is actually established, so the backoff keeps
+      // growing while the stream keeps failing.
+      this.openAttempts = 0;
+      console.log('[LogStreamManager] Log stream opened successfully');
+      await this.read(response.body.getReader());
+      throw new Error('Log stream closed');
+    } catch {
+      if (abort.signal.aborted || this.authBlocked) return;
+      console.warn('[LogStreamManager] Log stream error, attempting reconnect...');
+      this.streamAbort = null;
+      if (this.subscribers.size > 0) this.scheduleReconnect();
+    }
+  }
 
-      console.log('[LogStreamManager] Opening EventSource:', redactedUrl);
-      this.eventSource = new EventSource(url);
-
-      this.eventSource.onmessage = (event) => {
-        this.subscribers.forEach((cb) => cb(event));
-      };
-
-      // Reset attempts only once the connection is actually established.
-      // `new EventSource()` returns immediately and connects asynchronously, so
-      // resetting here (rather than in onopen) cleared the counter on every
-      // attempt and pinned the backoff below to its first step - a fixed 1s
-      // retry loop whenever the stream kept dropping.
-      this.eventSource.onopen = () => {
-        this.openAttempts = 0;
-        console.log('[LogStreamManager] EventSource opened successfully');
-      };
-
-      this.eventSource.onerror = () => {
-        console.warn('[LogStreamManager] EventSource error, attempting reconnect...');
-        this.closeEventSource();
-        if (this.subscribers.size > 0) {
-          this.scheduleReconnect();
+  private async read(reader: ReadableStreamDefaultReader<Uint8Array>) {
+    const decoder = new TextDecoder();
+    let buffer = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return;
+      buffer += decoder.decode(value, { stream: true });
+      let boundary = buffer.indexOf('\n\n');
+      while (boundary !== -1) {
+        const frame = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+        const data = frame
+          .split('\n')
+          .filter((line) => line.startsWith('data:'))
+          .map((line) => line.slice(5).trimStart())
+          .join('\n');
+        if (data) {
+          const event = new MessageEvent('message', { data });
+          this.subscribers.forEach((cb) => cb(event));
         }
-      };
-    } catch (error) {
-      console.error('[LogStreamManager] Failed to open EventSource:', error);
-      this.closeEventSource();
-      if (this.subscribers.size > 0) {
-        this.scheduleReconnect();
+        boundary = buffer.indexOf('\n\n');
       }
     }
   }
 
-  private closeEventSource() {
-    if (this.eventSource) {
-      this.eventSource.close();
-      this.eventSource = null;
+  private closeStream() {
+    if (this.streamAbort) {
+      this.streamAbort.abort();
+      this.streamAbort = null;
     }
   }
 
@@ -144,13 +167,13 @@ class LogStreamManager {
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       if (this.subscribers.size > 0) {
-        this.openEventSource();
+        void this.open();
       }
     }, delayMs);
   }
 
   private close() {
-    this.closeEventSource();
+    this.closeStream();
     if (this.reconnectTimer !== null) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;

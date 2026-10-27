@@ -12,14 +12,19 @@ import { getCachedSystemConfig } from '../utils/systemConfigCache.js';
 import { resolveJsonBodyLimit } from '../utils/bearerAuth.js';
 import { apiAuthGateRateLimiter } from '../utils/rateLimit.js';
 import { logger } from '../utils/logger.js';
+import { redactRequestUrl } from '../utils/redaction.js';
 
 export const errorHandler = (
   err: Error,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction,
 ): void => {
-  logger.error('Unhandled error:', err);
+  // The request target is logged with every query value removed: `?token=` must not reach logs.
+  logger.error('Unhandled error:', {
+    request: `${req?.method ?? ''} ${redactRequestUrl(req?.originalUrl ?? req?.url)}`.trim(),
+    error: err,
+  });
   res.status(500).json({
     success: false,
     message: 'Internal server error',

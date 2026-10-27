@@ -19,6 +19,7 @@ import { BearerKeyRepository } from '../db/repositories/BearerKeyRepository.js';
 import { BuiltinPromptRepository } from '../db/repositories/BuiltinPromptRepository.js';
 import { BuiltinResourceRepository } from '../db/repositories/BuiltinResourceRepository.js';
 import { logger } from './logger.js';
+import { describeBearerToken } from './bearerKeyHash.js';
 
 /**
  * Migrate from file-based configuration to database
@@ -170,7 +171,8 @@ export async function migrateToDatabase(seedServersAndGroups = true): Promise<bo
       logger.log('Migrating system configuration...');
       const systemConfig = {
         network: settings.systemConfig.network || {},
-        routing: settings.systemConfig.routing || {},
+        // The legacy single key is migrated to a hashed bearer key below, never copied as is.
+        routing: { ...settings.systemConfig.routing, bearerAuthKey: '' },
         install: settings.systemConfig.install || {},
         smartRouting: settings.systemConfig.smartRouting || {},
         toolResultCompression: settings.systemConfig.toolResultCompression || {},
@@ -195,7 +197,13 @@ export async function migrateToDatabase(seedServersAndGroups = true): Promise<bo
       for (const key of settings.bearerKeys) {
         await bearerKeyRepo.create({
           name: key.name,
-          token: key.token,
+          // JSON keys are normally hashed already; a legacy plaintext one is hashed here.
+          token: null,
+          ...(key.tokenHash
+            ? { tokenHash: key.tokenHash, tokenPrefix: key.tokenPrefix }
+            : key.token
+              ? describeBearerToken(key.token)
+              : {}),
           enabled: key.enabled,
           kind: key.kind ?? 'system',
           owner: key.owner,
@@ -221,7 +229,8 @@ export async function migrateToDatabase(seedServersAndGroups = true): Promise<bo
       if (rawKey) {
         await bearerKeyRepo.create({
           name: 'default',
-          token: rawKey,
+          token: null,
+          ...describeBearerToken(rawKey),
           enabled: enableBearerAuth,
           kind: 'system',
           accessType: 'all',
@@ -390,20 +399,21 @@ export async function initializeDatabaseMode(): Promise<boolean> {
       // One-time migration for legacy bearer auth config stored inside DB routing settings.
       // If bearerKeys table already has data, do nothing.
       const bearerKeyCount = await bearerKeyRepo.count();
+      const systemConfig = await systemConfigRepo.get();
+      const routing = (systemConfig as any)?.routing || {};
+      const rawKey: string = (routing.bearerAuthKey || '').trim();
       if (bearerKeyCount > 0) {
         logger.log(
           `Bearer keys table already contains ${bearerKeyCount} keys, skipping legacy bearer auth migration`,
         );
       } else {
-        const systemConfig = await systemConfigRepo.get();
-        const routing = (systemConfig as any)?.routing || {};
         const enableBearerAuth: boolean = !!routing.enableBearerAuth;
-        const rawKey: string = (routing.bearerAuthKey || '').trim();
 
         if (rawKey) {
           await bearerKeyRepo.create({
             name: 'default',
-            token: rawKey,
+            token: null,
+            ...describeBearerToken(rawKey),
             enabled: enableBearerAuth,
             kind: 'system',
             accessType: 'all',
@@ -416,6 +426,10 @@ export async function initializeDatabaseMode(): Promise<boolean> {
         } else {
           logger.log('No legacy DB routing bearer auth key found, skipping bearer key migration');
         }
+      }
+      // Whether it was just migrated or already superseded, the legacy plaintext is not kept.
+      if (rawKey) {
+        await systemConfigRepo.update({ routing: { ...routing, bearerAuthKey: '' } } as any);
       }
     }
 

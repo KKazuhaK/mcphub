@@ -924,6 +924,8 @@
     "selectAtLeastOneServer": "Lütfen en az bir sunucu seçin",
     "skipAuth": "Kimlik Doğrulamayı Atla",
     "skipAuthDescription": "Kontrol paneline giriş olmadan erişime izin ver; kimliği doğrulanmamış kullanıcılar guest yönetici erişimi alır (MCP kimlik doğrulamasını etkilemez)",
+    "allowTokenInQuery": "URL'lerde belirteçlere izin ver",
+    "allowTokenInQueryDescription": "MCP, SSE ve kontrol paneli isteklerinde URL içindeki ?token= kimlik bilgilerini kabul eder. Yalnızca başlıkları zorunlu kılmak için kapatın; URL'ler tarayıcı geçmişinde ve proxy günlüklerinde kalır. Başlık gönderemeyen istemciler çalışmayı bırakır.",
     "jsonBodyLimit": "JSON Gövde Boyutu Sınırı",
     "jsonBodyLimitDescription": "Express JSON istek boyutu sınırı. Büyük OpenAPI şema yüklemeleri de bu ayardan etkilenir.",
     "jsonBodyLimitPlaceholder": "örn. 1mb, 5mb, 1024kb",

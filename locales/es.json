@@ -926,6 +926,8 @@
     "selectAtLeastOneServer": "Selecciona al menos un servidor",
     "skipAuth": "Omitir autenticación",
     "skipAuthDescription": "Permite el acceso al panel sin iniciar sesión; los usuarios no autenticados obtienen acceso de administrador invitado (no afecta a la autenticación de los endpoints MCP)",
+    "allowTokenInQuery": "Permitir tokens en las URL",
+    "allowTokenInQueryDescription": "Acepta credenciales ?token= en la URL para solicitudes MCP, SSE y del panel. Desactívalo para exigir solo cabeceras; las URL quedan en el historial del navegador y en los registros de proxy. Los clientes que no puedan enviar cabeceras dejarán de funcionar.",
     "jsonBodyLimit": "Límite de tamaño del cuerpo JSON",
     "jsonBodyLimitDescription": "Límite de tamaño de las solicitudes JSON de Express. También afecta a las subidas de esquemas OpenAPI grandes.",
     "jsonBodyLimitPlaceholder": "p. ej., 1mb, 5mb, 1024kb",

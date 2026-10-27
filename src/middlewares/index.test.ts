@@ -65,7 +65,7 @@ jest.mock('../utils/rateLimit.js', () => ({
   apiAuthGateRateLimiter: jest.fn((_req, _res, next) => next()),
 }));
 
-import { initMiddlewares } from './index.js';
+import { errorHandler, initMiddlewares } from './index.js';
 import { apiAuthGateRateLimiter } from '../utils/rateLimit.js';
 import { auth } from './auth.js';
 import { userContextMiddleware } from './userContext.js';
@@ -216,5 +216,28 @@ describe('initMiddlewares', () => {
     expect(isApiAuthExemptPath).toHaveBeenCalledWith('/servers', { basePath: '/better-auth' });
     expect(auth).toHaveBeenCalled();
     expect(userContextMiddleware).toHaveBeenCalled();
+  });
+
+  it('logs unhandled errors with the request target stripped of query values', () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() } as any;
+
+    errorHandler(
+      new Error('boom'),
+      {
+        method: 'GET',
+        originalUrl: '/mcp/group?token=mcphub_SECRETVALUE1234&access_token=abc&key=def&lang=en',
+      } as any,
+      res,
+      jest.fn(),
+    );
+
+    const logged = JSON.stringify(spy.mock.calls);
+    spy.mockRestore();
+    expect(logged).toContain('GET /mcp/group?token=[REDACTED]');
+    expect(logged).not.toContain('SECRETVALUE1234');
+    expect(logged).not.toContain('access_token=abc');
+    expect(logged).not.toContain('key=def');
+    expect(res.status).toHaveBeenCalledWith(500);
   });
 });

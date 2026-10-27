@@ -925,6 +925,8 @@
     "selectAtLeastOneServer": "Veuillez sélectionner au moins un serveur",
     "skipAuth": "Ignorer l'authentification",
     "skipAuthDescription": "Autoriser l'accès au tableau de bord sans connexion ; les utilisateurs non authentifiés obtiennent un accès administrateur guest (n'affecte pas l'auth MCP)",
+    "allowTokenInQuery": "Autoriser les jetons dans les URL",
+    "allowTokenInQueryDescription": "Accepter les identifiants ?token= dans l'URL pour les requêtes MCP, SSE et du tableau de bord. Désactivez pour n'accepter que les en-têtes ; les URL se retrouvent dans l'historique et les journaux de proxy. Les clients qui ne peuvent pas envoyer d'en-têtes cesseront de fonctionner.",
     "jsonBodyLimit": "Limite de taille du corps JSON",
     "jsonBodyLimitDescription": "Limite de taille des requêtes JSON Express. Les gros téléchargements de schémas OpenAPI utilisent aussi ce paramètre.",
     "jsonBodyLimitPlaceholder": "ex. 1mb, 5mb, 1024kb",
