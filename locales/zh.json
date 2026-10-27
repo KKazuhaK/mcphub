@@ -706,7 +706,8 @@
     "willRedirectTo": "将重定向到：",
     "policy": "隐私政策",
     "terms": "服务条款",
-    "homepage": "主页"
+    "homepage": "主页",
+    "credentialWrite": "{{client}} 想要为 {{server}} 设置你的个人凭据"
   },
   "cloud": {
     "title": "云端支持",

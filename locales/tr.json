@@ -703,7 +703,8 @@
     "willRedirectTo": "Şuraya yönlendirilecek:",
     "policy": "Gizlilik politikası",
     "terms": "Hizmet şartları",
-    "homepage": "Ana sayfa"
+    "homepage": "Ana sayfa",
+    "credentialWrite": "{{client}}, {{server}} için kişisel kimlik bilgilerinizi ayarlamak istiyor"
   },
   "cloud": {
     "title": "Bulut Desteği",

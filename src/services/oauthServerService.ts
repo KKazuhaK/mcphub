@@ -20,6 +20,14 @@ import { logger } from '../utils/logger.js';
 import { getCachedSystemConfig } from '../utils/systemConfigCache.js';
 import { isOAuthTokenIdle, oauthGrantCreatedAt } from './connectedClientService.js';
 import { getRevocationSeq, isGrantRevokedSince } from '../utils/grantRevocation.js';
+import {
+  CREDENTIAL_WRITE_TOKEN_LIFETIME_SECONDS,
+  credentialWriteScopeFor,
+  includesCredentialWriteScope,
+  isCredentialWriteScope,
+  soleCredentialWriteServer,
+} from '../utils/credentialWriteScope.js';
+import { evaluateCredentialWriteScopes } from './credentialWriteScopeService.js';
 
 const { Request, Response } = OAuth2Server;
 
@@ -185,10 +193,22 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
     const systemConfigDao = getSystemConfigDao();
     const systemConfig = await systemConfigDao.get();
     const oauthConfig = systemConfig?.oauthServer;
-    const accessTokenLifetime = oauthConfig?.accessTokenLifetime || 3600;
-    const refreshTokenLifetime = oauthConfig?.refreshTokenLifetime || 1209600;
+    let accessTokenLifetime = oauthConfig?.accessTokenLifetime || 3600;
+    let refreshTokenLifetime: number | undefined = oauthConfig?.refreshTokenLifetime || 1209600;
 
     const scopeString = Array.isArray(token.scope) ? token.scope.join(' ') : token.scope;
+
+    // A credential-write token is narrow and used at once: five minutes at most and never a
+    // refresh token, so a leaked one cannot be renewed. It is never saved alongside other scopes.
+    if (includesCredentialWriteScope(scopeString)) {
+      if (!soleCredentialWriteServer(scopeString)) {
+        throw new OAuth2Server.InvalidScopeError(
+          'Invalid scope: credentials:write cannot be combined with other scopes',
+        );
+      }
+      accessTokenLifetime = Math.min(accessTokenLifetime, CREDENTIAL_WRITE_TOKEN_LIFETIME_SECONDS);
+      refreshTokenLifetime = undefined;
+    }
 
     if (!(await resolveUserSession(user))) {
       throw new OAuth2Server.InvalidGrantError('User session is no longer valid');
@@ -256,6 +276,15 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
       return false;
     }
 
+    // A credential-write token stops working the moment its client or server is no longer
+    // eligible, including on /oauth/userinfo.
+    if (
+      includesCredentialWriteScope(token.scope) &&
+      (await evaluateCredentialWriteScopes(token.clientId, token.scope)).kind !== 'granted'
+    ) {
+      return false;
+    }
+
     const scopeArray = token.scope ? token.scope.split(' ') : undefined;
 
     return {
@@ -285,6 +314,10 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
       return false;
     }
     if (isOAuthTokenIdle(token, getCachedSystemConfig())) {
+      return false;
+    }
+    // Credential-write grants are never refreshable.
+    if (includesCredentialWriteScope(token.scope)) {
       return false;
     }
 
@@ -353,7 +386,18 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
     const systemConfigDao = getSystemConfigDao();
     const systemConfig = await systemConfigDao.get();
     const oauthConfig = systemConfig?.oauthServer;
-    const allowedScopes = oauthConfig?.allowedScopes || ['read', 'write'];
+    // Credential-write is never a default or configurable scope: it is granted only when asked
+    // for explicitly, on its own, for a server that lists this client.
+    const allowedScopes = (oauthConfig?.allowedScopes || ['read', 'write']).filter(
+      (s) => !isCredentialWriteScope(s),
+    );
+
+    if (scope && scope.some(isCredentialWriteScope)) {
+      const evaluation = await evaluateCredentialWriteScopes(client.id, scope);
+      return evaluation.kind === 'granted'
+        ? [credentialWriteScopeFor(evaluation.serverName)]
+        : false;
+    }
 
     if (!scope || scope.length === 0) {
       return allowedScopes;

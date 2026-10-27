@@ -1,11 +1,17 @@
 import type { Request, Response } from 'express';
 import { getServerDao } from '../dao/DaoFactory.js';
-import { authorizationService, type RequestPrincipal } from '../services/authorizationService.js';
+import {
+  authorizationService,
+  type CredentialWriteGrantInfo,
+  type RequestPrincipal,
+} from '../services/authorizationService.js';
 import {
   deleteCredentialBindings,
   getCredentialBindingStatus,
   saveCredentialBinding,
 } from '../services/credentialBindingService.js';
+import { ActivityLoggingService } from '../services/activityLoggingService.js';
+import { logger } from '../utils/logger.js';
 import { notifyWorkspaceUser } from '../services/userServerStatusService.js';
 import {
   CredentialBindingError,
@@ -29,6 +35,11 @@ export const listMyCredentials = async (req: Request, res: Response): Promise<vo
   const user = principal(req);
   if (!user || user.credentialEligible === false) {
     res.status(401).json({ success: false });
+    return;
+  }
+  // A credential-write token is for one server's binding only, never for the list.
+  if (user.credentialWriteGrant) {
+    res.status(403).json({ success: false });
     return;
   }
   try {
@@ -55,6 +66,13 @@ export const updateMyCredential = async (req: Request, res: Response): Promise<v
     res.status(401).json({ success: false });
     return;
   }
+  const grant = user.credentialWriteGrant;
+  if (grant && grant.serverName !== req.params.name) {
+    res.status(403).json({ success: false, message: 'This token cannot be used for that server' });
+    return;
+  }
+  const startedAt = Date.now();
+  const operation = req.method === 'DELETE' ? 'delete' : 'write';
   try {
     const server = await getServerDao().findById(req.params.name);
     if (!server || !authorizationService.can('server.discover', server, user)) {
@@ -65,8 +83,34 @@ export const updateMyCredential = async (req: Request, res: Response): Promise<v
       await deleteCredentialBindings({ serverName: server.name, username: user.username });
     else await saveCredentialBinding(server.name, user.username, server, req.body?.values);
     await notifyWorkspaceUser(user.username);
+    if (grant) await auditCredentialWrite(user, grant, operation, 'success', startedAt);
     res.json({ success: true });
   } catch (error) {
+    if (grant) await auditCredentialWrite(user, grant, operation, 'error', startedAt);
     respondError(res, error);
   }
+};
+
+// Who wrote which server's credentials through which client. Identifiers only: never a slot
+// value, and not the validation message, which can name a slot.
+const auditCredentialWrite = async (
+  user: RequestPrincipal,
+  grant: CredentialWriteGrantInfo,
+  operation: 'write' | 'delete',
+  status: 'success' | 'error',
+  startedAt: number,
+): Promise<void> => {
+  logger.log(
+    `Credential ${operation} via credentials:write scope ${status}: user=${user.username} client=${grant.clientId} server=${grant.serverName}`,
+  );
+  await ActivityLoggingService.getInstance().logToolCall({
+    server: grant.serverName,
+    tool: `credentials.${operation}`,
+    duration: Date.now() - startedAt,
+    status,
+    username: user.username,
+    clientKind: 'oauth',
+    clientId: grant.clientId,
+    hasCredentialTemplate: true,
+  });
 };

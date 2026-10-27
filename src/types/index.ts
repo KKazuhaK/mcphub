@@ -569,6 +569,11 @@ export interface ServerConfig {
   // The level a user starts at on this server until they choose one; absent means `read`.
   // Never above `maxToolRisk`.
   defaultUserRisk?: ToolRiskLevel;
+  // OAuth client ids allowed to request `credentials:write:<this server>`: a short-lived token
+  // that can only write or delete the signed-in user's own binding for this server. Applies
+  // whether or not Workspace Mode is on. Administrator-only, never shown to non-admins, and
+  // excluded from templates, duplicates and settings-sync declarations.
+  credentialWriteClients?: string[];
   protocolNegotiation?: 'auto' | 'legacy'; // Streamable HTTP defaults to auto; other transports remain legacy.
   enableKeepAlive?: boolean; // Enable remote health checks; disconnected remote servers always retry
   keepAliveInterval?: number; // Health check interval in milliseconds (default: 60000ms for SSE servers)
@@ -953,9 +958,16 @@ export interface ConfigTemplate {
 // Server config within a template - secrets replaced with placeholders
 export interface TemplateServerConfig
   extends Omit<
-      ServerConfig,
-      'owner' | 'oauth' | 'pausedUsers' | 'maintenance' | 'maxToolRisk' | 'toolRiskOverrides' | 'defaultUserRisk'
-    > {
+    ServerConfig,
+    | 'owner'
+    | 'oauth'
+    | 'pausedUsers'
+    | 'maintenance'
+    | 'maxToolRisk'
+    | 'toolRiskOverrides'
+    | 'defaultUserRisk'
+    | 'credentialWriteClients'
+  > {
   env?: Record<string, string>; // Values are either literal or ${PLACEHOLDER}
   headers?: Record<string, string>;
   oauth?: Omit<NonNullable<ServerConfig['oauth']>, 'pendingAuthorization'>;

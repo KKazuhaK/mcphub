@@ -108,6 +108,7 @@ export class ServerDaoDbImpl implements ServerDao {
       maxToolRisk: entity.maxToolRisk,
       toolRiskOverrides: entity.toolRiskOverrides,
       defaultUserRisk: entity.defaultUserRisk,
+      credentialWriteClients: entity.credentialWriteClients,
       enableKeepAlive: entity.enableKeepAlive,
       keepAliveInterval: entity.keepAliveInterval,
       protocolNegotiation: entity.protocolNegotiation,
@@ -166,6 +167,7 @@ export class ServerDaoDbImpl implements ServerDao {
     assignNullable('maxToolRisk');
     assignNullable('toolRiskOverrides');
     assignNullable('defaultUserRisk');
+    assignNullable('credentialWriteClients');
     if (hasOwn('enableKeepAlive')) {
       updateData.enableKeepAlive = entity.enableKeepAlive ?? false;
     }
@@ -312,6 +314,7 @@ export class ServerDaoDbImpl implements ServerDao {
     maxToolRisk?: ServerConfig['maxToolRisk'];
     toolRiskOverrides?: ServerConfig['toolRiskOverrides'];
     defaultUserRisk?: ServerConfig['defaultUserRisk'];
+    credentialWriteClients?: string[];
     enableKeepAlive?: boolean;
     keepAliveInterval?: number;
     tools?: Record<string, { enabled: boolean; description?: string; hiddenParams?: string[] }>;
@@ -355,6 +358,7 @@ export class ServerDaoDbImpl implements ServerDao {
       maxToolRisk: server.maxToolRisk ?? undefined,
       toolRiskOverrides: server.toolRiskOverrides ?? undefined,
       defaultUserRisk: server.defaultUserRisk ?? undefined,
+      credentialWriteClients: server.credentialWriteClients ?? undefined,
       enableKeepAlive: server.enableKeepAlive,
       keepAliveInterval: server.keepAliveInterval,
       protocolNegotiation: server.protocolNegotiation ?? undefined,

@@ -194,7 +194,12 @@ test('upserts by name, retains IDs and unrelated entries, clears removed fields 
   groups.set('team', { id: 'existing-group', name: 'team', owner: 'old-owner' });
   write({
     mcpServers: { remote, local: { command: 'node', startOnDemand: true, idleTimeoutMs: 1000 } },
-    groups: [{ name: 'team', servers: [{ name: 'remote', alias: 'r', preserveToolNames: true, tools: ['search'] }] }],
+    groups: [
+      {
+        name: 'team',
+        servers: [{ name: 'remote', alias: 'r', preserveToolNames: true, tools: ['search'] }],
+      },
+    ],
     users: [{ username: 'ignored' }],
     bearerKeys: ['ignored'],
     systemConfig: { routing: {} },
@@ -793,11 +798,35 @@ test('leaves tool risk controls to the dashboard and keeps OAuth when they chang
   expect((servers.get('remote')?.oauth as Record<string, unknown>).accessToken).toBe('live');
 });
 
+test('leaves credentialWriteClients to the dashboard and out of the fingerprint', async () => {
+  write({ mcpServers: { remote } });
+  await syncSettingsToDatabase();
+  const hash = servers.get('remote')?.settingsSyncHash;
+  const dao = new ServerDaoDbImpl();
+
+  await dao.update('remote', { credentialWriteClients: ['ubc-client'] });
+  await syncSettingsToDatabase();
+  expect(servers.get('remote')).toMatchObject({
+    credentialWriteClients: ['ubc-client'],
+    settingsSyncHash: hash,
+  });
+
+  // Declaring it is not a way to set it.
+  write({ mcpServers: { remote: { ...remote, credentialWriteClients: ['rogue-client'] } } });
+  await syncSettingsToDatabase();
+  expect(servers.get('remote')).toMatchObject({
+    credentialWriteClients: ['ubc-client'],
+    settingsSyncHash: hash,
+  });
+});
+
 test('first boot migration carries tool risk controls into the database', async () => {
   delete process.env.MCPHUB_SETTINGS_SYNC;
   const toolRiskOverrides = { 'remote::get': 'external' };
   write({
-    mcpServers: { remote: { ...remote, maxToolRisk: 'write', defaultUserRisk: 'write', toolRiskOverrides } },
+    mcpServers: {
+      remote: { ...remote, maxToolRisk: 'write', defaultUserRisk: 'write', toolRiskOverrides },
+    },
   });
   await expect(initializeDatabaseMode()).resolves.toBe(true);
   expect(servers.get('remote')).toMatchObject({

@@ -41,6 +41,7 @@ export const buildDuplicateSource = (server: Server): Server => {
     maxToolRisk: _maxToolRisk,
     toolRiskOverrides: _toolRiskOverrides,
     defaultUserRisk: _defaultUserRisk,
+    credentialWriteClients: _credentialWriteClients,
     ...config
   } = server.config ?? {};
   const { accessToken, refreshToken, pendingAuthorization, ...oauthConfig } = oauth ?? {};

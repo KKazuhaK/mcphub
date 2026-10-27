@@ -704,7 +704,8 @@
     "willRedirectTo": "Redirigirá a:",
     "policy": "Política de privacidad",
     "terms": "Términos",
-    "homepage": "Página principal"
+    "homepage": "Página principal",
+    "credentialWrite": "{{client}} quiere establecer tus credenciales personales para {{server}}"
   },
   "cloud": {
     "title": "Soporte en la nube",

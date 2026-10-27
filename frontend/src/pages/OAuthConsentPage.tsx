@@ -121,7 +121,9 @@ const OAuthConsentPage: React.FC = () => {
     );
   };
 
-  const shownResource = resolvedResource ?? context?.resource;
+  // A credential-write request is shown as one sentence: no resource box, no scope rows.
+  const credentialWrite = context?.credentialWrite;
+  const shownResource = credentialWrite ? undefined : (resolvedResource ?? context?.resource);
 
   const resourceLabel = (resource: ResourceTarget): string => {
     switch (resource.kind) {
@@ -333,10 +335,19 @@ const OAuthConsentPage: React.FC = () => {
 
             {/* Scopes */}
             <div style={{ marginTop: 18 }}>
-              <div className="hub-sect" style={{ marginBottom: 4 }}>
-                {t('oauthServer.scopesTitle')}
-              </div>
-              {context.scopes.length === 0 ? (
+              {credentialWrite ? null : (
+                <div className="hub-sect" style={{ marginBottom: 4 }}>
+                  {t('oauthServer.scopesTitle')}
+                </div>
+              )}
+              {credentialWrite ? (
+                <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--hub-ink)', marginTop: 8 }}>
+                  {t('oauthServer.credentialWrite', {
+                    client: context.clientName,
+                    server: credentialWrite.serverName,
+                  })}
+                </p>
+              ) : context.scopes.length === 0 ? (
                 <p className="hub-sub" style={{ marginTop: 8 }}>
                   {t('oauthServer.noScopes')}
                 </p>
@@ -403,7 +414,11 @@ const OAuthConsentPage: React.FC = () => {
               </form>
             </div>
             {submitError ? (
-              <p className="hub-sub" role="alert" style={{ marginTop: 10, color: 'var(--hub-err)' }}>
+              <p
+                className="hub-sub"
+                role="alert"
+                style={{ marginTop: 10, color: 'var(--hub-err)' }}
+              >
                 {submitError}
               </p>
             ) : null}

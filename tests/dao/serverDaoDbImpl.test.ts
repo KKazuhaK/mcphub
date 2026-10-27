@@ -371,10 +371,16 @@ test('credential templates survive database create, partial update and explicit 
     { target: 'args' as const, name: 'API_KEY' },
   ];
   mockRepository.create.mockResolvedValue({ name: 'shared', enabled: true, credentialTemplate });
-  expect((await dao.create({ name: 'shared', credentialTemplate })).credentialTemplate).toEqual(credentialTemplate);
-  expect(mockRepository.create).toHaveBeenCalledWith(expect.objectContaining({ credentialTemplate }));
+  expect((await dao.create({ name: 'shared', credentialTemplate })).credentialTemplate).toEqual(
+    credentialTemplate,
+  );
+  expect(mockRepository.create).toHaveBeenCalledWith(
+    expect.objectContaining({ credentialTemplate }),
+  );
   mockRepository.update.mockResolvedValue({ name: 'shared', enabled: true, credentialTemplate });
-  expect((await dao.update('shared', { credentialTemplate }))?.credentialTemplate).toEqual(credentialTemplate);
+  expect((await dao.update('shared', { credentialTemplate }))?.credentialTemplate).toEqual(
+    credentialTemplate,
+  );
   expect(mockRepository.update).toHaveBeenCalledWith('shared', { credentialTemplate });
   await dao.update('shared', { credentialTemplate: undefined });
   expect(mockRepository.update).toHaveBeenLastCalledWith('shared', { credentialTemplate: null });
@@ -490,7 +496,11 @@ describe('protocolNegotiation database persistence', () => {
       });
 
       expect(mockRepository.create).toHaveBeenCalledWith(
-        expect.objectContaining({ maxToolRisk: 'write', defaultUserRisk: 'write', toolRiskOverrides }),
+        expect.objectContaining({
+          maxToolRisk: 'write',
+          defaultUserRisk: 'write',
+          toolRiskOverrides,
+        }),
       );
       expect(result.defaultUserRisk).toBe('write');
       expect(result.maxToolRisk).toBe('write');
@@ -537,5 +547,46 @@ describe('protocolNegotiation database persistence', () => {
         description: 'only this',
       });
     });
+  });
+});
+
+describe('credentialWriteClients (database mode)', () => {
+  it('persists the list on create, maps it back and reads unset as absent', async () => {
+    const dao = new ServerDaoDbImpl();
+    mockRepository.create.mockResolvedValue({
+      name: 'ubc',
+      enabled: true,
+      credentialWriteClients: ['ubc-client'],
+    });
+    const result = await dao.create({
+      name: 'ubc',
+      type: 'sse',
+      url: 'https://x.example/sse',
+      credentialWriteClients: ['ubc-client'],
+    });
+    expect(mockRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ credentialWriteClients: ['ubc-client'] }),
+    );
+    expect(result.credentialWriteClients).toEqual(['ubc-client']);
+
+    mockRepository.findByName.mockResolvedValue({
+      name: 'plain',
+      enabled: true,
+      credentialWriteClients: null,
+    });
+    expect((await dao.findById('plain'))?.credentialWriteClients).toBeUndefined();
+  });
+
+  it('updates only when named and clears with null', async () => {
+    const dao = new ServerDaoDbImpl();
+    mockRepository.update.mockResolvedValue({ name: 'ubc', enabled: true });
+    await dao.update('ubc', { credentialWriteClients: ['a'] });
+    expect(mockRepository.update).toHaveBeenLastCalledWith('ubc', {
+      credentialWriteClients: ['a'],
+    });
+    await dao.update('ubc', { credentialWriteClients: undefined });
+    expect(mockRepository.update).toHaveBeenLastCalledWith('ubc', { credentialWriteClients: null });
+    await dao.update('ubc', { description: 'only this' });
+    expect(mockRepository.update).toHaveBeenLastCalledWith('ubc', { description: 'only this' });
   });
 });

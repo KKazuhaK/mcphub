@@ -21,7 +21,15 @@ export interface AuthorizableServer {
   sharedWithUsers?: string[];
 }
 
-export type RequestPrincipal = Pick<IUser, 'username'> & { isAdmin?: boolean; credentialEligible?: boolean };
+// Set only when the request authenticated with a `credentials:write:<server>` OAuth token: the
+// principal is then good for that one server's credential binding and nothing else.
+export type CredentialWriteGrantInfo = { clientId: string; serverName: string };
+
+export type RequestPrincipal = Pick<IUser, 'username'> & {
+  isAdmin?: boolean;
+  credentialEligible?: boolean;
+  credentialWriteGrant?: CredentialWriteGrantInfo;
+};
 
 // Records may predate owner tracking; those are administered by the 'admin'
 // account (same normalization as the share-candidates endpoint).
