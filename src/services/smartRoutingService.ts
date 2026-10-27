@@ -30,6 +30,11 @@ import { applyHiddenParams, findToolConfig } from '../utils/toolConfig.js';
 let serverInfosRef: ServerInfo[] = [];
 let getServerInfosFn: () => ServerInfo[] = () => serverInfosRef;
 let filterToolsByConfigFn: (serverName: string, tools: Tool[]) => Promise<Tool[]>;
+// Leaves out the tools the requester may not use because of their risk level.
+let filterToolsByRiskFn: (serverName: string, tools: Tool[]) => Promise<Tool[]> = async (
+  _serverName,
+  tools,
+) => tools;
 let filterToolsByGroupFn: (
   group: string | undefined,
   serverName: string,
@@ -47,13 +52,22 @@ export const initSmartRoutingService = (
     serverName: string,
     tools: Tool[],
   ) => Promise<Tool[]>,
+  filterToolsByRisk?: (serverName: string, tools: Tool[]) => Promise<Tool[]>,
 ) => {
   // Store the getter to avoid stale references while staying ESM-safe
   getServerInfosFn = getServerInfos;
   serverInfosRef = getServerInfos();
   filterToolsByConfigFn = filterToolsByConfig;
   filterToolsByGroupFn = filterToolsByGroup;
+  if (filterToolsByRisk) filterToolsByRiskFn = filterToolsByRisk;
 };
+
+/**
+ * Enabled in the server's configuration and within the risk level the requester may use:
+ * what lists, search hits, describe_tool and pinned tools are built from.
+ */
+const filterUsableTools = async (serverName: string, tools: Tool[]): Promise<Tool[]> =>
+  filterToolsByRiskFn(serverName, await filterToolsByConfigFn(serverName, tools));
 
 /**
  * Get current server infos (refreshed each call)
@@ -160,7 +174,7 @@ const validateOriginalToolNames = async (
   if (![...configs.values()].some((config) => config.preserveToolNames)) return;
   const tools: Array<{ name: string }> = [];
   for (const server of await getAvailableServers(targetGroup)) {
-    const enabled = await filterToolsByConfigFn(
+    const enabled = await filterUsableTools(
       server.name,
       server.tools.filter((tool) => !isAppOnlyTool(tool)),
     );
@@ -558,7 +572,7 @@ export const handleSearchToolsRequest = async (
           }
 
           // Check if the tool is enabled in configuration
-          const tools = await filterToolsByConfigFn(server.name, [actualTool]);
+          const tools = await filterUsableTools(server.name, [actualTool]);
           if (tools.length > 0) {
             // Apply custom description and hidden parameters from configuration
             const serverConfig = await getServerDao().findById(server.name);
@@ -621,7 +635,7 @@ export const handleSearchToolsRequest = async (
       if (tool.name) {
         const serverName = tool.serverName;
         if (serverName) {
-          let tools = await filterToolsByConfigFn(serverName, [tool as Tool]);
+          let tools = await filterUsableTools(serverName, [tool as Tool]);
           if (tools.length === 0) {
             return false;
           }
@@ -737,7 +751,7 @@ export const handleDescribeToolRequest = async (
     }
 
     // Check if the tool is enabled in configuration
-    const tools = await filterToolsByConfigFn(serverInfo.name, [tool]);
+    const tools = await filterUsableTools(serverInfo.name, [tool]);
     if (tools.length === 0) {
       continue;
     }

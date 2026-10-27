@@ -119,6 +119,9 @@ export const BLOCKING_CODES: readonly UserServerStatusCode[] = [
   'needs_auth',
   'revoked',
 ];
+// Reasons a call can be recorded as blocked: the blocking statuses and a tool above the
+// user's own risk ceiling.
+export const BLOCKED_ACTIVITY_CODES: readonly string[] = [...BLOCKING_CODES, 'risk_not_enabled'];
 export const isBlockingStatus = (code: UserServerStatusCode): boolean =>
   BLOCKING_CODES.includes(code);
 
@@ -193,6 +196,39 @@ export const buildUserServerStatus = (
     ...(state.since ? { since: state.since } : {}),
     ...(until ? { until } : {}),
   };
+};
+
+// Why a call was refused when its tool is above the level the user allows on the server.
+export const RISK_NOT_ENABLED_CODE = 'risk_not_enabled';
+export const ENABLE_RISK_ACTION = 'enable_risk';
+
+const RISK_NOT_ENABLED_DEFAULTS: Record<'write' | 'external', string> = {
+  write:
+    "'{{toolName}}' changes your data on '{{serverName}}', which your workspace does not allow yet. Allow changes to your data for '{{serverName}}' in your workspace to use it.",
+  external:
+    "'{{toolName}}' can act in ways other people can see on '{{serverName}}', which your workspace does not allow yet. Allow actions others can see for '{{serverName}}' in your workspace to use it.",
+};
+
+// Fixed, translated text. The tool name is the caller's own string echoed back, as in the
+// generic "not available" error.
+export const buildRiskNotEnabledMessage = (
+  serverName: string,
+  toolName: string,
+  risk: 'write' | 'external',
+  language: string | undefined = requestLanguage(),
+): string => {
+  const defaultValue = RISK_NOT_ENABLED_DEFAULTS[risk]
+    .split('{{toolName}}')
+    .join(toolName)
+    .split('{{serverName}}')
+    .join(serverName);
+  return (
+    getT(language)(`workspace.status.riskNotEnabled.${risk}`, {
+      serverName,
+      toolName,
+      defaultValue,
+    }) || defaultValue
+  );
 };
 
 type StatusUser = { username: string; isAdmin?: boolean; credentialEligible?: boolean };

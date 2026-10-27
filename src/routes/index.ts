@@ -10,6 +10,7 @@ import {
   revokeAllWorkspaceClients,
   revokeWorkspaceClient,
   updateWorkspaceSelection,
+  updateWorkspaceRisk,
 } from '../controllers/workspaceController.js';
 import express from 'express';
 import { check } from 'express-validator';
@@ -34,6 +35,7 @@ import {
   updateToolDescription,
   resetToolDescription,
   updateToolHiddenParams,
+  updateToolRisk,
   togglePrompt,
   updatePromptDescription,
   resetPromptDescription,
@@ -287,6 +289,7 @@ export const initRoutes = async (app: express.Application): Promise<void> => {
   authenticatedRouter.delete('/credentials/:name', updateMyCredential);
   authenticatedRouter.get('/workspace/servers', listWorkspaceServers);
   authenticatedRouter.put('/workspace/servers/:name/selection', updateWorkspaceSelection);
+  authenticatedRouter.put('/workspace/servers/:name/risk', updateWorkspaceRisk);
   authenticatedRouter.get('/workspace/summary', getWorkspaceSummary);
   authenticatedRouter.get('/workspace/endpoints', getWorkspaceEndpoints);
   authenticatedRouter.get('/workspace/clients', listWorkspaceClients);
@@ -323,6 +326,7 @@ export const initRoutes = async (app: express.Application): Promise<void> => {
     '/servers/:serverName/tools/:toolName/hidden-params',
     updateToolHiddenParams,
   );
+  authenticatedRouter.put('/servers/:serverName/tools/:toolName/risk', updateToolRisk);
   authenticatedRouter.post('/servers/:serverName/prompts/:promptName/toggle', togglePrompt);
   authenticatedRouter.put(
     '/servers/:serverName/prompts/:promptName/description',

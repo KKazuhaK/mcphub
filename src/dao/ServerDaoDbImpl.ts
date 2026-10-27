@@ -105,6 +105,9 @@ export class ServerDaoDbImpl implements ServerDao {
       sharedWithUsers: entity.sharedWithUsers,
       pausedUsers: entity.pausedUsers,
       maintenance: entity.maintenance,
+      maxToolRisk: entity.maxToolRisk,
+      toolRiskOverrides: entity.toolRiskOverrides,
+      defaultUserRisk: entity.defaultUserRisk,
       enableKeepAlive: entity.enableKeepAlive,
       keepAliveInterval: entity.keepAliveInterval,
       protocolNegotiation: entity.protocolNegotiation,
@@ -160,6 +163,9 @@ export class ServerDaoDbImpl implements ServerDao {
     assignNullable('sharedWithUsers');
     assignNullable('pausedUsers');
     assignNullable('maintenance');
+    assignNullable('maxToolRisk');
+    assignNullable('toolRiskOverrides');
+    assignNullable('defaultUserRisk');
     if (hasOwn('enableKeepAlive')) {
       updateData.enableKeepAlive = entity.enableKeepAlive ?? false;
     }
@@ -303,6 +309,9 @@ export class ServerDaoDbImpl implements ServerDao {
     sharedWithUsers?: string[];
     pausedUsers?: string[];
     maintenance?: ServerConfig['maintenance'];
+    maxToolRisk?: ServerConfig['maxToolRisk'];
+    toolRiskOverrides?: ServerConfig['toolRiskOverrides'];
+    defaultUserRisk?: ServerConfig['defaultUserRisk'];
     enableKeepAlive?: boolean;
     keepAliveInterval?: number;
     tools?: Record<string, { enabled: boolean; description?: string; hiddenParams?: string[] }>;
@@ -343,6 +352,9 @@ export class ServerDaoDbImpl implements ServerDao {
       // Unset columns read back as null.
       pausedUsers: server.pausedUsers ?? undefined,
       maintenance: server.maintenance ?? undefined,
+      maxToolRisk: server.maxToolRisk ?? undefined,
+      toolRiskOverrides: server.toolRiskOverrides ?? undefined,
+      defaultUserRisk: server.defaultUserRisk ?? undefined,
       enableKeepAlive: server.enableKeepAlive,
       keepAliveInterval: server.keepAliveInterval,
       protocolNegotiation: server.protocolNegotiation ?? undefined,

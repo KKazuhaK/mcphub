@@ -238,7 +238,15 @@ const upstream = (name: string, config: Partial<ServerConfig> = {}): ServerInfo 
     status: 'connected',
     enabled: true,
     config,
-    tools: [{ name: `${name}::ping`, description: 'Ping', inputSchema: { type: 'object' } }],
+    // Read-only, so the default tool risk ceiling (read) leaves it listed.
+    tools: [
+      {
+        name: `${name}::ping`,
+        description: 'Ping',
+        inputSchema: { type: 'object' },
+        annotations: { readOnlyHint: true },
+      },
+    ],
     prompts: [{ name: `${name}::hello`, description: 'Hello', arguments: [] }],
     resources: [{ name: `${name}-doc`, uri: `test://${name}` }],
     client: {

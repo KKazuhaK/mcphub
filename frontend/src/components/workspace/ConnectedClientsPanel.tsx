@@ -102,10 +102,7 @@ const ConnectedClientsPanel: React.FC = () => {
       </div>
 
       {error && (
-        <div
-          className="flex items-center justify-between gap-3 px-4 pb-3 text-sm"
-          role="alert"
-        >
+        <div className="flex items-center justify-between gap-3 px-4 pb-3 text-sm" role="alert">
           <div>
             <div style={{ color: 'var(--hub-err)' }}>
               {t(error.disabled ? 'workspacePage.disabled' : 'workspacePage.clients.loadFailed')}
@@ -156,16 +153,15 @@ const ConnectedClientsPanel: React.FC = () => {
                   <td className="px-4 py-2.5">
                     <span className="font-medium">{client.name}</span>
                     {client.idle && (
-                      <span
-                        className="hub-tag ml-2"
-                        title={t('workspacePage.clients.idleHint')}
-                      >
+                      <span className="hub-tag ml-2" title={t('workspacePage.clients.idleHint')}>
                         {t('workspacePage.clients.idle')}
                       </span>
                     )}
                   </td>
                   <td className="px-4 py-2.5">
-                    <span className="hub-tag">{t(`workspacePage.clients.kind.${client.kind}`)}</span>
+                    <span className="hub-tag">
+                      {t(`workspacePage.clients.kind.${client.kind}`)}
+                    </span>
                   </td>
                   <td className="px-4 py-2.5">{formatTime(client.createdAt) ?? never}</td>
                   <td className="px-4 py-2.5">{formatTime(client.lastUsedAt) ?? never}</td>

@@ -125,6 +125,9 @@ export interface Tool {
   annotations?: Record<string, unknown>;
   _meta?: Record<string, unknown>;
   enabled?: boolean;
+  // Present for administrators under Workspace Mode: computed from annotations, an
+  // administrator override, and the level in force.
+  risk?: { computed: ToolRiskLevel; override?: ToolRiskLevel; effective: ToolRiskLevel };
 }
 
 // Prompt types
@@ -231,6 +234,10 @@ export interface ServerConfig {
   // Admin runtime state, effective only under Workspace Mode. `null` clears on save.
   pausedUsers?: string[];
   maintenance?: ServerMaintenance | null;
+  // Admin tool risk controls, effective only under Workspace Mode. `null` clears on save.
+  maxToolRisk?: ToolRiskLevel | null;
+  toolRiskOverrides?: Record<string, ToolRiskLevel> | null;
+  defaultUserRisk?: ToolRiskLevel | null;
   protocolNegotiation?: 'auto' | 'legacy'; // Streamable HTTP defaults to auto; other transports remain legacy.
   enableKeepAlive?: boolean; // Enable remote health checks; disconnected remote servers always retry
   keepAliveInterval?: number; // Health check interval in milliseconds (default: 60000ms)
@@ -430,6 +437,9 @@ export interface ServerFormData {
   // Admins only; left undefined for everyone else so a save leaves the stored values alone.
   pausedUsers?: string[];
   maintenance?: { enabled: boolean; until?: string; message: string };
+  // Admins only; left undefined for everyone else so a save leaves the stored value alone.
+  maxToolRisk?: ToolRiskLevel;
+  defaultUserRisk?: ToolRiskLevel;
   options?: {
     timeout?: number;
     resetTimeoutOnProgress?: boolean;
@@ -976,12 +986,29 @@ export interface WorkspaceServerStatus {
   until?: string;
 }
 
+/** How far a tool's effects reach; ordered read < write < external. */
+export type ToolRiskLevel = 'read' | 'write' | 'external';
+
 export interface WorkspaceServer {
   name: string;
   description?: string;
   selected: boolean;
   enabled: boolean;
-  toolCount: number;
+  // Enabled tools within the user's risk ceiling: what their endpoint exposes. Null when the
+  // tools are not known yet (a service needing personal credentials, until they connect).
+  toolCount: number | null;
+  // The highest tool risk level the user allows on this service (the administrator's default
+  // until they choose).
+  riskCeiling: ToolRiskLevel;
+  // True while `riskCeiling` is the administrator's default rather than the user's choice.
+  riskCeilingIsDefault: boolean;
+  // Enabled tools within the administrator's cap, by level. Null when not known.
+  riskCounts: Record<ToolRiskLevel, number> | null;
+  // False when the service is owned by a non-admin: its tool annotations are not believed and
+  // every tool counts as acting on others.
+  annotationsTrusted: boolean;
+  // The administrator's cap for this user; options above it cannot be chosen.
+  maxAllowedRisk: ToolRiskLevel;
   requiresPersonalCredential: boolean;
   credentialConfigured: boolean;
   status: WorkspaceServerStatus;
@@ -1016,7 +1043,8 @@ export type WorkspaceActivityReason =
   | 'paused'
   | 'maintenance'
   | 'needs_auth'
-  | 'revoked';
+  | 'revoked'
+  | 'risk_not_enabled';
 
 export interface WorkspaceActivityClient {
   kind: 'oauth' | 'key';

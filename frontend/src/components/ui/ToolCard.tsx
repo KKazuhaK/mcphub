@@ -16,7 +16,9 @@ import {
   updateToolDescription,
   resetToolDescription,
   updateToolHiddenParams,
+  updateToolRisk,
 } from '@/services/toolService';
+import { overrideChoices, isToolRiskLevel } from '@/utils/toolRisk';
 import { useSettingsData } from '@/hooks/useSettingsData';
 import { useToast } from '@/contexts/ToastContext';
 import { Switch } from './ToggleGroup';
@@ -66,6 +68,8 @@ const ToolCard = ({ tool, server, readOnly = false, onToggle, onDescriptionUpdat
   const [copiedToolName, setCopiedToolName] = useState(false);
   const [hiddenParams, setHiddenParams] = useState<string[]>(tool.hiddenParams || []);
   const [isSavingHiddenParams, setIsSavingHiddenParams] = useState(false);
+  const [risk, setRisk] = useState(tool.risk);
+  const [isSavingRisk, setIsSavingRisk] = useState(false);
 
   // Focus the input when editing mode is activated
   useEffect(() => {
@@ -92,6 +96,32 @@ const ToolCard = ({ tool, server, readOnly = false, onToggle, onDescriptionUpdat
   useEffect(() => {
     setHiddenParams(tool.hiddenParams || []);
   }, [tool.hiddenParams]);
+
+  useEffect(() => {
+    setRisk(tool.risk);
+  }, [tool.risk]);
+
+  // Administrators can only raise a tool above the level its annotations give it.
+  const handleRiskOverride = async (value: string) => {
+    if (readOnly || !risk) return;
+    const next = isToolRiskLevel(value) ? value : null;
+    setIsSavingRisk(true);
+    try {
+      const result = await updateToolRisk(server, tool.name, next);
+      if (result.success) {
+        setRisk({
+          computed: risk.computed,
+          ...(next ? { override: next } : {}),
+          effective: next && overrideChoices(risk.computed).includes(next) ? next : risk.computed,
+        });
+        showToast(t('tool.risk.updateSuccess'), 'success');
+      } else {
+        showToast(result.error || t('tool.risk.updateFailed'), 'error');
+      }
+    } finally {
+      setIsSavingRisk(false);
+    }
+  };
 
   const schemaProperties = Object.keys(tool.inputSchema?.properties || {});
   const requiredParams: string[] = Array.isArray(tool.inputSchema?.required)
@@ -364,6 +394,36 @@ const ToolCard = ({ tool, server, readOnly = false, onToggle, onDescriptionUpdat
           </span>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {risk && (
+            <span
+              className="flex items-center gap-1 text-[11px]"
+              style={{ color: 'var(--hub-ink-3)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span data-testid="tool-risk-level" data-risk={risk.effective}>
+                {t(`tool.risk.level.${risk.effective}`)}
+              </span>
+              {!readOnly && (
+                <select
+                  aria-label={t('tool.risk.override')}
+                  title={t('tool.risk.override')}
+                  value={risk.override ?? ''}
+                  disabled={isSavingRisk}
+                  onChange={(e) => void handleRiskOverride(e.target.value)}
+                  className="form-input py-0.5 px-1 text-[11px]"
+                >
+                  <option value="">
+                    {t('tool.risk.noOverride', { level: t(`tool.risk.level.${risk.computed}`) })}
+                  </option>
+                  {overrideChoices(risk.computed).map((level) => (
+                    <option key={level} value={level}>
+                      {t(`tool.risk.level.${level}`)}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </span>
+          )}
           {cost != null && (
             <span
               className="hub-mono flex-shrink-0"

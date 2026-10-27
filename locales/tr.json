@@ -318,6 +318,20 @@
       "personalError": "Kişisel yetkilendirme başarısız",
       "personalSuccess": "Kişisel yetkilendirme kaydedildi. Panel → Sunucular bölümüne dönün.",
       "personalSuccessWorkspace": "Kişisel yetkilendirme kaydedildi. Çalışma alanınıza dönün."
+    },
+    "maxToolRisk": {
+      "title": "En yüksek araç riski",
+      "description": "Yönetici olmayan kullanıcıların bu sunucuda kullanabileceği en yüksek araç risk düzeyi. Bunun üzerindeki araçlar onlar için gizlenir ve reddedilir; yöneticiler sınırlanmaz. Yalnızca Çalışma Alanı Modunda geçerlidir.",
+      "read": "Salt okunur",
+      "write": "Okuma ve kullanıcının kendi verilerini değiştirme",
+      "external": "Sınır yok (varsayılan)"
+    },
+    "defaultUserRisk": {
+      "title": "Kullanıcılar için varsayılan düzey",
+      "description": "Kullanıcılar kendileri seçene kadar bu sunucunun araçlarıyla neler yapabilecekleri. Düşürebilir veya yukarıdaki en yüksek düzeye kadar yükseltebilirler. Yalnızca Çalışma Alanı Modunda geçerlidir.",
+      "read": "Salt okunur (varsayılan)",
+      "write": "Okuma ve kullanıcının kendi verilerini değiştirme",
+      "external": "En yüksek düzeyin izin verdiği her şey"
     }
   },
   "status": {
@@ -823,7 +837,18 @@
     "fixJsonBeforeSwitching": "Form moduna geçmeden önce lütfen JSON formatını düzeltin",
     "item": "Öğe {{index}}",
     "addItem": "{{key}} öğesi ekle",
-    "enterKey": "{{key}} girin"
+    "enterKey": "{{key}} girin",
+    "risk": {
+      "level": {
+        "read": "Okuma",
+        "write": "Yazma",
+        "external": "Harici"
+      },
+      "override": "Risk düzeyini yükselt",
+      "noOverride": "Hesaplanan: {{level}}",
+      "updateSuccess": "Risk düzeyi güncellendi",
+      "updateFailed": "Risk düzeyi güncellenemedi"
+    }
   },
   "prompt": {
     "run": "Getir",
@@ -1506,7 +1531,11 @@
       "needs_auth": "{{serverName}} için kişisel kimlik bilgileriniz veya yetkilendirmeniz gerekli. Çalışma alanınızdan bağlayın.",
       "revoked": "{{serverName}} için yetkilendirmenizin bağlantısını kestiniz. Çalışma alanınızdan yeniden bağlayın.",
       "credential_invalid": "{{serverName}} için kimlik bilgileriniz reddedildi. Çalışma alanınızdan güncelleyin veya yeniden bağlanın.",
-      "error": "{{serverName}} şu anda kullanılamıyor. Daha sonra tekrar deneyin."
+      "error": "{{serverName}} şu anda kullanılamıyor. Daha sonra tekrar deneyin.",
+      "riskNotEnabled": {
+        "write": "'{{toolName}}', '{{serverName}}' üzerindeki verilerinizi değiştirir; çalışma alanınız buna henüz izin vermiyor. Kullanmak için çalışma alanınızda '{{serverName}}' için verilerimde değişikliğe izin verin.",
+        "external": "'{{toolName}}', '{{serverName}}' üzerinde başkalarının görebileceği işlemler yapabilir; çalışma alanınız buna henüz izin vermiyor. Kullanmak için çalışma alanınızda '{{serverName}}' için başkalarının görebileceği işlemlere izin verin."
+      }
     }
   },
   "workspacePage": {
@@ -1570,7 +1599,8 @@
       "needs_auth": "Oturum gerekli",
       "revoked": "Bağlantı kesildi",
       "credential_invalid": "Kimlik bilgileri reddedildi",
-      "error": "Sorun"
+      "error": "Sorun",
+      "risk_not_enabled": "Araca çalışma alanınızda izin verilmiyor"
     },
     "actions": {
       "select": "Çalışma alanına ekle",
@@ -1663,6 +1693,34 @@
       "unknownClient": "Bilinmeyen istemci (artık bağlı değil)",
       "clientGone": "{{name}} (artık bağlı değil)",
       "duration": "{{ms}} ms"
+    },
+    "risk": {
+      "explanation": "Bu hizmetin araçlarının neler yapabileceğini seçin. Seçiminizin üzerindeki araçlar istemcilerinizden gizlenir ve çağrılırsa reddedilir.",
+      "groupLabel": "{{name}} araçlarının yapabilecekleri",
+      "level": {
+        "read": {
+          "label": "Salt okunur",
+          "hint": "Hiçbir şeyi değiştirmeden bilgi alın."
+        },
+        "write": {
+          "label": "Verilerimde değişikliğe izin ver",
+          "hint": "Kendi verilerinizi oluşturma veya düzenleme de dahildir."
+        },
+        "external": {
+          "label": "Başkalarının görebileceği işlemlere izin ver",
+          "hint": "Başkalarına gönderme, paylaşma veya onlara yönelik işlem yapma ve ne yaptığını belirtmeyen araçlar da dahildir."
+        }
+      },
+      "aboveCap": "Yöneticiniz tarafından izin verilmiyor",
+      "changeFailed": "{{name}} için izinler değiştirilemedi. Tekrar deneyin.",
+      "hiddenNotice_one": "Seçiminiz nedeniyle {{count}} araç gizli.",
+      "hiddenNotice_other": "Seçiminiz nedeniyle {{count}} araç gizli.",
+      "banner_one": "Seçtiğiniz hizmetlerde {{count}} araç gizli: veri değiştiren veya sizin adınıza işlem yapan araçlar siz izin verene kadar kapalı kalır. Daha fazlasına izin vermek için aşağıdan bir hizmeti açın.",
+      "banner_other": "Seçtiğiniz hizmetlerde {{count}} araç gizli: veri değiştiren veya sizin adınıza işlem yapan araçlar siz izin verene kadar kapalı kalır. Daha fazlasına izin vermek için aşağıdan bir hizmeti açın.",
+      "connectToSee": "Araçlarını görmek ve neler yapabileceklerini seçmek için bu hizmeti bağlayın.",
+      "unknownTools": "Araçları görmek için bağlanın",
+      "defaultNote": "Siz seçene kadar yöneticiniz tarafından belirlenir.",
+      "untrustedHint": "Bu hizmeti bir yönetici işletmiyor; araçları doğrulanmadı ve hepsi başkalarının görebileceği işlemler sayılır."
     }
   }
 }

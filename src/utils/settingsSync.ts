@@ -28,7 +28,13 @@ const fingerprintDeclaration = async (declaration: string, previous?: string): P
 };
 
 // Columns edited at runtime from the dashboard; absent from declarations and fingerprints.
-const RUNTIME_STATE_COLUMNS = new Set(['pausedUsers', 'maintenance']);
+const RUNTIME_STATE_COLUMNS = new Set([
+  'pausedUsers',
+  'maintenance',
+  'maxToolRisk',
+  'toolRiskOverrides',
+  'defaultUserRisk',
+]);
 
 const name = z
   .string()
@@ -154,6 +160,9 @@ export async function syncSettingsToDatabase(): Promise<void> {
       const {
         pausedUsers: _pausedUsers,
         maintenance: _maintenance,
+        maxToolRisk: _maxToolRisk,
+        toolRiskOverrides: _toolRiskOverrides,
+        defaultUserRisk: _defaultUserRisk,
         ...declared
       } = input as ServerConfig;
       const config = normalizeServerConfigForPersistence(declared);
@@ -202,6 +211,9 @@ export async function syncSettingsToDatabase(): Promise<void> {
           ...(existing as ServerConfig),
           pausedUsers: undefined,
           maintenance: undefined,
+          maxToolRisk: undefined,
+          toolRiskOverrides: undefined,
+          defaultUserRisk: undefined,
         }).type === config.type &&
         existing.url === config.url &&
         (existing.owner ?? null) === (config.owner ?? null);

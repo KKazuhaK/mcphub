@@ -6,6 +6,8 @@ import { getServerDao, getSystemConfigDao } from '../dao/index.js';
 import { UserContextService } from './userContextService.js';
 import { isWorkspaceEnabled } from './userServerSelectionService.js';
 import { isAdminBlockedForUser } from './userServerStatusService.js';
+import { areAnnotationsTrusted, primeAnnotationTrust } from './annotationTrustService.js';
+import { getEffectiveToolRisk, getMaxToolRisk, riskRank } from '../utils/toolRisk.js';
 import { resolveInstallBaseUrl } from '../utils/installBaseUrl.js';
 import { filterModelVisibleTools } from '../utils/mcpApps.js';
 import { applyHiddenParams } from '../utils/toolConfig.js';
@@ -174,10 +176,24 @@ export async function generateOpenAPISpec(
   );
 
   // Under Workspace Mode a server paused for the requester, or in maintenance, is left out
-  // just as it is from their lists.
+  // just as it is from their lists, and so is a tool above the server's risk cap.
+  let withinRiskCap: (serverName: string, tool: Tool, runtimeNames: string[]) => boolean = () =>
+    true;
   if (isWorkspaceEnabled()) {
+    await primeAnnotationTrust();
     const user = UserContextService.getInstance().getCurrentUser();
     const stored = new Map((await getServerDao().findAll()).map((server) => [server.name, server]));
+    withinRiskCap = (serverName, tool, runtimeNames) =>
+      user?.isAdmin === true ||
+      riskRank(
+        getEffectiveToolRisk(
+          serverName,
+          tool,
+          stored.get(serverName),
+          runtimeNames,
+          areAnnotationsTrusted(stored.get(serverName)?.owner),
+        ),
+      ) <= riskRank(getMaxToolRisk(stored.get(serverName)));
     filteredServers = filteredServers.filter(
       (server) => !isAdminBlockedForUser(stored.get(server.name), user),
     );
@@ -212,10 +228,12 @@ export async function generateOpenAPISpec(
   const allTools: Array<{ tool: Tool; serverName: string }> = [];
 
   for (const serverInfo of filteredServers) {
+    const runtimeNames = serverInfo.tools.map((tool) => tool.name);
     const tools = filterModelVisibleTools(
-      options.includeDisabledTools
+      (options.includeDisabledTools
         ? serverInfo.tools
-        : serverInfo.tools.filter((tool) => tool.enabled !== false),
+        : serverInfo.tools.filter((tool) => tool.enabled !== false)
+      ).filter((tool) => withinRiskCap(serverInfo.name, tool, runtimeNames)),
     );
 
     // Apply group-specific tool filtering if group filter is specified

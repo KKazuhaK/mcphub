@@ -61,6 +61,8 @@ const mockToggleServerStatus = jest.fn();
 const mockReconnectServer = jest.fn();
 const mockUpdateServerInfoVisibility = jest.fn();
 const mockUpdateServerInfoAvailability = jest.fn();
+const mockUpdateServerInfoToolRisk = jest.fn();
+const mockHandleToolRiskChange = jest.fn();
 const mockHandleAvailabilityChange = jest.fn();
 const mockScheduleMaintenanceExpiry = jest.fn();
 const mockClearMaintenanceExpiry = jest.fn();
@@ -104,6 +106,7 @@ jest.mock('../../src/services/mcpService.js', () => ({
   updateServerInfoAvailability: jest.fn((...args: unknown[]) =>
     mockUpdateServerInfoAvailability(...args),
   ),
+  updateServerInfoToolRisk: jest.fn((...args: unknown[]) => mockUpdateServerInfoToolRisk(...args)),
 }));
 
 jest.mock('../../src/services/serverMaintenanceService.js', () => ({
@@ -114,6 +117,7 @@ jest.mock('../../src/services/serverMaintenanceService.js', () => ({
     mockScheduleMaintenanceExpiry(...args),
   ),
   clearMaintenanceExpiry: jest.fn((...args: unknown[]) => mockClearMaintenanceExpiry(...args)),
+  handleToolRiskChange: jest.fn((...args: unknown[]) => mockHandleToolRiskChange(...args)),
 }));
 
 jest.mock('../../src/services/vectorSearchService.js', () => ({
@@ -149,6 +153,14 @@ jest.mock('../../src/services/userServerSelectionService.js', () => ({
   renameServerSelections: jest.fn((...args: unknown[]) => mockRenameServerSelections(...args)),
 }));
 
+// Annotations are trusted for servers an administrator owns ("alice" owns the fixtures, so
+// she is treated as one here unless a test says otherwise).
+let mockAnnotationsTrusted = true;
+jest.mock('../../src/services/annotationTrustService.js', () => ({
+  primeAnnotationTrust: jest.fn(async () => undefined),
+  areAnnotationsTrusted: jest.fn(() => mockAnnotationsTrusted),
+}));
+
 jest.mock('../../src/services/upstreamOAuthDisconnectService.js', () => ({
   disconnectUpstreamOAuth: mockDisconnectUpstreamOAuth,
 }));
@@ -168,6 +180,7 @@ import {
   batchToggleTools,
   updateServer,
   updateSystemConfig,
+  updateToolRisk,
 } from '../../src/controllers/serverController.js';
 
 describe('serverController - server share candidates', () => {
@@ -979,16 +992,18 @@ describe('serverController - updateSystemConfig', () => {
   it.each([0, 1, 90, 3650])(
     'saves clientIdleDays %s without touching the enabled state',
     async (days) => {
-      mockSystemConfigDao.get.mockResolvedValue({ workspace: { enabled: true, enabledAt: '2026-01-01T00:00:00.000Z' } });
+      mockSystemConfigDao.get.mockResolvedValue({
+        workspace: { enabled: true, enabledAt: '2026-01-01T00:00:00.000Z' },
+      });
       mockRequest.body = { workspace: { clientIdleDays: days } };
       await updateSystemConfig(mockRequest as Request, mockResponse as Response);
       expect(mockSystemConfigDao.update).toHaveBeenLastCalledWith(
         expect.objectContaining({
           workspace: {
-          enabled: true,
-          enabledAt: '2026-01-01T00:00:00.000Z',
-          clientIdleDays: days,
-        },
+            enabled: true,
+            enabledAt: '2026-01-01T00:00:00.000Z',
+            clientIdleDays: days,
+          },
         }),
       );
       expect(mockBroadcastToolListChanged).not.toHaveBeenCalled();
@@ -2154,6 +2169,48 @@ describe('serverController - updateServer', () => {
         message: 'Server renamed and updated successfully',
       });
     });
+
+    it('moves the tool risk overrides with the rename and keeps them when the request omits the key', async () => {
+      mockServerDao.findById.mockResolvedValue({
+        name: 'test-server',
+        type: 'stdio',
+        command: 'uvx',
+        args: ['mcp-server-fetch'],
+        enabled: true,
+        owner: 'admin',
+        visibility: 'private',
+        toolRiskOverrides: { 'test-server::delete_note': 'external', search_notes: 'write' },
+      });
+      await updateServer(mockRequest as Request, mockResponse as Response);
+
+      const [, savedConfig] = mockAddOrUpdateServer.mock.calls[0] as [string, any, boolean];
+      expect(savedConfig.toolRiskOverrides).toEqual({
+        'renamed-server::delete_note': 'external',
+        search_notes: 'write',
+      });
+    });
+
+    it.each([null, {}])(
+      'clears the overrides when the request says %j, instead of restoring them',
+      async (cleared) => {
+        mockServerDao.findById.mockResolvedValue({
+          name: 'test-server',
+          type: 'stdio',
+          command: 'uvx',
+          args: ['mcp-server-fetch'],
+          enabled: true,
+          owner: 'admin',
+          visibility: 'private',
+          toolRiskOverrides: { 'test-server::delete_note': 'external' },
+        });
+        mockRequest.body.config = { ...mockRequest.body.config, toolRiskOverrides: cleared };
+
+        await updateServer(mockRequest as Request, mockResponse as Response);
+
+        const [, savedConfig] = mockAddOrUpdateServer.mock.calls[0] as [string, any, boolean];
+        expect(savedConfig).toHaveProperty('toolRiskOverrides', undefined);
+      },
+    );
 
     it('moves every user’s server selection to the new name', async () => {
       await updateServer(mockRequest as Request, mockResponse as Response);
@@ -4018,6 +4075,384 @@ describe('serverController - maintenance and per-user pause', () => {
       const config = await read({ username: 'bob', isAdmin: false });
       expect(config).not.toHaveProperty('pausedUsers');
       expect(JSON.stringify(config)).not.toContain('bob');
+    });
+  });
+});
+
+describe('serverController - tool risk levels', () => {
+  const base = {
+    type: 'sse',
+    url: 'https://example.com/sse',
+    enabled: true,
+    visibility: 'private',
+  };
+  let json: jest.Mock;
+  let status: jest.Mock;
+  let res: Response;
+  const admin = { username: 'admin', isAdmin: true };
+  const alice = { username: 'alice', isAdmin: false };
+  // get: read-only; edit: closed world; send: no annotations.
+  const live = {
+    tools: [
+      { name: 'test-server::get', annotations: { readOnlyHint: true } },
+      { name: 'test-server::edit', annotations: { openWorldHint: false } },
+      { name: 'test-server::send' },
+    ],
+  };
+
+  const update = (user: { username: string; isAdmin: boolean }, config: object) =>
+    updateServer(
+      {
+        params: { name: 'test-server' },
+        body: { config: { ...base, ...config } },
+        user,
+      } as unknown as Request,
+      res,
+    );
+  const updatesOf = () => mockServerDao.update.mock.calls[0][1] as Record<string, unknown>;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    json = jest.fn();
+    status = jest.fn().mockReturnThis();
+    res = { json, status } as unknown as Response;
+    mockGetServerByName.mockReturnValue(live);
+    mockServerDao.findById.mockResolvedValue({
+      name: 'test-server',
+      ...base,
+      owner: 'alice',
+      maxToolRisk: 'write',
+      toolRiskOverrides: { 'test-server::get': 'write' },
+    });
+    mockServerDao.update = jest.fn().mockResolvedValue({ name: 'test-server' });
+    mockAddServer.mockResolvedValue({ success: true });
+  });
+
+  it('lets an admin set the cap and overrides, mirrors them into the live entry and announces it', async () => {
+    await update(admin, {
+      maxToolRisk: 'read',
+      toolRiskOverrides: { 'test-server::get': 'external', 'test-server::edit': 'write' },
+    });
+
+    expect(status).not.toHaveBeenCalled();
+    expect(updatesOf()).toMatchObject({
+      maxToolRisk: 'read',
+      toolRiskOverrides: { 'test-server::get': 'external', 'test-server::edit': 'write' },
+    });
+    expect(mockUpdateServerInfoToolRisk).toHaveBeenCalledWith('test-server', {
+      maxToolRisk: 'read',
+      toolRiskOverrides: { 'test-server::get': 'external', 'test-server::edit': 'write' },
+    });
+    expect(mockHandleToolRiskChange).toHaveBeenCalledWith('test-server');
+  });
+
+  it('stores "external" and null as no cap, and an empty map as no overrides', async () => {
+    await update(admin, { maxToolRisk: 'external', toolRiskOverrides: {} });
+    expect(updatesOf()).toHaveProperty('maxToolRisk', undefined);
+    expect(updatesOf()).toHaveProperty('toolRiskOverrides', undefined);
+    expect(mockHandleToolRiskChange).toHaveBeenCalled();
+
+    mockServerDao.update.mockClear();
+    await update(admin, { maxToolRisk: null, toolRiskOverrides: null });
+    expect(updatesOf()).toHaveProperty('maxToolRisk', undefined);
+  });
+
+  it('keeps stored values when the keys are left out and announces nothing', async () => {
+    await update(admin, {});
+    expect(updatesOf()).not.toHaveProperty('maxToolRisk');
+    expect(updatesOf()).not.toHaveProperty('toolRiskOverrides');
+    expect(mockUpdateServerInfoToolRisk).toHaveBeenCalledWith('test-server', {
+      maxToolRisk: 'write',
+      toolRiskOverrides: { 'test-server::get': 'write' },
+    });
+    expect(mockHandleToolRiskChange).not.toHaveBeenCalled();
+  });
+
+  it('rejects an override below the tool’s computed level with 400 and writes nothing', async () => {
+    await update(admin, { toolRiskOverrides: { 'test-server::send': 'write' } });
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenLastCalledWith({
+      success: false,
+      message: expect.stringContaining('can only raise'),
+    });
+    expect(mockServerDao.update).not.toHaveBeenCalled();
+
+    status.mockClear();
+    await update(admin, { toolRiskOverrides: { edit: 'read' } });
+    expect(status).toHaveBeenCalledWith(400);
+    expect(mockServerDao.update).not.toHaveBeenCalled();
+  });
+
+  it('accepts an override equal to or above the computed level', async () => {
+    await update(admin, {
+      toolRiskOverrides: { 'test-server::send': 'external', 'test-server::get': 'read' },
+    });
+    expect(status).not.toHaveBeenCalled();
+    expect(mockServerDao.update).toHaveBeenCalled();
+  });
+
+  it('rejects invalid levels and shapes with 400', async () => {
+    for (const config of [
+      { maxToolRisk: 'bogus' },
+      { toolRiskOverrides: { 'test-server::get': 'bogus' } },
+      { toolRiskOverrides: ['read'] },
+      { toolRiskOverrides: { __proto__x: 'read', '': 'read' } },
+    ]) {
+      status.mockClear();
+      await update(admin, config);
+      expect(status).toHaveBeenCalledWith(400);
+    }
+    expect(mockServerDao.update).not.toHaveBeenCalled();
+  });
+
+  it('refuses a non-admin request that carries either key, whatever the value', async () => {
+    const cases: object[] = [
+      { maxToolRisk: 'read' },
+      { maxToolRisk: 'write' }, // equal to the stored cap
+      { maxToolRisk: null },
+      { toolRiskOverrides: { 'test-server::get': 'write' } }, // equal to the stored map
+      { toolRiskOverrides: null },
+      { toolRiskOverrides: {} },
+    ];
+    for (const config of cases) {
+      status.mockClear();
+      json.mockClear();
+      await update(alice, config);
+      expect(status).toHaveBeenCalledWith(403);
+      expect(json).toHaveBeenLastCalledWith({
+        success: false,
+        message: 'Only admins can set tool risk levels',
+      });
+    }
+    expect(mockServerDao.update).not.toHaveBeenCalled();
+    expect(mockHandleToolRiskChange).not.toHaveBeenCalled();
+  });
+
+  it('refuses them on create, single or batch', async () => {
+    await createServer(
+      {
+        body: { name: 'fresh', config: { ...base, maxToolRisk: 'read' } },
+        user: alice,
+      } as unknown as Request,
+      res,
+    );
+    expect(status).toHaveBeenCalledWith(403);
+    expect(mockAddServer).not.toHaveBeenCalled();
+
+    await batchCreateServers(
+      {
+        body: { servers: [{ name: 'fresh', config: { ...base, toolRiskOverrides: {} } }] },
+        user: alice,
+      } as unknown as Request,
+      res,
+    );
+    expect(mockAddServer).not.toHaveBeenCalled();
+  });
+
+  it('lets a non-admin save that does not carry the keys leave the stored values alone', async () => {
+    await update(alice, { description: 'mine' });
+    expect(status).not.toHaveBeenCalled();
+    expect(updatesOf()).not.toHaveProperty('maxToolRisk');
+    expect(updatesOf()).not.toHaveProperty('toolRiskOverrides');
+  });
+
+  describe('the default level for users', () => {
+    it('lets an admin set it within the cap, stores "read" as no default, and announces it', async () => {
+      await update(admin, { defaultUserRisk: 'write' });
+      expect(status).not.toHaveBeenCalled();
+      expect(updatesOf()).toMatchObject({ defaultUserRisk: 'write' });
+      expect(mockUpdateServerInfoToolRisk).toHaveBeenCalledWith(
+        'test-server',
+        expect.objectContaining({ defaultUserRisk: 'write' }),
+      );
+      expect(mockHandleToolRiskChange).toHaveBeenCalledWith('test-server');
+
+      mockServerDao.update.mockClear();
+      await update(admin, { defaultUserRisk: 'read' });
+      expect(updatesOf()).toHaveProperty('defaultUserRisk', undefined);
+    });
+
+    it('rejects a default above the cap with 400, whichever of the two the save changes', async () => {
+      // Stored cap is "write".
+      await update(admin, { defaultUserRisk: 'external' });
+      expect(status).toHaveBeenLastCalledWith(400);
+      expect(json).toHaveBeenLastCalledWith({
+        success: false,
+        message: 'defaultUserRisk cannot exceed maxToolRisk',
+      });
+
+      status.mockClear();
+      await update(admin, { maxToolRisk: 'read', defaultUserRisk: 'write' });
+      expect(status).toHaveBeenLastCalledWith(400);
+
+      // Lowering the cap under a stored default is the same conflict.
+      mockServerDao.findById.mockResolvedValue({
+        name: 'test-server',
+        ...base,
+        owner: 'alice',
+        maxToolRisk: 'write',
+        defaultUserRisk: 'write',
+      });
+      status.mockClear();
+      await update(admin, { maxToolRisk: 'read' });
+      expect(status).toHaveBeenLastCalledWith(400);
+      expect(mockServerDao.update).not.toHaveBeenCalled();
+
+      // Both move together.
+      status.mockClear();
+      await update(admin, { maxToolRisk: 'read', defaultUserRisk: null });
+      expect(status).not.toHaveBeenCalled();
+    });
+
+    it('rejects an invalid level with 400', async () => {
+      await update(admin, { defaultUserRisk: 'bogus' });
+      expect(status).toHaveBeenLastCalledWith(400);
+    });
+
+    it('is refused for a non-admin that carries the key, whatever the value', async () => {
+      for (const value of ['read', 'write', null]) {
+        status.mockClear();
+        await update(alice, { defaultUserRisk: value });
+        expect(status).toHaveBeenCalledWith(403);
+        expect(json).toHaveBeenLastCalledWith({
+          success: false,
+          message: 'Only admins can set tool risk levels',
+        });
+      }
+      await createServer(
+        {
+          body: { name: 'fresh', config: { ...base, defaultUserRisk: 'read' } },
+          user: alice,
+        } as unknown as Request,
+        res,
+      );
+      expect(mockAddServer).not.toHaveBeenCalled();
+      expect(mockServerDao.update).not.toHaveBeenCalled();
+    });
+
+    it('is checked on create too', async () => {
+      await createServer(
+        {
+          body: {
+            name: 'fresh',
+            config: { ...base, maxToolRisk: 'read', defaultUserRisk: 'write' },
+          },
+          user: admin,
+        } as unknown as Request,
+        res,
+      );
+      expect(status).toHaveBeenCalledWith(400);
+      expect(mockAddServer).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('annotations of a server a non-admin owns', () => {
+    afterEach(() => {
+      mockAnnotationsTrusted = true;
+    });
+
+    it('count as external, so an override below that is rejected', async () => {
+      mockAnnotationsTrusted = false;
+      // "test-server::get" is read-only upstream, but the owner is not trusted.
+      await update(admin, { toolRiskOverrides: { 'test-server::get': 'write' } });
+      expect(status).toHaveBeenLastCalledWith(400);
+      expect(json).toHaveBeenLastCalledWith({
+        success: false,
+        message: expect.stringContaining('already external'),
+      });
+
+      status.mockClear();
+      await update(admin, { toolRiskOverrides: { 'test-server::get': 'external' } });
+      expect(status).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('PUT /servers/:serverName/tools/:toolName/risk', () => {
+    const put = (user: object, body: object, toolName = 'test-server::send') =>
+      updateToolRisk(
+        { params: { serverName: 'test-server', toolName }, body, user } as unknown as Request,
+        res,
+      );
+
+    it('refuses non-admins with a constant 403 before looking at the server', async () => {
+      await put(alice, { risk: 'external' });
+      expect(status).toHaveBeenCalledWith(403);
+      expect(json).toHaveBeenLastCalledWith({
+        success: false,
+        message: 'Only admins can set tool risk levels',
+      });
+      expect(mockServerDao.findById).not.toHaveBeenCalled();
+      expect(mockServerDao.update).not.toHaveBeenCalled();
+    });
+
+    it('sets an override that raises the tool and announces it', async () => {
+      await put(admin, { risk: 'external' }, 'test-server::edit');
+      expect(status).not.toHaveBeenCalled();
+      expect(updatesOf()).toEqual({
+        toolRiskOverrides: { 'test-server::get': 'write', 'test-server::edit': 'external' },
+      });
+      expect(mockUpdateServerInfoToolRisk).toHaveBeenCalled();
+      expect(mockBroadcastToolListChanged).toHaveBeenCalled();
+      expect(mockHandleToolRiskChange).toHaveBeenCalledWith('test-server');
+    });
+
+    it('rejects a level below the computed one with 400', async () => {
+      await put(admin, { risk: 'read' });
+      expect(status).toHaveBeenCalledWith(400);
+      expect(mockServerDao.update).not.toHaveBeenCalled();
+    });
+
+    it('clears an override with null, reusing the key it is stored under', async () => {
+      mockServerDao.findById.mockResolvedValue({
+        name: 'test-server',
+        ...base,
+        owner: 'alice',
+        toolRiskOverrides: { get: 'write' },
+      });
+      await put(admin, { risk: null }, 'test-server::get');
+      expect(updatesOf()).toEqual({ toolRiskOverrides: undefined });
+    });
+
+    it('runs the same validation as a server save: name length and entry limit', async () => {
+      await put(admin, { risk: 'external' }, `test-server::${'x'.repeat(600)}`);
+      expect(status).toHaveBeenLastCalledWith(400);
+      expect(mockServerDao.update).not.toHaveBeenCalled();
+
+      status.mockClear();
+      mockServerDao.findById.mockResolvedValue({
+        name: 'test-server',
+        ...base,
+        owner: 'alice',
+        toolRiskOverrides: Object.fromEntries(
+          Array.from({ length: 5000 }, (_, index) => [`t${index}`, 'write']),
+        ),
+      });
+      await put(admin, { risk: 'external' }, 'test-server::extra');
+      expect(status).toHaveBeenLastCalledWith(400);
+      expect(json).toHaveBeenLastCalledWith({
+        success: false,
+        message: expect.stringContaining('at most 5000'),
+      });
+      expect(mockServerDao.update).not.toHaveBeenCalled();
+    });
+
+    it('treats the tools of a server a non-admin owns as external', async () => {
+      mockAnnotationsTrusted = false;
+      await put(admin, { risk: 'write' }, 'test-server::get');
+      expect(status).toHaveBeenLastCalledWith(400);
+      mockAnnotationsTrusted = true;
+    });
+
+    it('validates the body and the target', async () => {
+      await put(admin, { risk: 'bogus' });
+      await put(admin, {});
+      expect(status).toHaveBeenCalledTimes(2);
+      expect(status).toHaveBeenCalledWith(400);
+
+      status.mockClear();
+      mockServerDao.findById.mockResolvedValue(undefined);
+      await put(admin, { risk: 'external' });
+      expect(status).toHaveBeenCalledWith(404);
     });
   });
 });

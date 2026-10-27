@@ -2,7 +2,8 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Copy } from 'lucide-react';
 import { StatusDot } from '@/components/ui/StatusDot';
-import type { WorkspaceServer, WorkspaceServerEndpoint } from '@/types';
+import type { ToolRiskLevel, WorkspaceServer, WorkspaceServerEndpoint } from '@/types';
+import { TOOL_RISK_LEVELS, countHiddenByCeiling, isRiskChoiceAllowed } from '@/utils/toolRisk';
 import {
   localizeStatusMessage,
   resolveServiceAction,
@@ -18,6 +19,7 @@ interface WorkspaceServiceRowProps {
   // Set when the authorization popup was blocked.
   authorizationUrl?: string;
   onToggle: (name: string, selected: boolean) => void;
+  onRiskChange: (name: string, riskCeiling: ToolRiskLevel) => void;
   onAction: (action: ServiceAction) => void;
   onCopyEndpoint: (url: string) => void;
 }
@@ -34,6 +36,7 @@ const WorkspaceServiceRow: React.FC<WorkspaceServiceRowProps> = ({
   busy,
   authorizationUrl,
   onToggle,
+  onRiskChange,
   onAction,
   onCopyEndpoint,
 }) => {
@@ -86,6 +89,76 @@ const WorkspaceServiceRow: React.FC<WorkspaceServiceRowProps> = ({
       default:
         return null;
     }
+  };
+
+  // How far the tools of this service may reach. Options above the administrator's cap stay
+  // visible but cannot be chosen.
+  const renderRisk = () => {
+    if (!server.selected) return null;
+    const hidden = countHiddenByCeiling(server.riskCounts, server.riskCeiling);
+    return (
+      <div className="basis-full" data-testid={`workspace-risk-${server.name}`}>
+        <div className="mb-1 text-[12px]" style={{ color: 'var(--hub-ink-3)' }}>
+          {t('workspacePage.risk.explanation')}
+        </div>
+        <div
+          role="radiogroup"
+          aria-label={t('workspacePage.risk.groupLabel', { name: server.name })}
+          className="flex flex-wrap gap-2"
+        >
+          {TOOL_RISK_LEVELS.map((level) => {
+            const allowed = isRiskChoiceAllowed(level, server.maxAllowedRisk);
+            const checked = server.riskCeiling === level;
+            return (
+              <button
+                key={level}
+                type="button"
+                role="radio"
+                aria-checked={checked}
+                disabled={busy || !allowed}
+                title={
+                  allowed
+                    ? t(`workspacePage.risk.level.${level}.hint`)
+                    : t('workspacePage.risk.aboveCap')
+                }
+                className={'hub-btn' + (checked ? ' primary' : '')}
+                data-risk-level={level}
+                onClick={() => !checked && onRiskChange(server.name, level)}
+              >
+                {t(`workspacePage.risk.level.${level}.label`)}
+                <span className="hub-mono hub-num ml-1.5 text-[11.5px] opacity-80">
+                  {server.riskCounts
+                    ? t('workspacePage.services.toolCount', {
+                        count: server.riskCounts[level] || 0,
+                      })
+                    : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {!server.riskCounts && (
+          <div className="mt-1 text-[12px]" style={{ color: 'var(--hub-ink-3)' }}>
+            {t('workspacePage.risk.connectToSee')}
+          </div>
+        )}
+        {server.riskCeilingIsDefault && server.riskCounts && (
+          <div className="mt-1 text-[12px]" style={{ color: 'var(--hub-ink-3)' }}>
+            {t('workspacePage.risk.defaultNote')}
+          </div>
+        )}
+        {!server.annotationsTrusted && (
+          <div className="mt-1 text-[12px]" style={{ color: 'var(--hub-ink-3)' }}>
+            {t('workspacePage.risk.untrustedHint')}
+          </div>
+        )}
+        {hidden > 0 && (
+          <div role="status" className="mt-1 text-[12px]" style={{ color: 'var(--hub-warn)' }}>
+            {t('workspacePage.risk.hiddenNotice', { count: hidden })}
+          </div>
+        )}
+      </div>
+    );
   };
 
   const renderEndpoint = () => {
@@ -159,10 +232,13 @@ const WorkspaceServiceRow: React.FC<WorkspaceServiceRowProps> = ({
         )}
       </div>
       <span className="hub-mono hub-num text-[12px]" style={{ color: 'var(--hub-ink-3)' }}>
-        {t('workspacePage.services.toolCount', { count: server.toolCount })}
+        {server.toolCount === null
+          ? t('workspacePage.risk.unknownTools')
+          : t('workspacePage.services.toolCount', { count: server.toolCount })}
       </span>
       <div className="flex min-w-[96px] justify-end">{renderAction()}</div>
       <div className="flex w-8 justify-end">{renderEndpoint()}</div>
+      {renderRisk()}
     </li>
   );
 };

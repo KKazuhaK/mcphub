@@ -1,6 +1,6 @@
 import { getAppDataSource } from '../db/connection.js';
 import { UserServerSelectionRecord } from '../db/entities/UserServerSelectionRecord.js';
-import type { UserServerSelection } from '../types/index.js';
+import type { ToolRiskLevel, UserServerSelection } from '../types/index.js';
 import type { UserServerSelectionDao } from './UserServerSelectionDao.js';
 
 export class UserServerSelectionDaoDbImpl implements UserServerSelectionDao {
@@ -9,11 +9,31 @@ export class UserServerSelectionDaoDbImpl implements UserServerSelectionDao {
   }
 
   async listByUsername(username: string): Promise<UserServerSelection[]> {
-    return this.repository.findBy({ username });
+    // Unset columns read back as null.
+    return (await this.repository.findBy({ username })).map(
+      ({ riskCeiling, ...row }): UserServerSelection => ({
+        ...row,
+        ...(riskCeiling ? { riskCeiling } : {}),
+      }),
+    );
   }
 
   async save(selection: UserServerSelection): Promise<void> {
+    // An undefined column is not part of the upsert, so a stored ceiling survives.
     await this.repository.upsert(selection, ['serverName', 'username']);
+  }
+
+  async saveRiskCeiling(
+    username: string,
+    serverName: string,
+    riskCeiling: ToolRiskLevel,
+    updatedAt: string,
+  ): Promise<void> {
+    // `selected` is left out: a new row takes its default (not selected), an existing one keeps it.
+    await this.repository.upsert({ username, serverName, riskCeiling, updatedAt }, [
+      'serverName',
+      'username',
+    ]);
   }
 
   async delete(filter: { serverName?: string; username?: string }): Promise<boolean> {

@@ -10,8 +10,10 @@ import {
   type ConnectedClientKind,
 } from '../services/connectedClientService.js';
 import {
-  getSelectedServerNames,
+  getUserSelectionScope,
   isWorkspaceEnabled,
+  resolveRiskCeiling,
+  setServerRiskCeiling,
   setServerSelected,
 } from '../services/userServerSelectionService.js';
 import {
@@ -21,8 +23,18 @@ import {
   resolveEndpointState,
   type PersonalAuthState,
 } from '../services/userServerStatusService.js';
-import type { IUser, ServerConfig, UserServerStatus } from '../types/index.js';
+import type { IUser, ServerConfig, ToolRiskLevel, UserServerStatus } from '../types/index.js';
+import {
+  TOOL_RISK_LEVELS,
+  getEffectiveToolRisk,
+  getDefaultUserRisk,
+  getMaxToolRisk,
+  isToolRiskLevel,
+  minRisk,
+  riskRank,
+} from '../utils/toolRisk.js';
 import { hasPersonalAuthentication } from '../utils/credentialTemplate.js';
+import { areAnnotationsTrusted, primeAnnotationTrust } from '../services/annotationTrustService.js';
 import { getPublicInstallBaseUrl } from '../utils/protectedResource.js';
 import {
   DEFAULT_HISTORY_PAGE_SIZE,
@@ -60,14 +72,49 @@ const filterVisible = <T>(servers: T[], user: RequestPrincipal): T[] =>
 const listVisibleServers = async (user: RequestPrincipal): Promise<ServerRecord[]> =>
   filterVisible(await getServerDao().findAll(), user) as ServerRecord[];
 
+// The highest level the administrator lets this user use on a server. Administrators are not
+// capped.
+const adminCapFor = (server: ServerRecord, user: RequestPrincipal): ToolRiskLevel =>
+  user.isAdmin === true ? 'external' : getMaxToolRisk(server);
+
+type ToolSummary = {
+  // Enabled tools within the user's ceiling: what their endpoint exposes. Null when the
+  // tools are not known (see below).
+  toolCount: number | null;
+  // Enabled tools within the administrator's cap, by level. Null when not known.
+  riskCounts: Record<ToolRiskLevel, number> | null;
+};
+
 // The runtime services pull in the whole upstream client stack, so they load on first use.
-const countEnabledTools = async (server: ServerRecord): Promise<number> => {
+const summarizeTools = async (
+  server: ServerRecord,
+  user: RequestPrincipal,
+  ceiling: ToolRiskLevel,
+): Promise<ToolSummary> => {
   const { getServerByName } = await import('../services/mcpService.js');
   const prefix = `${server.name}${getNameSeparator()}`;
-  return (getServerByName(server.name)?.tools ?? []).filter((tool) => {
+  const live = getServerByName(server.name)?.tools ?? [];
+  // A server needing personal credentials has no shared tool list: what the user would get
+  // is unknown until they connect, which is not the same as having no tools.
+  if (live.length === 0 && hasPersonalAuthentication(server)) {
+    return { toolCount: null, riskCounts: null };
+  }
+  const trusted = areAnnotationsTrusted(server.owner);
+  const runtimeNames = live.map((tool) => tool.name);
+  const allowed = minRisk(ceiling, adminCapFor(server, user));
+  const summary = {
+    toolCount: 0,
+    riskCounts: { read: 0, write: 0, external: 0 } as Record<ToolRiskLevel, number>,
+  };
+  for (const tool of live) {
     const bare = tool.name.startsWith(prefix) ? tool.name.slice(prefix.length) : tool.name;
-    return (server.tools?.[tool.name] ?? server.tools?.[bare])?.enabled !== false;
-  }).length;
+    if ((server.tools?.[tool.name] ?? server.tools?.[bare])?.enabled === false) continue;
+    const level = getEffectiveToolRisk(server.name, tool, server, runtimeNames, trusted);
+    if (riskRank(level) > riskRank(adminCapFor(server, user))) continue;
+    summary.riskCounts[level]++;
+    if (riskRank(level) <= riskRank(allowed)) summary.toolCount++;
+  }
+  return summary;
 };
 
 const loadServerInfo = async (name: string) => {
@@ -78,6 +125,9 @@ const loadServerInfo = async (name: string) => {
 type WorkspaceServerView = {
   server: ServerRecord;
   selected: boolean;
+  riskCeiling: ToolRiskLevel;
+  // True until the user chooses a level, so the server's default applies.
+  riskCeilingIsDefault: boolean;
   personalAuth: PersonalAuthState;
   status: UserServerStatus;
 };
@@ -87,7 +137,8 @@ const buildServerViews = async (
   req: Request,
   user: RequestPrincipal,
 ): Promise<WorkspaceServerView[]> => {
-  const selected = await getSelectedServerNames(user.username);
+  await primeAnnotationTrust();
+  const { names: selected, ceilings } = await getUserSelectionScope(user.username);
   const language = (req as Request & { language?: string }).language;
   return Promise.all(
     (await listVisibleServers(user)).map(async (server) => {
@@ -104,7 +155,18 @@ const buildServerViews = async (
         personalAuth,
         language,
       });
-      return { server, selected: selected.has(server.name), personalAuth, status };
+      return {
+        server,
+        selected: selected.has(server.name),
+        // The user's choice, else the server's default; never above what the cap allows.
+        riskCeiling: minRisk(
+          resolveRiskCeiling(ceilings, server.name, getDefaultUserRisk(server)),
+          adminCapFor(server, user),
+        ),
+        riskCeilingIsDefault: !ceilings.has(server.name),
+        personalAuth,
+        status,
+      };
     }),
   );
 };
@@ -115,16 +177,24 @@ export const listWorkspaceServers = async (req: Request, res: Response): Promise
   try {
     const data = await Promise.all(
       (await buildServerViews(req, user)).map(
-        async ({ server, selected, personalAuth, status }) => ({
-          name: server.name,
-          description: server.description,
-          selected,
-          enabled: server.enabled !== false,
-          toolCount: await countEnabledTools(server),
-          requiresPersonalCredential: hasPersonalAuthentication(server),
-          credentialConfigured: personalAuth === 'not_required' || personalAuth === 'configured',
-          status,
-        }),
+        async ({ server, selected, riskCeiling, riskCeilingIsDefault, personalAuth, status }) => {
+          const tools = await summarizeTools(server, user, riskCeiling);
+          return {
+            name: server.name,
+            description: server.description,
+            selected,
+            enabled: server.enabled !== false,
+            toolCount: tools.toolCount,
+            riskCeiling,
+            riskCeilingIsDefault,
+            annotationsTrusted: areAnnotationsTrusted(server.owner),
+            riskCounts: tools.riskCounts,
+            maxAllowedRisk: adminCapFor(server, user),
+            requiresPersonalCredential: hasPersonalAuthentication(server),
+            credentialConfigured: personalAuth === 'not_required' || personalAuth === 'configured',
+            status,
+          };
+        },
       ),
     );
     res.json({ success: true, data });
@@ -170,6 +240,38 @@ export const updateWorkspaceSelection = async (req: Request, res: Response): Pro
   }
 };
 
+// Changes how far the caller lets tools of one server reach. Does not touch their selection.
+export const updateWorkspaceRisk = async (req: Request, res: Response): Promise<void> => {
+  const user = requireWorkspaceUser(req, res);
+  if (!user) return;
+  const riskCeiling = req.body?.riskCeiling;
+  if (!isToolRiskLevel(riskCeiling)) {
+    res.status(400).json({
+      success: false,
+      message: `riskCeiling must be one of ${TOOL_RISK_LEVELS.join(', ')}`,
+    });
+    return;
+  }
+  try {
+    const server = await getServerDao().findById(req.params.name);
+    if (!server || !filterVisible([server], user).length) {
+      res.status(404).json({ success: false, message: 'Server not found' });
+      return;
+    }
+    const maxAllowedRisk = adminCapFor(server as ServerRecord, user);
+    if (riskRank(riskCeiling) > riskRank(maxAllowedRisk)) {
+      res.status(400).json({ success: false, message: 'This level is not allowed on this server' });
+      return;
+    }
+    await setServerRiskCeiling(user.username, server.name, riskCeiling);
+    const { notifyUserListsChanged } = await import('../services/mcpService.js');
+    notifyUserListsChanged(user.username);
+    res.json({ success: true, data: { name: server.name, riskCeiling } });
+  } catch {
+    res.status(500).json({ success: false, message: 'Unable to update the tool risk level' });
+  }
+};
+
 export const getWorkspaceEndpoints = async (req: Request, res: Response): Promise<void> => {
   const user = requireWorkspaceUser(req, res);
   if (!user) return;
@@ -182,7 +284,7 @@ export const getWorkspaceEndpoints = async (req: Request, res: Response): Promis
     const prefix = (configured ? publicBase.pathname : config.basePath || '').replace(/\/+$/, '');
     const aggregate = `${publicBase.origin}${prefix}/${encodeURIComponent(user.username)}/mcp`;
 
-    const selected = await getSelectedServerNames(user.username);
+    const { names: selected } = await getUserSelectionScope(user.username);
     const groupDao = getGroupDao();
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     // A route segment naming both a group and a server resolves to the group, which is

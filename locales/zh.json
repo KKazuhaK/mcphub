@@ -318,6 +318,20 @@
       "personalError": "个人授权失败",
       "personalSuccess": "个人授权已保存，请返回 Dashboard → 服务器。",
       "personalSuccessWorkspace": "个人授权已保存。请返回你的工作区。"
+    },
+    "maxToolRisk": {
+      "title": "最大工具风险",
+      "description": "非管理员用户在此服务器上可使用的最高工具风险级别。超出的工具对他们隐藏并被拒绝；管理员不受限制。仅在工作区模式下生效。",
+      "read": "仅读取",
+      "write": "读取，并可修改用户自己的数据",
+      "external": "不限制（默认）"
+    },
+    "defaultUserRisk": {
+      "title": "用户默认级别",
+      "description": "在用户自行选择之前，他们可以用此服务器的工具做什么。用户可以调低，也可以在上方最大值以内调高。仅在工作区模式下生效。",
+      "read": "仅读取（默认）",
+      "write": "读取，并可修改用户自己的数据",
+      "external": "最大值允许的全部操作"
     }
   },
   "status": {
@@ -826,7 +840,18 @@
     "fixJsonBeforeSwitching": "请修复 JSON 格式后再切换到表单模式",
     "item": "项目 {{index}}",
     "addItem": "添加 {{key}} 项目",
-    "enterKey": "输入 {{key}}"
+    "enterKey": "输入 {{key}}",
+    "risk": {
+      "level": {
+        "read": "读取",
+        "write": "写入",
+        "external": "对外"
+      },
+      "override": "提高风险级别",
+      "noOverride": "自动判定：{{level}}",
+      "updateSuccess": "风险级别已更新",
+      "updateFailed": "更新风险级别失败"
+    }
   },
   "prompt": {
     "run": "获取",
@@ -1511,7 +1536,11 @@
       "needs_auth": "服务器“{{serverName}}”需要你的个人凭据或授权。请在你的工作区中连接。",
       "revoked": "你已断开对服务器“{{serverName}}”的授权。请在你的工作区中重新连接。",
       "credential_invalid": "服务器“{{serverName}}”拒绝了你的凭据。请在你的工作区中更新或重新连接。",
-      "error": "服务器“{{serverName}}”暂时不可用，请稍后再试。"
+      "error": "服务器“{{serverName}}”暂时不可用，请稍后再试。",
+      "riskNotEnabled": {
+        "write": "“{{toolName}}”会修改你在“{{serverName}}”中的数据，而你的工作区尚未允许这类操作。请在工作区中为“{{serverName}}”允许修改我的数据后再使用。",
+        "external": "“{{toolName}}”可能在“{{serverName}}”中执行他人可见的操作，而你的工作区尚未允许这类操作。请在工作区中为“{{serverName}}”允许他人可见的操作后再使用。"
+      }
     }
   },
   "workspacePage": {
@@ -1570,7 +1599,8 @@
       "needs_auth": "需要登录",
       "revoked": "已断开",
       "credential_invalid": "凭据被拒绝",
-      "error": "出现问题"
+      "error": "出现问题",
+      "risk_not_enabled": "该工具未在你的工作区中允许"
     },
     "actions": {
       "select": "加入工作区",
@@ -1662,6 +1692,32 @@
       "unknownClient": "未知客户端（已不再连接）",
       "clientGone": "{{name}}（已不再连接）",
       "duration": "{{ms}} 毫秒"
+    },
+    "risk": {
+      "explanation": "选择该服务的工具可以做什么。超出你所选级别的工具会对你的客户端隐藏，调用时会被拒绝。",
+      "groupLabel": "{{name}} 的工具可以做什么",
+      "level": {
+        "read": {
+          "label": "仅读取",
+          "hint": "只查询，不做任何更改。"
+        },
+        "write": {
+          "label": "允许修改我的数据",
+          "hint": "还可以创建或编辑你自己的数据。"
+        },
+        "external": {
+          "label": "允许他人可见的操作",
+          "hint": "还可以向他人发送、发布或代你行动，以及未说明用途的工具。"
+        }
+      },
+      "aboveCap": "管理员不允许",
+      "changeFailed": "无法更改 {{name}} 的权限，请重试。",
+      "hiddenNotice_other": "你的选择隐藏了 {{count}} 个工具。",
+      "banner_other": "你已选的服务中有 {{count}} 个工具被隐藏：修改数据或代你行动的工具在你允许之前保持关闭。请在下方打开服务进行允许。",
+      "connectToSee": "连接此服务后即可查看其工具，并选择它们可以做什么。",
+      "unknownTools": "连接后可查看工具",
+      "defaultNote": "在你自行选择之前，由管理员设定。",
+      "untrustedHint": "此服务并非由管理员运行，其工具未经验证：全部按“他人可见的操作”处理。"
     }
   }
 }

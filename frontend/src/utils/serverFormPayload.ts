@@ -9,6 +9,10 @@ interface BuildServerPayloadInput {
   headerVars: EnvVar[];
   // Which admin-only availability fields the admin changed; absent means neither.
   availabilityEdits?: AvailabilityEdits;
+  // Whether the admin changed the maximum tool risk; an untouched field is not sent.
+  toolRiskEdited?: boolean;
+  // Whether the admin changed the default level for users.
+  defaultRiskEdited?: boolean;
 }
 
 export interface AvailabilityEdits {
@@ -31,6 +35,19 @@ export const getAvailabilityEdits = (
     current.maintenance !== undefined &&
     JSON.stringify(current.maintenance) !== JSON.stringify(initial.maintenance),
 });
+
+/** Whether the admin changed the maximum tool risk from what the form started with. */
+export const getToolRiskEdit = (
+  current: Pick<ServerFormData, 'maxToolRisk'>,
+  initial: Pick<ServerFormData, 'maxToolRisk'>,
+): boolean => current.maxToolRisk !== undefined && current.maxToolRisk !== initial.maxToolRisk;
+
+/** Whether the admin changed the users' default level from what the form started with. */
+export const getDefaultUserRiskEdit = (
+  current: Pick<ServerFormData, 'defaultUserRisk'>,
+  initial: Pick<ServerFormData, 'defaultUserRisk'>,
+): boolean =>
+  current.defaultUserRisk !== undefined && current.defaultUserRisk !== initial.defaultUserRisk;
 
 const buildKeyValueRecord = (vars: EnvVar[]): Record<string, string> => {
   const record: Record<string, string> = {};
@@ -277,6 +294,8 @@ export const buildServerPayload = ({
   envVars,
   headerVars,
   availabilityEdits,
+  toolRiskEdited,
+  defaultRiskEdited,
 }: BuildServerPayloadInput) => {
   const env = buildKeyValueRecord(envVars);
   const headers = buildKeyValueRecord(headerVars);
@@ -298,6 +317,14 @@ export const buildServerPayload = ({
       : {}),
     ...(availabilityEdits?.maintenance && formData.maintenance !== undefined
       ? { maintenance: buildMaintenance(formData.maintenance) }
+      : {}),
+    // `external` means no cap, which clears the stored one.
+    ...(toolRiskEdited && formData.maxToolRisk !== undefined
+      ? { maxToolRisk: formData.maxToolRisk === 'external' ? null : formData.maxToolRisk }
+      : {}),
+    // `read` is the default, which clears the stored one.
+    ...(defaultRiskEdited && formData.defaultUserRisk !== undefined
+      ? { defaultUserRisk: formData.defaultUserRisk === 'read' ? null : formData.defaultUserRisk }
       : {}),
     credentialTemplate: formData.credentialTemplate?.map((slot) => ({
       ...slot,

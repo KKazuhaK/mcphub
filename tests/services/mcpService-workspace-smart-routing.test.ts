@@ -199,7 +199,15 @@ const upstream = (name: string): ServerInfo =>
     name,
     status: 'connected',
     enabled: true,
-    tools: [{ name: `${name}::ping`, description: 'Ping', inputSchema: { type: 'object' } }],
+    // Read-only, so the default tool risk ceiling (read) leaves it listed.
+    tools: [
+      {
+        name: `${name}::ping`,
+        description: 'Ping',
+        inputSchema: { type: 'object' },
+        annotations: { readOnlyHint: true },
+      },
+    ],
     prompts: [],
     resources: [],
     client: { callTool: jest.fn() },

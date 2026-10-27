@@ -1,4 +1,5 @@
 import type {
+  ToolRiskLevel,
   WorkspaceActivityPage,
   WorkspaceClient,
   WorkspaceEndpoints,
@@ -36,6 +37,15 @@ export const saveServerSelection = async (name: string, selected: boolean): Prom
       selected,
     }),
     'selection',
+  );
+};
+
+export const saveRiskCeiling = async (name: string, riskCeiling: ToolRiskLevel): Promise<void> => {
+  unwrap(
+    await apiPut<ApiResponse>(`/workspace/servers/${encodeURIComponent(name)}/risk`, {
+      riskCeiling,
+    }),
+    'risk',
   );
 };
 

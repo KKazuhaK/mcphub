@@ -1,5 +1,10 @@
 import type { ServerFormData } from '../../frontend/src/types';
-import { buildServerPayload, getAvailabilityEdits } from '../../frontend/src/utils/serverFormPayload';
+import {
+  buildServerPayload,
+  getAvailabilityEdits,
+  getToolRiskEdit,
+  getDefaultUserRiskEdit,
+} from '../../frontend/src/utils/serverFormPayload';
 
 describe('buildServerPayload', () => {
   it('preserves args credential targets and placeholders when editing stdio servers', () => {
@@ -606,5 +611,80 @@ describe('admin availability fields in dashboard payloads', () => {
     const config = build(plain, getAvailabilityEdits(plain, stored));
     expect(config).not.toHaveProperty('pausedUsers');
     expect(config).not.toHaveProperty('maintenance');
+  });
+});
+
+describe('maximum tool risk in the server payload', () => {
+  const form = (maxToolRisk?: ServerFormData['maxToolRisk']): ServerFormData => ({
+    name: 'remote',
+    url: 'https://example.com/mcp',
+    command: '',
+    arguments: '',
+    env: [],
+    headers: [],
+    ...(maxToolRisk ? { maxToolRisk } : {}),
+  });
+  const build = (formData: ServerFormData, toolRiskEdited?: boolean) =>
+    buildServerPayload({
+      formData,
+      serverType: 'streamable-http',
+      envVars: [],
+      headerVars: [],
+      toolRiskEdited,
+    }).config as Record<string, unknown>;
+
+  it('detects only a change the admin made', () => {
+    expect(getToolRiskEdit(form('external'), form('external'))).toBe(false);
+    expect(getToolRiskEdit(form('read'), form('external'))).toBe(true);
+    expect(getToolRiskEdit(form('external'), form('read'))).toBe(true);
+    // A form that does not carry the field (non-admins) never edits it.
+    expect(getToolRiskEdit(form(), form('read'))).toBe(false);
+  });
+
+  it('sends the cap only when it was edited', () => {
+    expect(build(form('read'), true).maxToolRisk).toBe('read');
+    expect(build(form('write'), true).maxToolRisk).toBe('write');
+    expect(build(form('read'), false)).not.toHaveProperty('maxToolRisk');
+    expect(build(form('read'))).not.toHaveProperty('maxToolRisk');
+  });
+
+  it('sends null for "external" so the stored cap is cleared', () => {
+    expect(build(form('external'), true).maxToolRisk).toBeNull();
+  });
+
+  it('never sends the cap for a form that does not carry it', () => {
+    expect(build(form(), true)).not.toHaveProperty('maxToolRisk');
+  });
+
+  it('never carries the per-tool overrides, which are saved one tool at a time', () => {
+    expect(build(form('read'), true)).not.toHaveProperty('toolRiskOverrides');
+  });
+
+  describe('default level for users', () => {
+    const buildDefault = (formData: ServerFormData, defaultRiskEdited?: boolean) =>
+      buildServerPayload({
+        formData,
+        serverType: 'streamable-http',
+        envVars: [],
+        headerVars: [],
+        defaultRiskEdited,
+      }).config as Record<string, unknown>;
+    const withDefault = (defaultUserRisk?: ServerFormData['defaultUserRisk']): ServerFormData => ({
+      ...form(),
+      ...(defaultUserRisk ? { defaultUserRisk } : {}),
+    });
+
+    it('detects only a change the admin made, and never for a form without the field', () => {
+      expect(getDefaultUserRiskEdit(withDefault('read'), withDefault('read'))).toBe(false);
+      expect(getDefaultUserRiskEdit(withDefault('write'), withDefault('read'))).toBe(true);
+      expect(getDefaultUserRiskEdit(withDefault(), withDefault('write'))).toBe(false);
+    });
+
+    it('sends it only when edited, with read as null so the stored one is cleared', () => {
+      expect(buildDefault(withDefault('write'), true).defaultUserRisk).toBe('write');
+      expect(buildDefault(withDefault('read'), true).defaultUserRisk).toBeNull();
+      expect(buildDefault(withDefault('write'), false)).not.toHaveProperty('defaultUserRisk');
+      expect(buildDefault(withDefault(), true)).not.toHaveProperty('defaultUserRisk');
+    });
   });
 });

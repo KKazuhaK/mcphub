@@ -76,6 +76,12 @@ export const scheduleAllMaintenanceExpiries = (
   for (const server of servers) scheduleMaintenanceExpiry(server.name, server);
 };
 
+// A new tool risk cap or override changes what every non-admin requester may list and call,
+// whether or not they selected the server, so every open session is told.
+export const handleToolRiskChange = async (serverName: string): Promise<void> => {
+  await notifySessionUsers(serverName);
+};
+
 // Applies a change of a server's pause list or maintenance window: users whose paused state
 // flipped are notified, and when maintenance started or ended, so is every user with an open session. Editing only the message or end time leaves every list as it was.
 export const handleServerAvailabilityChange = async (

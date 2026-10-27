@@ -216,7 +216,15 @@ const upstream = (name: string, extra: Partial<ServerInfo> = {}): ServerInfo => 
     name,
     status: 'connected',
     enabled: true,
-    tools: [{ name: `${name}::ping`, description: 'Ping', inputSchema: { type: 'object' } }],
+    // Read-only, so the default tool risk ceiling (read) leaves it listed.
+    tools: [
+      {
+        name: `${name}::ping`,
+        description: 'Ping',
+        inputSchema: { type: 'object' },
+        annotations: { readOnlyHint: true },
+      },
+    ],
     prompts: [{ name: `${name}::hello`, description: 'Hello', arguments: [] }],
     resources: [{ name: `${name}-doc`, uri: `test://${name}` }],
     client: {
@@ -248,7 +256,7 @@ const leased = (name: string) =>
 // The user has listed the server's capabilities through their own runtime before.
 const seedListed = (username: string, name: string) =>
   recordUserListedNames(username, name, {
-    tools: [{ name: `${name}::ping` }],
+    tools: [{ name: `${name}::ping`, annotations: { readOnlyHint: true } }],
     prompts: [{ name: `${name}::hello` }],
     resources: [{ uri: `test://${name}` }],
   });

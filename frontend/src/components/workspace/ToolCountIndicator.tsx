@@ -11,7 +11,11 @@ const ToolCountIndicator: React.FC<ToolCountIndicatorProps> = ({ total }) => {
   const { t } = useTranslation();
   const level = toolCountLevel(total);
   const color =
-    level === 'strong' ? 'var(--hub-err)' : level === 'warn' ? 'var(--hub-warn)' : 'var(--hub-ink-3)';
+    level === 'strong'
+      ? 'var(--hub-err)'
+      : level === 'warn'
+        ? 'var(--hub-warn)'
+        : 'var(--hub-ink-3)';
 
   return (
     <div className="hub-card px-4 py-3" data-level={level}>
@@ -31,9 +35,14 @@ const ToolCountIndicator: React.FC<ToolCountIndicatorProps> = ({ total }) => {
         >
           <AlertTriangle size={14} className="mt-0.5 flex-shrink-0" style={{ color }} aria-hidden />
           <span>
-            {t(level === 'strong' ? 'workspacePage.tools.strongWarning' : 'workspacePage.tools.warning', {
-              count: total,
-            })}
+            {t(
+              level === 'strong'
+                ? 'workspacePage.tools.strongWarning'
+                : 'workspacePage.tools.warning',
+              {
+                count: total,
+              },
+            )}
           </span>
         </p>
       )}

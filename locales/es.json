@@ -318,6 +318,20 @@
       "personalError": "Error en la autorización personal",
       "personalSuccess": "Autorización personal guardada. Vuelve a Panel → Servidores.",
       "personalSuccessWorkspace": "Autorización personal guardada. Vuelve a tu espacio de trabajo."
+    },
+    "maxToolRisk": {
+      "title": "Riesgo máximo de herramientas",
+      "description": "El nivel de riesgo más alto que los usuarios no administradores pueden usar en este servidor. Las herramientas por encima se ocultan y se rechazan para ellos; los administradores no tienen límite. Solo se aplica en modo espacio de trabajo.",
+      "read": "Solo lectura",
+      "write": "Lectura y cambios en los datos propios del usuario",
+      "external": "Sin límite (predeterminado)"
+    },
+    "defaultUserRisk": {
+      "title": "Nivel predeterminado para usuarios",
+      "description": "Lo que los usuarios pueden hacer con las herramientas de este servidor hasta que elijan por sí mismos. Pueden bajarlo, o subirlo hasta el máximo de arriba. Solo se aplica en modo espacio de trabajo.",
+      "read": "Solo lectura (predeterminado)",
+      "write": "Lectura y cambios en los datos propios del usuario",
+      "external": "Todo lo que permite el máximo"
     }
   },
   "status": {
@@ -824,7 +838,18 @@
     "fixJsonBeforeSwitching": "Corrige el formato JSON antes de cambiar al modo formulario",
     "item": "Elemento {{index}}",
     "addItem": "Añadir elemento {{key}}",
-    "enterKey": "Introduce {{key}}"
+    "enterKey": "Introduce {{key}}",
+    "risk": {
+      "level": {
+        "read": "Lectura",
+        "write": "Escritura",
+        "external": "Externo"
+      },
+      "override": "Subir el nivel de riesgo",
+      "noOverride": "Calculado: {{level}}",
+      "updateSuccess": "Nivel de riesgo actualizado",
+      "updateFailed": "No se pudo actualizar el nivel de riesgo"
+    }
   },
   "prompt": {
     "run": "Obtener",
@@ -1509,7 +1534,11 @@
       "needs_auth": "'{{serverName}}' necesita tus credenciales o autorización personales. Conéctalo desde tu espacio de trabajo.",
       "revoked": "Has desconectado tu autorización para '{{serverName}}'. Vuelve a conectarla desde tu espacio de trabajo.",
       "credential_invalid": "Se rechazaron tus credenciales para '{{serverName}}'. Actualízalas o vuelve a conectar desde tu espacio de trabajo.",
-      "error": "'{{serverName}}' no está disponible por ahora. Inténtalo de nuevo más tarde."
+      "error": "'{{serverName}}' no está disponible por ahora. Inténtalo de nuevo más tarde.",
+      "riskNotEnabled": {
+        "write": "'{{toolName}}' modifica tus datos en '{{serverName}}', algo que tu espacio de trabajo aún no permite. Permite los cambios en tus datos para '{{serverName}}' en tu espacio de trabajo para usarla.",
+        "external": "'{{toolName}}' puede actuar de formas que otras personas ven en '{{serverName}}', algo que tu espacio de trabajo aún no permite. Permite las acciones visibles para otros para '{{serverName}}' en tu espacio de trabajo para usarla."
+      }
     }
   },
   "workspacePage": {
@@ -1578,7 +1607,8 @@
       "needs_auth": "Requiere inicio de sesión",
       "revoked": "Desconectado",
       "credential_invalid": "Credenciales rechazadas",
-      "error": "Problema"
+      "error": "Problema",
+      "risk_not_enabled": "Herramienta no permitida en tu espacio de trabajo"
     },
     "actions": {
       "select": "Añadir al espacio de trabajo",
@@ -1672,6 +1702,36 @@
       "unknownClient": "Cliente desconocido (ya no está conectado)",
       "clientGone": "{{name}} (ya no está conectado)",
       "duration": "{{ms}} ms"
+    },
+    "risk": {
+      "explanation": "Elige qué pueden hacer las herramientas de este servicio. Las herramientas por encima de tu elección se ocultan a tus clientes y se rechazan si se llaman.",
+      "groupLabel": "Qué pueden hacer las herramientas de {{name}}",
+      "level": {
+        "read": {
+          "label": "Solo lectura",
+          "hint": "Consultar sin cambiar nada."
+        },
+        "write": {
+          "label": "Permitir cambios en mis datos",
+          "hint": "También crear o editar tus propios datos."
+        },
+        "external": {
+          "label": "Permitir acciones visibles para otros",
+          "hint": "También enviar, publicar o actuar hacia otras personas, y herramientas que no indican qué hacen."
+        }
+      },
+      "aboveCap": "No permitido por tu administrador",
+      "changeFailed": "No se pudo cambiar lo que puede hacer {{name}}. Inténtalo de nuevo.",
+      "hiddenNotice_one": "{{count}} herramienta está oculta según tu elección.",
+      "hiddenNotice_other": "{{count}} herramientas están ocultas según tu elección.",
+      "hiddenNotice_many": "{{count}} herramientas están ocultas según tu elección.",
+      "banner_one": "{{count}} herramienta de tus servicios seleccionados está oculta: las herramientas que cambian datos o actúan por ti siguen desactivadas hasta que las permitas. Abre un servicio abajo para permitir más.",
+      "banner_other": "{{count}} herramientas de tus servicios seleccionados están ocultas: las herramientas que cambian datos o actúan por ti siguen desactivadas hasta que las permitas. Abre un servicio abajo para permitir más.",
+      "banner_many": "{{count}} herramientas de tus servicios seleccionados están ocultas: las herramientas que cambian datos o actúan por ti siguen desactivadas hasta que las permitas. Abre un servicio abajo para permitir más.",
+      "connectToSee": "Conecta este servicio para ver sus herramientas y elegir qué pueden hacer.",
+      "unknownTools": "Conecta para ver las herramientas",
+      "defaultNote": "Lo fija tu administrador hasta que elijas.",
+      "untrustedHint": "Este servicio no lo gestiona un administrador, así que sus herramientas no están verificadas: todas cuentan como acciones visibles para otros."
     }
   }
 }

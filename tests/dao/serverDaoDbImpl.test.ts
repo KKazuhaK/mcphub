@@ -466,4 +466,76 @@ describe('protocolNegotiation database persistence', () => {
       });
     });
   });
+
+  describe('tool risk controls', () => {
+    const toolRiskOverrides = { 'risky::get': 'external' as const };
+
+    it('persists both fields on create and maps them back', async () => {
+      const dao = new ServerDaoDbImpl();
+      mockRepository.create.mockResolvedValue({
+        name: 'risky',
+        enabled: true,
+        maxToolRisk: 'write',
+        defaultUserRisk: 'write',
+        toolRiskOverrides,
+      });
+
+      const result = await dao.create({
+        name: 'risky',
+        type: 'sse',
+        url: 'https://example.com/sse',
+        maxToolRisk: 'write',
+        defaultUserRisk: 'write',
+        toolRiskOverrides,
+      });
+
+      expect(mockRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ maxToolRisk: 'write', defaultUserRisk: 'write', toolRiskOverrides }),
+      );
+      expect(result.defaultUserRisk).toBe('write');
+      expect(result.maxToolRisk).toBe('write');
+      expect(result.toolRiskOverrides).toEqual(toolRiskOverrides);
+    });
+
+    it('reads unset columns as absent rather than null', async () => {
+      const dao = new ServerDaoDbImpl();
+      mockRepository.findByName.mockResolvedValue({
+        name: 'plain',
+        enabled: true,
+        maxToolRisk: null,
+        defaultUserRisk: null,
+        toolRiskOverrides: null,
+      });
+
+      const result = await dao.findById('plain');
+
+      expect(result?.defaultUserRisk).toBeUndefined();
+      expect(result?.maxToolRisk).toBeUndefined();
+      expect(result?.toolRiskOverrides).toBeUndefined();
+    });
+
+    it('updates only the fields the update names, and clears them with null', async () => {
+      const dao = new ServerDaoDbImpl();
+      mockRepository.update.mockResolvedValue({ name: 'risky', enabled: true });
+
+      await dao.update('risky', { maxToolRisk: 'read' });
+      expect(mockRepository.update).toHaveBeenLastCalledWith('risky', { maxToolRisk: 'read' });
+
+      await dao.update('risky', {
+        maxToolRisk: undefined,
+        defaultUserRisk: undefined,
+        toolRiskOverrides: undefined,
+      });
+      expect(mockRepository.update).toHaveBeenLastCalledWith('risky', {
+        maxToolRisk: null,
+        defaultUserRisk: null,
+        toolRiskOverrides: null,
+      });
+
+      await dao.update('risky', { description: 'only this' });
+      expect(mockRepository.update).toHaveBeenLastCalledWith('risky', {
+        description: 'only this',
+      });
+    });
+  });
 });

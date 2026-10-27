@@ -71,3 +71,15 @@ _Avoid_: session (a live MCP connection opened by a client), integration, app
 **My Activity**:
 A user's own call history under Workspace Mode (`GET /api/workspace/activity`, database mode only): which Connected Client called which tool of which service, when, how long it took, and whether it succeeded, failed or was blocked by a Server Status. Metadata only: tool input and output are never returned, nor is the recorded error text (a failure is a fixed category such as `upstream_error`; a blocked call carries its status code). The view shows the last `workspace.activityRetentionDays` (default 90); only an explicit administrator `activityLog.retentionDays` ever deletes activity.
 _Avoid_: audit log (the admin view, which keeps payloads when configured), usage
+
+**Tool Risk Level**:
+How far a tool's effects reach, derived from its standard MCP annotations and ordered `read` < `write` < `external`. `read`: `readOnlyHint` is true. `write`: not read-only and `openWorldHint` is false (changes only the user's own data). `external`: everything else, including a tool with no annotations at all. Annotations are believed only for servers an administrator owns; every tool of any other server is `external`. An administrator can only raise a tool's level (`toolRiskOverrides`), never lower it. Prompts and resources have no level and are never filtered by it. Effective only under Workspace Mode.
+_Avoid_: permission, danger level, sensitivity
+
+**Risk Ceiling**:
+The highest Tool Risk Level a user allows on one server, stored per (user, server) next to the Server Selection; until they choose it is the server's admin-set `defaultUserRisk` (never above the Risk Cap), else `read`. It is the user's own choice, so it applies exactly where Server Selection does (never to admin Group routes or dashboard calls); a tool above it is left out of lists, `$smart` search, `describe_tool` and pinned tools, and a call to it is refused with `_meta["mcphub/status"]` `{ server, code: "risk_not_enabled", action: "enable_risk", risk }`.
+_Avoid_: tool permission, allowlist
+
+**Risk Cap**:
+An administrator's `maxToolRisk` on one server (absent means no cap). An access control like Maintenance: it applies on every route, for lists and calls, to every requester except administrators (a request without a user is not exempt). A tool above it is as good as nonexistent: the refusal is the generic "not available" error, byte for byte. Where both apply, the user is held to the lower of the Risk Cap and their Risk Ceiling, and the cap is checked first so it never reveals itself through the ceiling. Admin-only to write and to read.
+_Avoid_: tool limit, maximum permission

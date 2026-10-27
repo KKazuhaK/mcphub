@@ -318,6 +318,20 @@
       "personalError": "Ủy quyền cá nhân thất bại",
       "personalSuccess": "Đã lưu ủy quyền cá nhân. Quay lại Bảng điều khiển → Máy chủ.",
       "personalSuccessWorkspace": "Đã lưu ủy quyền cá nhân. Hãy quay lại không gian làm việc của bạn."
+    },
+    "maxToolRisk": {
+      "title": "Mức rủi ro công cụ tối đa",
+      "description": "Mức rủi ro công cụ cao nhất mà người dùng không phải quản trị viên có thể dùng trên máy chủ này. Công cụ vượt mức sẽ bị ẩn và bị từ chối đối với họ; quản trị viên không bị giới hạn. Chỉ áp dụng ở Chế độ không gian làm việc.",
+      "read": "Chỉ đọc",
+      "write": "Đọc và thay đổi dữ liệu của chính người dùng",
+      "external": "Không giới hạn (mặc định)"
+    },
+    "defaultUserRisk": {
+      "title": "Mức mặc định cho người dùng",
+      "description": "Những gì người dùng được phép làm với công cụ của máy chủ này cho đến khi họ tự chọn. Họ có thể hạ thấp, hoặc nâng lên tối đa bằng mức tối đa ở trên. Chỉ áp dụng ở Chế độ không gian làm việc.",
+      "read": "Chỉ đọc (mặc định)",
+      "write": "Đọc và thay đổi dữ liệu của chính người dùng",
+      "external": "Mọi thứ mức tối đa cho phép"
     }
   },
   "status": {
@@ -824,7 +838,18 @@
     "fixJsonBeforeSwitching": "Vui lòng sửa định dạng JSON trước khi chuyển sang chế độ biểu mẫu",
     "item": "Mục {{index}}",
     "addItem": "Thêm mục {{key}}",
-    "enterKey": "Nhập {{key}}"
+    "enterKey": "Nhập {{key}}",
+    "risk": {
+      "level": {
+        "read": "Đọc",
+        "write": "Ghi",
+        "external": "Bên ngoài"
+      },
+      "override": "Nâng mức rủi ro",
+      "noOverride": "Tự xác định: {{level}}",
+      "updateSuccess": "Đã cập nhật mức rủi ro",
+      "updateFailed": "Không thể cập nhật mức rủi ro"
+    }
   },
   "prompt": {
     "run": "Lấy",
@@ -1509,7 +1534,11 @@
       "needs_auth": "'{{serverName}}' cần thông tin xác thực hoặc quyền truy cập cá nhân của bạn. Hãy kết nối từ không gian làm việc của bạn.",
       "revoked": "Bạn đã ngắt ủy quyền cho '{{serverName}}'. Hãy kết nối lại từ không gian làm việc của bạn.",
       "credential_invalid": "Thông tin xác thực của bạn cho '{{serverName}}' bị từ chối. Hãy cập nhật hoặc kết nối lại từ không gian làm việc của bạn.",
-      "error": "'{{serverName}}' hiện không khả dụng. Vui lòng thử lại sau."
+      "error": "'{{serverName}}' hiện không khả dụng. Vui lòng thử lại sau.",
+      "riskNotEnabled": {
+        "write": "'{{toolName}}' thay đổi dữ liệu của bạn trên '{{serverName}}', điều mà không gian làm việc của bạn chưa cho phép. Hãy cho phép thay đổi dữ liệu của tôi đối với '{{serverName}}' trong không gian làm việc để sử dụng.",
+        "external": "'{{toolName}}' có thể thực hiện các hành động mà người khác nhìn thấy trên '{{serverName}}', điều mà không gian làm việc của bạn chưa cho phép. Hãy cho phép các hành động người khác nhìn thấy đối với '{{serverName}}' trong không gian làm việc để sử dụng."
+      }
     }
   },
   "workspacePage": {
@@ -1568,7 +1597,8 @@
       "needs_auth": "Cần đăng nhập",
       "revoked": "Đã ngắt kết nối",
       "credential_invalid": "Thông tin xác thực bị từ chối",
-      "error": "Có sự cố"
+      "error": "Có sự cố",
+      "risk_not_enabled": "Công cụ chưa được cho phép trong không gian làm việc của bạn"
     },
     "actions": {
       "select": "Thêm vào không gian làm việc",
@@ -1660,6 +1690,32 @@
       "unknownClient": "Ứng dụng khách không xác định (không còn kết nối)",
       "clientGone": "{{name}} (không còn kết nối)",
       "duration": "{{ms}} ms"
+    },
+    "risk": {
+      "explanation": "Chọn những gì công cụ của dịch vụ này được phép làm. Công cụ vượt quá lựa chọn của bạn sẽ bị ẩn khỏi ứng dụng khách và bị từ chối nếu được gọi.",
+      "groupLabel": "Những gì công cụ của {{name}} được phép làm",
+      "level": {
+        "read": {
+          "label": "Chỉ đọc",
+          "hint": "Tra cứu mà không thay đổi gì."
+        },
+        "write": {
+          "label": "Cho phép thay đổi dữ liệu của tôi",
+          "hint": "Bao gồm cả tạo hoặc chỉnh sửa dữ liệu của chính bạn."
+        },
+        "external": {
+          "label": "Cho phép hành động người khác nhìn thấy",
+          "hint": "Bao gồm cả gửi, đăng hoặc hành động hướng tới người khác, và các công cụ không nêu rõ chúng làm gì."
+        }
+      },
+      "aboveCap": "Quản trị viên không cho phép",
+      "changeFailed": "Không thể thay đổi những gì {{name}} được phép làm. Hãy thử lại.",
+      "hiddenNotice_other": "{{count}} công cụ bị ẩn theo lựa chọn của bạn.",
+      "banner_other": "{{count}} công cụ trong các dịch vụ bạn đã chọn đang bị ẩn: công cụ thay đổi dữ liệu hoặc hành động thay bạn sẽ tắt cho đến khi bạn cho phép. Hãy mở một dịch vụ bên dưới để cho phép thêm.",
+      "connectToSee": "Hãy kết nối dịch vụ này để xem công cụ của nó và chọn những gì chúng được phép làm.",
+      "unknownTools": "Kết nối để xem công cụ",
+      "defaultNote": "Do quản trị viên đặt cho đến khi bạn tự chọn.",
+      "untrustedHint": "Dịch vụ này không do quản trị viên vận hành nên công cụ của nó chưa được xác minh: tất cả được tính là hành động người khác nhìn thấy."
     }
   }
 }

@@ -42,6 +42,23 @@ describe('buildDuplicateServerName', () => {
 });
 
 describe('buildDuplicateSource', () => {
+  it('does not copy the tool risk cap or overrides of the source', () => {
+    const source = buildServer();
+    source.config = {
+      ...source.config,
+      maxToolRisk: 'read',
+      defaultUserRisk: 'read',
+      toolRiskOverrides: { 'weather::get': 'external' },
+    };
+
+    const duplicate = buildDuplicateSource(source);
+
+    expect(duplicate.config).not.toHaveProperty('maxToolRisk');
+    expect(duplicate.config).not.toHaveProperty('toolRiskOverrides');
+    expect(duplicate.config).not.toHaveProperty('defaultUserRisk');
+    expect(source.config).toHaveProperty('maxToolRisk');
+  });
+
   it('does not copy the pause list or maintenance window of the source', () => {
     const source = buildServer();
     source.config = {
