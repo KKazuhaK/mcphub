@@ -1,3 +1,5 @@
+> Superseded: do not deploy this custom Hub build. The selected architecture uses the official MCPHub image and an independent Canvas Portal. Use the [Portal deployment task](https://github.com/KKazuhaK/canvas-mcp/blob/kazuha/portal-official-hub/deploy/mcphub/PORTAL-SERVER-PROMPT.md) instead. Historical implementation retained for reference.
+
 # Canvas credential reminders for MCPHub 1.1.10
 
 This fork adds Canvas token expiration status and opt-in email reminders to personal credential bindings. It runs inside MCPHub; no standalone Canvas service is required. Back up the existing settings, credential store, encryption key, users, database and Compose environment before changing the image. Preserve all original mounts and environment variables. This feature adds no database columns: its state is stored inside each binding's existing authenticated ciphertext, supported by both file and database DAOs.
