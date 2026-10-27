@@ -7,7 +7,10 @@ import {
   decryptCredentialValues,
 } from './credentialBindingService.js';
 import { authorizationService } from './authorizationService.js';
-import { CredentialBindingError } from '../utils/credentialTemplate.js';
+import {
+  CredentialBindingConflictError,
+  MissingCredentialError,
+} from '../utils/credentialTemplate.js';
 import type { ServerConfig } from '../types/index.js';
 import type { OAuthSettingsContext, ServerConfigWithOAuth } from './oauthSettingsStore.js';
 
@@ -33,7 +36,7 @@ export const withPersonalOAuthLock = <T>(
 ): Promise<T> => serialize(JSON.stringify([serverName, username]), action);
 
 export const personalAuthorizationRequired = (name: string) =>
-  new CredentialBindingError(
+  new MissingCredentialError(
     `Personal authorization required for '${name}'. Connect in Dashboard → Servers.`,
   );
 
@@ -107,6 +110,8 @@ const normalizeLegacyDeclaration = (stored: string): string | undefined => {
 export class PersonalOAuthContext {
   private revision: string | undefined;
   private declaration: string;
+  // True when the stored binding is the empty record written by a disconnect.
+  disconnected = false;
   config: ServerConfigWithOAuth;
   private constructor(
     readonly serverName: string,
@@ -144,6 +149,7 @@ export class PersonalOAuthContext {
         context.config.oauth = { ...context.config.oauth, ...JSON.parse(values.oauth) };
       }
       context.revision = binding.encryptedValues;
+      context.disconnected = Object.keys(values).length === 0;
     }
     personalOAuthContexts.set(context.config, context);
     return context;
@@ -180,9 +186,24 @@ export class PersonalOAuthContext {
       // SDK calls do not redeem a rotating refresh token twice.
       const refresh = this.refresh!;
       const response = await refresh.response;
-      if (!response.ok && this.refresh === refresh) this.refresh = undefined;
+      if (!response.ok && this.refresh === refresh) {
+        this.refresh = undefined;
+        this.reportInvalidGrant(response.clone());
+      }
       return response.clone();
     };
+  }
+  // A refresh the authorization server answers with invalid_grant means the user's
+  // grant is gone; remember it so the user can be told to reconnect.
+  private reportInvalidGrant(response: Response): void {
+    void response
+      .json()
+      .then(async (body: { error?: unknown }) => {
+        if (body?.error !== 'invalid_grant') return;
+        const { reportCredentialRejected } = await import('./userServerStatusService.js');
+        reportCredentialRejected(this.username, this.serverName);
+      })
+      .catch(() => undefined);
   }
   get authorizationUrl(): string | undefined {
     const pending = this.config.oauth.pendingAuthorization;
@@ -204,7 +225,7 @@ export class PersonalOAuthContext {
       fingerprint(await expandServerConfig(definition)) !== this.declaration ||
       !authorizationService.can('server.invoke', definition, { ...user, username: this.username })
     )
-      throw new CredentialBindingError(
+      throw new CredentialBindingConflictError(
         'Personal authorization or server access changed; reconnect',
       );
   }
@@ -214,7 +235,7 @@ export class PersonalOAuthContext {
       const dao = getCredentialBindingDao();
       const current = await dao.get(this.serverName, this.username);
       if (current?.encryptedValues !== this.revision)
-        throw new CredentialBindingError('Personal authorization changed; reconnect');
+        throw new CredentialBindingConflictError('Personal authorization changed; reconnect');
       const config = structuredClone(this.config);
       mutator({ serverConfig: config, oauth: config.oauth });
       const encryptedValues = await encryptCredentialValues(this.serverName, this.username, {
@@ -233,7 +254,7 @@ export class PersonalOAuthContext {
           this.revision,
         ))
       )
-        throw new CredentialBindingError('Personal authorization changed; reconnect');
+        throw new CredentialBindingConflictError('Personal authorization changed; reconnect');
       this.revision = encryptedValues;
       this.config = config;
       personalOAuthContexts.set(config, this);

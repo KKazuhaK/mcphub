@@ -9,6 +9,7 @@ import {
   findPersonalOAuthFlow,
   disconnectPersonalOAuth,
 } from '../services/personalOAuthService.js';
+import { notifyWorkspaceUser } from '../services/userServerStatusService.js';
 import { createTransportFromConfig } from '../services/mcpService.js';
 import { validateAuthorizationIss } from '../utils/oauthIssuer.js';
 import { CredentialBindingError } from '../utils/credentialTemplate.js';
@@ -64,6 +65,7 @@ export const managePersonalOAuth = async (req: Request, res: Response): Promise<
             ),
         );
       }
+      await notifyWorkspaceUser(user.username);
       res.json({ success: true });
       return;
     }
@@ -89,6 +91,7 @@ export const managePersonalOAuth = async (req: Request, res: Response): Promise<
         await transport.close().catch(() => undefined);
       }
     }
+    if (req.method === 'POST') await notifyWorkspaceUser(user.username);
     res.json({
       success: true,
       data: {
@@ -141,6 +144,7 @@ export const completePersonalOAuth = async (
       serverName: context.serverName,
       username: context.username,
     });
+    await notifyWorkspaceUser(context.username);
     return true;
   } finally {
     await transport.close().catch(() => undefined);

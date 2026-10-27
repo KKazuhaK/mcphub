@@ -9,6 +9,10 @@ import {
 
 /** A safe diagnostic that can cross both the logging and client-response boundaries. */
 export class UpstreamRequestError extends Error {
+  // True when the upstream's transport answered HTTP 401 or an invalid_token challenge,
+  // i.e. it refused the credential itself rather than failing for another reason.
+  authRejected = false;
+
   constructor(message: string) {
     super(message);
     this.name = 'UpstreamRequestError';
@@ -85,9 +89,14 @@ export const createUpstreamRequestError = (
     status: record?.status ?? record?.response?.status,
     requestId: typeof requestId === 'string' ? redact(requestId) : undefined,
   });
-  return new UpstreamRequestError(
+  const failure = new UpstreamRequestError(
     `Upstream '${redact(server)}' ${operation} failed: ${formatErrorForLogging(summary)}`,
   );
+  const status = record?.status ?? record?.response?.status ?? record?.code;
+  const challenge = record?.response?.headers?.['www-authenticate'];
+  failure.authRejected =
+    status === 401 || (typeof challenge === 'string' && /invalid_token/i.test(challenge));
+  return failure;
 };
 
 export const isUpstreamConnectionFailure = (error: unknown): boolean => {

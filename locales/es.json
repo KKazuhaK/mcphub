@@ -1476,5 +1476,16 @@
     "showAll": "Mostrar todos los servidores",
     "loading": "Cargando…",
     "empty": "Ningún servidor compartido requiere credenciales personales."
+  },
+  "workspace": {
+    "status": {
+      "available": "'{{serverName}}' está disponible.",
+      "not_selected": "'{{serverName}}' no está en tu espacio de trabajo. Selecciónalo en Panel → Espacio de trabajo para usarlo.",
+      "paused": "Un administrador ha pausado '{{serverName}}'.",
+      "needs_auth": "'{{serverName}}' necesita tus credenciales o autorización personales. Conéctalo en Panel → Credenciales o Servidores.",
+      "revoked": "Has desconectado tu autorización para '{{serverName}}'. Vuelve a conectarla en Panel → Servidores.",
+      "credential_invalid": "Se rechazaron tus credenciales para '{{serverName}}'. Actualízalas en Panel → Credenciales o vuelve a conectar en Panel → Servidores.",
+      "error": "'{{serverName}}' no está disponible por ahora. Inténtalo de nuevo más tarde."
+    }
   }
 }

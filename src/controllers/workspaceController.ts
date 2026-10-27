@@ -2,15 +2,21 @@ import type { Request, Response } from 'express';
 import config, { getNameSeparator } from '../config/index.js';
 import { getGroupDao, getServerDao } from '../dao/DaoFactory.js';
 import type { RequestPrincipal } from '../services/authorizationService.js';
-import { getCredentialBindingStatus } from '../services/credentialBindingService.js';
 import { getDataService } from '../services/services.js';
 import {
   getSelectedServerNames,
   isWorkspaceEnabled,
   setServerSelected,
 } from '../services/userServerSelectionService.js';
-import type { IUser, ServerConfig } from '../types/index.js';
-import { hasCredentialTemplate, hasPersonalAuthentication } from '../utils/credentialTemplate.js';
+import {
+  countUserServerStatuses,
+  getPersonalAuthState,
+  getUserServerStatus,
+  resolveEndpointState,
+  type PersonalAuthState,
+} from '../services/userServerStatusService.js';
+import type { IUser, ServerConfig, UserServerStatus } from '../types/index.js';
+import { hasPersonalAuthentication } from '../utils/credentialTemplate.js';
 import { getPublicInstallBaseUrl } from '../utils/protectedResource.js';
 import { getCachedSystemConfig } from '../utils/systemConfigCache.js';
 
@@ -50,50 +56,80 @@ const countEnabledTools = async (server: ServerRecord): Promise<number> => {
   }).length;
 };
 
-// True when nothing personal is missing: either the server needs no personal
-// credential, or the user has supplied it.
-const isPersonalCredentialConfigured = async (
+const loadServerInfo = async (name: string) => {
+  const { getServerByName } = await import('../services/mcpService.js');
+  return getServerByName(name);
+};
+
+type WorkspaceServerView = {
+  server: ServerRecord;
+  selected: boolean;
+  personalAuth: PersonalAuthState;
+  status: UserServerStatus;
+};
+
+// One entry per server the user can see, with the state they would meet calling it.
+const buildServerViews = async (
+  req: Request,
   user: RequestPrincipal,
-  server: ServerRecord,
-): Promise<boolean> => {
-  if (!hasPersonalAuthentication(server)) return true;
-  if (user.credentialEligible === false) return false;
-  try {
-    if (hasCredentialTemplate(server)) {
-      return (await getCredentialBindingStatus(server.name, user.username, server)).configured;
-    }
-    const { hasPersonalOAuth, PersonalOAuthContext } = await import(
-      '../services/personalOAuthService.js'
-    );
-    if (hasPersonalOAuth(server)) {
-      const personal = await PersonalOAuthContext.load(server.name, user.username, server);
-      return Boolean(personal.config.oauth.accessToken);
-    }
-  } catch {
-    return false;
-  }
-  return true;
+): Promise<WorkspaceServerView[]> => {
+  const selected = await getSelectedServerNames(user.username);
+  const language = (req as Request & { language?: string }).language;
+  return Promise.all(
+    (await listVisibleServers(user)).map(async (server) => {
+      const personalAuth = await getPersonalAuthState(user, server.name, server);
+      const status = await getUserServerStatus({
+        user,
+        subject: {
+          name: server.name,
+          config: server,
+          enabled: server.enabled !== false,
+          info: await loadServerInfo(server.name),
+        },
+        selected: selected.has(server.name),
+        personalAuth,
+        language,
+      });
+      return { server, selected: selected.has(server.name), personalAuth, status };
+    }),
+  );
 };
 
 export const listWorkspaceServers = async (req: Request, res: Response): Promise<void> => {
   const user = requireWorkspaceUser(req, res);
   if (!user) return;
   try {
-    const selected = await getSelectedServerNames(user.username);
     const data = await Promise.all(
-      (await listVisibleServers(user)).map(async (server) => ({
-        name: server.name,
-        description: server.description,
-        selected: selected.has(server.name),
-        enabled: server.enabled !== false,
-        toolCount: await countEnabledTools(server),
-        requiresPersonalCredential: hasPersonalAuthentication(server),
-        credentialConfigured: await isPersonalCredentialConfigured(user, server),
-      })),
+      (await buildServerViews(req, user)).map(
+        async ({ server, selected, personalAuth, status }) => ({
+          name: server.name,
+          description: server.description,
+          selected,
+          enabled: server.enabled !== false,
+          toolCount: await countEnabledTools(server),
+          requiresPersonalCredential: hasPersonalAuthentication(server),
+          credentialConfigured: personalAuth === 'not_required' || personalAuth === 'configured',
+          status,
+        }),
+      ),
     );
     res.json({ success: true, data });
   } catch {
     res.status(500).json({ success: false, message: 'Unable to list workspace servers' });
+  }
+};
+
+export const getWorkspaceSummary = async (req: Request, res: Response): Promise<void> => {
+  const user = requireWorkspaceUser(req, res);
+  if (!user) return;
+  try {
+    const codes = (await buildServerViews(req, user)).map((view) => view.status.code);
+    res.json({
+      success: true,
+      data: { endpointState: resolveEndpointState(codes), counts: countUserServerStatuses(codes) },
+    });
+  } catch {
+    res.status(500).json({ success: false, message: 'Unable to summarize the workspace' });
   }
 };
 

@@ -9,7 +9,9 @@ import { getT } from '../utils/i18n.js';
 import { logger } from '../utils/logger.js';
 import type { ServerConfig, StoredCredentialBinding } from '../types/index.js';
 import {
+  CredentialBindingConfigError,
   CredentialBindingError,
+  MissingCredentialError,
   isCredentialValueAllowed,
   resolveCredentialUrl,
   argumentCredentialBindings,
@@ -22,7 +24,7 @@ export const credentialBindingEvents = new EventEmitter();
 const parseEncryptionKey = (encoded: string): Buffer => {
   const key = Buffer.from(encoded, 'base64');
   if (key.length !== 32 || key.toString('base64') !== encoded) {
-    throw new CredentialBindingError(
+    throw new CredentialBindingConfigError(
       'Invalid encryption key: MCPHUB_CREDENTIAL_ENCRYPTION_KEY or its local key file must contain 32 random bytes, base64 encoded',
     );
   }
@@ -39,7 +41,7 @@ const encryptionKey = async (allowCreate = false): Promise<Buffer> => {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
       if (error instanceof CredentialBindingError) throw error;
-      throw new CredentialBindingError(
+      throw new CredentialBindingConfigError(
         'Unable to read the personal credential encryption key file',
       );
     }
@@ -47,7 +49,7 @@ const encryptionKey = async (allowCreate = false): Promise<Buffer> => {
   const existing = readKey();
   if (existing) return existing;
   const missing = () =>
-    new CredentialBindingError(
+    new CredentialBindingConfigError(
       'Personal credential encryption key is missing. Restore the key file or MCPHUB_CREDENTIAL_ENCRYPTION_KEY before using existing bindings',
     );
   if (!allowCreate) throw missing();
@@ -72,7 +74,7 @@ const encryptionKey = async (allowCreate = false): Promise<Buffer> => {
     return key;
   } catch (error) {
     if (error instanceof CredentialBindingError) throw error;
-    throw new CredentialBindingError(
+    throw new CredentialBindingConfigError(
       'Unable to persist the personal credential encryption key. Make the settings directory writable or configure MCPHUB_CREDENTIAL_ENCRYPTION_KEY',
     );
   } finally {
@@ -117,7 +119,7 @@ export const decryptCredentialValues = async (
       ]).toString('utf8'),
     );
   } catch {
-    throw new CredentialBindingError(
+    throw new CredentialBindingConfigError(
       'Unable to unlock personal credentials; ask an administrator to check the encryption key or replace your binding',
     );
   }
@@ -139,7 +141,7 @@ export const missingCredentialError = (serverName: string): CredentialBindingErr
     serverName,
     defaultValue: fallback,
   });
-  return new CredentialBindingError(message || fallback);
+  return new MissingCredentialError(message || fallback);
 };
 
 export const getCredentialBindingStatus = async (

@@ -472,6 +472,30 @@ export interface UserServerSelection {
   updatedAt: string;
 }
 
+// What a user can currently do with a server visible to them under Workspace Mode.
+// `maintenance` is reserved for the admin pause/maintenance split.
+export type UserServerStatusCode =
+  | 'available'
+  | 'not_selected'
+  | 'paused'
+  | 'needs_auth'
+  | 'revoked'
+  | 'credential_invalid'
+  | 'error';
+
+// The next step that resolves a status, or null when there is nothing the user can do.
+export type UserServerStatusAction = 'select' | 'connect' | 'contact_admin' | 'retry_later' | null;
+
+export interface UserServerStatus {
+  code: UserServerStatusCode;
+  message: string;
+  action: UserServerStatusAction;
+  // ISO timestamp of when the state began, when it is known.
+  since?: string;
+}
+
+export type WorkspaceEndpointState = 'normal' | 'partial' | 'empty';
+
 // Configuration details for an individual server
 export interface ServerConfig {
   credentialTemplate?: CredentialSlot[]; // Metadata only; every slot requires a personal binding.

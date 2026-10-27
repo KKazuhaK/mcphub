@@ -6,6 +6,7 @@ import {
   getCredentialBindingStatus,
   saveCredentialBinding,
 } from '../services/credentialBindingService.js';
+import { notifyWorkspaceUser } from '../services/userServerStatusService.js';
 import {
   CredentialBindingError,
   hasCredentialTemplate,
@@ -63,6 +64,7 @@ export const updateMyCredential = async (req: Request, res: Response): Promise<v
     if (req.method === 'DELETE')
       await deleteCredentialBindings({ serverName: server.name, username: user.username });
     else await saveCredentialBinding(server.name, user.username, server, req.body?.values);
+    await notifyWorkspaceUser(user.username);
     res.json({ success: true });
   } catch (error) {
     respondError(res, error);
