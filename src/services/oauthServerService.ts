@@ -17,6 +17,9 @@ import { safeCompare } from '../utils/safeCompare.js';
 import { cloneDefaultOAuthServerConfig } from '../constants/oauthServerDefaults.js';
 import { resolveCimdClient } from './cimdClientService.js';
 import { logger } from '../utils/logger.js';
+import { getCachedSystemConfig } from '../utils/systemConfigCache.js';
+import { isOAuthTokenIdle, oauthGrantCreatedAt } from './connectedClientService.js';
+import { getRevocationSeq, isGrantRevokedSince } from '../utils/grantRevocation.js';
 
 const { Request, Response } = OAuth2Server;
 
@@ -156,6 +159,7 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
       user: {
         username: code.username,
         sessionVersion: code.sessionVersion,
+        exchangeSeq: getRevocationSeq(),
       },
       codeChallenge: code.codeChallenge,
       codeChallengeMethod: code.codeChallengeMethod,
@@ -190,16 +194,34 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
       throw new OAuth2Server.InvalidGrantError('User session is no longer valid');
     }
 
+    // A revoke of this (user, client) after the exchange read its grant wins over the exchange.
+    const exchangeSeq = typeof user.exchangeSeq === 'number' ? user.exchangeSeq : undefined;
+    const revokedMeanwhile = () =>
+      exchangeSeq !== undefined && isGrantRevokedSince(user.username, client.id, exchangeSeq);
+    if (revokedMeanwhile()) {
+      throw new OAuth2Server.InvalidGrantError('The authorization was revoked');
+    }
+
     const savedToken = await saveToken(
       {
         scope: scopeString,
         clientId: client.id,
         username: user.username,
         sessionVersion: user.sessionVersion,
+        // Only a refresh grant's user carries these (see getRefreshToken): the rotated
+        // record keeps the grant's creation and last-use time instead of starting over.
+        grantCreatedAt: typeof user.grantCreatedAt === 'string' ? user.grantCreatedAt : undefined,
+        lastUsedAt: typeof user.lastUsedAt === 'string' ? user.lastUsedAt : undefined,
       },
       accessTokenLifetime,
       refreshTokenLifetime,
     );
+
+    // The revoke can also land between the check and the write: take the new token back.
+    if (revokedMeanwhile()) {
+      await revokeToken(savedToken.accessToken);
+      throw new OAuth2Server.InvalidGrantError('The authorization was revoked');
+    }
 
     const scopeArray = savedToken.scope ? savedToken.scope.split(' ') : undefined;
 
@@ -222,6 +244,10 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
   getAccessToken: async (accessToken: string) => {
     const token = await getToken(accessToken);
     if (!token) {
+      return false;
+    }
+    // Also guards /oauth/userinfo: an idle grant is refused like a revoked one.
+    if (isOAuthTokenIdle(token, getCachedSystemConfig())) {
       return false;
     }
 
@@ -258,6 +284,9 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
     if (!token || !token.refreshToken || !safeCompare(token.refreshToken, refreshToken)) {
       return false;
     }
+    if (isOAuthTokenIdle(token, getCachedSystemConfig())) {
+      return false;
+    }
 
     const client = await findOAuthClientById(token.clientId);
     if (!client) {
@@ -280,6 +309,12 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
       user: {
         username: token.username,
         sessionVersion: token.sessionVersion,
+        // A record from before grants were dated keeps the age it already has.
+        grantCreatedAt:
+          token.grantCreatedAt ??
+          new Date(oauthGrantCreatedAt(token, getCachedSystemConfig())).toISOString(),
+        lastUsedAt: token.lastUsedAt,
+        exchangeSeq: getRevocationSeq(),
       },
     };
   },

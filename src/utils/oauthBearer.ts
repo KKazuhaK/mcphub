@@ -3,12 +3,16 @@ import { isOAuthServerEnabled } from '../services/oauthServerService.js';
 import { getToken as getOAuthStoredToken } from '../models/OAuth.js';
 import { IUser, SystemConfig } from '../types/index.js';
 import { safeCompare } from './safeCompare.js';
+import { getCachedSystemConfig } from './systemConfigCache.js';
+import { isOAuthTokenIdle } from '../services/connectedClientService.js';
 import { getBearerTokenFromHeaders, parseBearerAuthorization } from './bearerAuth.js';
 
 /**
- * Resolve an MCPHub user from a raw OAuth bearer token.
+ * Resolve the user and OAuth client behind a raw OAuth bearer token.
  */
-export const resolveOAuthUserFromToken = async (token?: string): Promise<IUser | null> => {
+export const resolveOAuthGrantFromToken = async (
+  token?: string,
+): Promise<{ user: IUser; clientId: string } | null> => {
   if (!token || !isOAuthServerEnabled()) {
     return null;
   }
@@ -18,15 +22,29 @@ export const resolveOAuthUserFromToken = async (token?: string): Promise<IUser |
     return null;
   }
 
+  // A grant idle past the workspace window is refused exactly like a revoked token.
+  if (isOAuthTokenIdle(oauthToken, getCachedSystemConfig())) {
+    return null;
+  }
+
   const dbUser = await resolveUserSession(oauthToken);
   if (!dbUser) return null;
 
   return {
-    username: oauthToken.username,
-    password: '',
-    isAdmin: dbUser?.isAdmin || false,
+    user: {
+      username: oauthToken.username,
+      password: '',
+      isAdmin: dbUser?.isAdmin || false,
+    },
+    clientId: oauthToken.clientId,
   };
 };
+
+/**
+ * Resolve an MCPHub user from a raw OAuth bearer token.
+ */
+export const resolveOAuthUserFromToken = async (token?: string): Promise<IUser | null> =>
+  (await resolveOAuthGrantFromToken(token))?.user ?? null;
 
 /**
  * Resolve an MCPHub user from the configured bearer auth header.

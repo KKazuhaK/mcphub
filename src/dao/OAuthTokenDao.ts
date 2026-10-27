@@ -1,6 +1,7 @@
 import { IOAuthToken } from '../types/index.js';
 import { BaseDao } from './base/BaseDao.js';
 import { JsonFileBaseDao } from './base/JsonFileBaseDao.js';
+import { mergeLastUsed, pruneUsage, recordUsage, usageKeyForToken } from './clientUsageStore.js';
 
 /**
  * OAuth Token DAO interface with OAuth token-specific operations
@@ -27,6 +28,12 @@ export interface OAuthTokenDao extends BaseDao<IOAuthToken, string> {
   findByUsername(username: string): Promise<IOAuthToken[]>;
 
   /**
+   * Record that the access token authenticated a request. A targeted write: it never
+   * recreates a revoked token or changes any other field.
+   */
+  recordLastUsed(accessToken: string, at: string): Promise<void>;
+
+  /**
    * Revoke token (delete by access token or refresh token)
    */
   revokeToken(token: string): Promise<boolean>;
@@ -40,6 +47,12 @@ export interface OAuthTokenDao extends BaseDao<IOAuthToken, string> {
    * Revoke all tokens for a client
    */
   revokeClientTokens(clientId: string): Promise<number>;
+
+  /**
+   * Revoke the tokens one client holds for one user (other users' tokens for the
+   * same client are left alone)
+   */
+  revokeUserClientTokens(username: string, clientId: string): Promise<number>;
 
   /**
    * Clean up expired tokens
@@ -66,6 +79,8 @@ export class OAuthTokenDaoImpl extends JsonFileBaseDao implements OAuthTokenDao 
     // Convert stored dates back to Date objects
     return (settings.oauthTokens || []).map((token) => ({
       ...token,
+      // Last use lives in the usage sidecar, not in the settings file.
+      lastUsedAt: mergeLastUsed(token.lastUsedAt, usageKeyForToken(token.accessToken)),
       accessTokenExpiresAt: new Date(token.accessTokenExpiresAt),
       refreshTokenExpiresAt: token.refreshTokenExpiresAt
         ? new Date(token.refreshTokenExpiresAt)
@@ -75,8 +90,13 @@ export class OAuthTokenDaoImpl extends JsonFileBaseDao implements OAuthTokenDao 
 
   protected async saveAll(tokens: IOAuthToken[]): Promise<void> {
     const settings = await this.loadSettings();
-    settings.oauthTokens = tokens;
+    settings.oauthTokens = tokens.map(({ lastUsedAt: _lastUsedAt, ...token }) => token);
     await this.saveSettings(settings);
+    pruneUsage('oauth:', new Set(tokens.map((token) => usageKeyForToken(token.accessToken))));
+  }
+
+  async recordLastUsed(accessToken: string, at: string): Promise<void> {
+    recordUsage(usageKeyForToken(accessToken), at);
   }
 
   protected getEntityId(token: IOAuthToken): string {
@@ -134,6 +154,8 @@ export class OAuthTokenDaoImpl extends JsonFileBaseDao implements OAuthTokenDao 
     const newToken: IOAuthToken = {
       ...data,
     };
+    // A rotated token inherits the grant's last use; it goes to the sidecar like any other.
+    if (data.lastUsedAt) recordUsage(usageKeyForToken(data.accessToken), data.lastUsedAt);
 
     filteredTokens.push(newToken);
     await this.saveAll(filteredTokens);
@@ -150,7 +172,8 @@ export class OAuthTokenDaoImpl extends JsonFileBaseDao implements OAuthTokenDao 
     }
 
     // Don't allow accessToken changes
-    const { accessToken: _, ...allowedUpdates } = updates;
+    const { accessToken: _, lastUsedAt, ...allowedUpdates } = updates;
+    if (lastUsedAt) recordUsage(usageKeyForToken(accessToken), lastUsedAt);
     const updatedToken = this.updateEntity(tokens[index], allowedUpdates);
     tokens[index] = updatedToken;
 
@@ -212,6 +235,16 @@ export class OAuthTokenDaoImpl extends JsonFileBaseDao implements OAuthTokenDao 
 
     await this.saveAll(remainingTokens);
     return clientTokens.length;
+  }
+
+  async revokeUserClientTokens(username: string, clientId: string): Promise<number> {
+    const tokens = await this.getAll();
+    const remaining = tokens.filter(
+      (token) => !(token.username === username && token.clientId === clientId),
+    );
+    const removed = tokens.length - remaining.length;
+    if (removed > 0) await this.saveAll(remaining);
+    return removed;
   }
 
   async cleanupExpired(): Promise<number> {

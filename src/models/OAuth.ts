@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { getOAuthClientDao, getOAuthTokenDao, getSystemConfigDao } from '../dao/index.js';
 import { IOAuthClient, IOAuthAuthorizationCode, IOAuthToken } from '../types/index.js';
 import { logger } from '../utils/logger.js';
+import { noteGrantRevocation } from '../utils/grantRevocation.js';
 
 // In-memory storage for authorization codes (short-lived, no persistence needed)
 const authorizationCodes = new Map<string, IOAuthAuthorizationCode>();
@@ -190,6 +191,8 @@ export const saveToken = async (
     refreshToken,
     refreshTokenExpiresAt,
     ...tokenData,
+    // A refresh rotation passes the previous record's value through tokenData.
+    grantCreatedAt: tokenData.grantCreatedAt ?? new Date().toISOString(),
   };
 
   await getOAuthTokenDao().create(token);
@@ -236,10 +239,38 @@ export const revokeToken = async (token: string): Promise<void> => {
 
 /** Revoke the user's persisted tokens and pending in-process authorization codes. */
 export const revokeUserTokens = async (username: string): Promise<void> => {
+  // Noted before and after the delete: an exchange that read its grant in between must
+  // still be refused when it tries to save.
+  noteGrantRevocation(username);
   for (const [code, authorization] of authorizationCodes) {
     if (authorization.username === username) authorizationCodes.delete(code);
   }
-  await getOAuthTokenDao().revokeUserTokens(username);
+  try {
+    await getOAuthTokenDao().revokeUserTokens(username);
+  } finally {
+    noteGrantRevocation(username);
+  }
+};
+
+/**
+ * Revoke what one client holds for one user: its persisted tokens and the user's pending
+ * in-process authorization codes for that client. Other users' tokens stay valid.
+ */
+export const revokeUserClientTokens = async (
+  username: string,
+  clientId: string,
+): Promise<number> => {
+  noteGrantRevocation(username, clientId);
+  for (const [code, authorization] of authorizationCodes) {
+    if (authorization.username === username && authorization.clientId === clientId) {
+      authorizationCodes.delete(code);
+    }
+  }
+  try {
+    return await getOAuthTokenDao().revokeUserClientTokens(username, clientId);
+  } finally {
+    noteGrantRevocation(username, clientId);
+  }
 };
 
 /**

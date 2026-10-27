@@ -199,6 +199,8 @@ export async function migrateToDatabase(seedServersAndGroups = true): Promise<bo
           accessType: key.accessType,
           allowedGroups: key.allowedGroups ?? [],
           allowedServers: key.allowedServers ?? [],
+          ...(key.createdAt ? { createdAt: new Date(key.createdAt) } : {}),
+          lastUsedAt: key.lastUsedAt ? new Date(key.lastUsedAt) : undefined,
         } as any);
         logger.log(`  - Migrated bearer key: ${key.name} (${key.id ?? 'no-id'})`);
       }
@@ -288,6 +290,8 @@ export async function migrateToDatabase(seedServersAndGroups = true): Promise<bo
             clientId: token.clientId,
             username: token.username,
             sessionVersion: token.sessionVersion,
+            grantCreatedAt: token.grantCreatedAt ? new Date(token.grantCreatedAt) : undefined,
+            lastUsedAt: token.lastUsedAt ? new Date(token.lastUsedAt) : undefined,
           });
           logger.log(`  - Created OAuth token for client: ${token.clientId}`);
         } else {

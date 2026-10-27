@@ -39,6 +39,9 @@ export class BearerKey {
   @Column({ type: 'simple-json', nullable: true })
   allowedServers?: string[];
 
+  @Column({ name: 'last_used_at', type: 'timestamp', nullable: true })
+  lastUsedAt?: Date | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;
 

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { BearerKey } from '../types/index.js';
 import { JsonFileBaseDao } from './base/JsonFileBaseDao.js';
 import { safeCompare } from '../utils/safeCompare.js';
+import { mergeLastUsed, pruneUsage, recordUsage, usageKeyForKey } from './clientUsageStore.js';
 
 /**
  * DAO interface for bearer authentication keys
@@ -16,6 +17,8 @@ export interface BearerKeyDao {
   update(id: string, data: Partial<Omit<BearerKey, 'id'>>): Promise<BearerKey | null>;
   delete(id: string): Promise<boolean>;
   deleteByOwner(owner: string): Promise<number>;
+  /** A targeted last-use write: it never recreates a deleted key or changes another field. */
+  recordLastUsed(id: string, at: string): Promise<void>;
   /**
    * Update server name in all bearer keys (when server is renamed)
    */
@@ -32,6 +35,8 @@ export class BearerKeyDaoImpl extends JsonFileBaseDao implements BearerKeyDao {
     return {
       ...key,
       kind: key.kind ?? 'system',
+      // Last use lives in the usage sidecar, not in the settings file.
+      lastUsedAt: mergeLastUsed(key.lastUsedAt, usageKeyForKey(key.id)),
     };
   }
 
@@ -77,8 +82,13 @@ export class BearerKeyDaoImpl extends JsonFileBaseDao implements BearerKeyDao {
 
   private async saveKeys(keys: BearerKey[]): Promise<void> {
     const settings = await this.loadSettings();
-    settings.bearerKeys = keys;
+    settings.bearerKeys = keys.map(({ lastUsedAt: _lastUsedAt, ...key }) => key);
     await this.saveSettings(settings);
+    pruneUsage('key:', new Set(keys.map((key) => usageKeyForKey(key.id))));
+  }
+
+  async recordLastUsed(id: string, at: string): Promise<void> {
+    recordUsage(usageKeyForKey(id), at);
   }
 
   async findAll(): Promise<BearerKey[]> {
@@ -110,7 +120,9 @@ export class BearerKeyDaoImpl extends JsonFileBaseDao implements BearerKeyDao {
     const newKey: BearerKey = {
       id: randomUUID(),
       ...data,
+      createdAt: data.createdAt ?? new Date().toISOString(),
     };
+    if (newKey.lastUsedAt) recordUsage(usageKeyForKey(newKey.id), newKey.lastUsedAt);
     keys.push(newKey);
     await this.saveKeys(keys);
     return newKey;
@@ -128,6 +140,7 @@ export class BearerKeyDaoImpl extends JsonFileBaseDao implements BearerKeyDao {
       ...data,
       id: keys[index].id,
     };
+    if (data.lastUsedAt) recordUsage(usageKeyForKey(updated.id), data.lastUsedAt);
     keys[index] = updated;
     await this.saveKeys(keys);
     return updated;

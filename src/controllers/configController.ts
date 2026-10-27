@@ -87,8 +87,7 @@ export const getPublicConfig = async (req: Request, res: Response): Promise<void
       data: {
         skipAuth,
         allowRegistration:
-          systemConfig?.auth?.allowRegistration === true &&
-          !betterAuth.disablePasswordLogin,
+          systemConfig?.auth?.allowRegistration === true && !betterAuth.disablePasswordLogin,
         permissions,
         betterAuth,
       },
@@ -200,11 +199,24 @@ export const getMcpSettingsJson = async (req: Request, res: Response): Promise<v
         mcpServers,
         users: omitSensitiveFields(users, ['password']),
         groups,
-        systemConfig,
+        // enabledAt is this instance's own bookkeeping; an importing instance stamps its own.
+        systemConfig: systemConfig?.workspace
+          ? {
+              ...systemConfig,
+              workspace: (({ enabledAt: _enabledAt, ...workspace }) => workspace)(
+                systemConfig.workspace,
+              ),
+            }
+          : systemConfig,
         userConfigs,
         oauthClients: omitSensitiveFields(oauthClients, ['clientSecret']),
-        oauthTokens: omitSensitiveFields(oauthTokens, ['accessToken', 'refreshToken']),
-        bearerKeys: omitSensitiveFields(bearerKeys, ['token']),
+        oauthTokens: omitSensitiveFields(oauthTokens, [
+          'accessToken',
+          'refreshToken',
+          'lastUsedAt',
+          'grantCreatedAt',
+        ]),
+        bearerKeys: omitSensitiveFields(bearerKeys, ['token', 'lastUsedAt']),
       };
 
       res.json({

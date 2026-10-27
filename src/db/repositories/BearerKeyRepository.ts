@@ -81,6 +81,17 @@ export class BearerKeyRepository {
   }
 
   /**
+   * Stamp last use with a targeted UPDATE ... WHERE id: a key deleted meanwhile stays gone
+   * and a concurrent change to another column (such as enabled) is not overwritten.
+   */
+  async recordLastUsed(id: string, at: Date): Promise<boolean> {
+    return this.withRetry(async () => {
+      const result = await this.repository.update({ id }, { lastUsedAt: at });
+      return (result.affected ?? 0) > 0;
+    }, 'recordLastUsed');
+  }
+
+  /**
    * Update an existing bearer key
    */
   async update(
