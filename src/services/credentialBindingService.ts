@@ -94,6 +94,44 @@ const encryptionKey = async (allowCreate = false): Promise<Buffer> => {
   }
 };
 
+/**
+ * Seal an arbitrary secret string with the credential encryption key (AES-256-GCM, `aad` bound
+ * into the tag). Used for the OAuth signing keys (ADR 0014). Throws a CredentialBindingError when
+ * no key can be read or created; callers decide whether storing without encryption is acceptable.
+ */
+export const sealSecretWithCredentialKey = async (
+  aad: string,
+  plaintext: string,
+): Promise<string> => {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', await encryptionKey(true), iv);
+  cipher.setAAD(Buffer.from(aad));
+  const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  return [
+    'v1',
+    iv.toString('base64'),
+    cipher.getAuthTag().toString('base64'),
+    ciphertext.toString('base64'),
+  ].join('.');
+};
+
+/** Open what `sealSecretWithCredentialKey` sealed. Throws when the key or the data is wrong. */
+export const openSecretWithCredentialKey = async (
+  aad: string,
+  sealed: string,
+): Promise<string> => {
+  const key = await encryptionKey();
+  const [version, iv, tag, ciphertext] = sealed.split('.');
+  if (version !== 'v1') throw new Error('Unsupported version');
+  const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64'));
+  decipher.setAAD(Buffer.from(aad));
+  decipher.setAuthTag(Buffer.from(tag, 'base64'));
+  return Buffer.concat([
+    decipher.update(Buffer.from(ciphertext, 'base64')),
+    decipher.final(),
+  ]).toString('utf8');
+};
+
 const bindingIdentity = (serverName: string, username: string): Buffer =>
   Buffer.from(JSON.stringify([serverName, username]));
 

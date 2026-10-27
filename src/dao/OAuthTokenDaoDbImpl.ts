@@ -51,6 +51,7 @@ export class OAuthTokenDaoDbImpl implements OAuthTokenDao {
       clientId: entity.clientId,
       username: entity.username,
       sessionVersion: entity.sessionVersion,
+      resource: entity.resource,
       grantCreatedAt: entity.grantCreatedAt ? new Date(entity.grantCreatedAt) : undefined,
       lastUsedAt: entity.lastUsedAt ? new Date(entity.lastUsedAt) : undefined,
     });
@@ -120,6 +121,7 @@ export class OAuthTokenDaoDbImpl implements OAuthTokenDao {
     clientId: string;
     username: string;
     sessionVersion?: string;
+    resource?: string | null;
     grantCreatedAt?: Date | null;
     lastUsedAt?: Date | null;
   }): IOAuthToken {
@@ -132,6 +134,7 @@ export class OAuthTokenDaoDbImpl implements OAuthTokenDao {
       clientId: token.clientId,
       username: token.username,
       sessionVersion: token.sessionVersion,
+      resource: token.resource ?? undefined,
       grantCreatedAt: token.grantCreatedAt
         ? new Date(token.grantCreatedAt).toISOString()
         : undefined,

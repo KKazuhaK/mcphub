@@ -135,6 +135,9 @@ const OAuthConsentPage: React.FC = () => {
         return t('oauthServer.resourceServer', { name: resource.name ?? '' });
       case 'group':
         return t('oauthServer.resourceGroup', { name: resource.name ?? '' });
+      case 'external':
+        // The administrator's name and the exact URL the token is for.
+        return resource.name ? `${resource.name} (${resource.raw})` : resource.raw;
       default:
         return resource.name || resource.raw;
     }

@@ -71,6 +71,7 @@ describe('oauthServerController metadata endpoints', () => {
 
     expect(mockJson).toHaveBeenCalledWith({
       issuer: 'https://mcp.example.com/hub',
+      jwks_uri: 'https://mcp.example.com/hub/.well-known/jwks.json',
       authorization_endpoint: 'https://mcp.example.com/hub/oauth/authorize',
       token_endpoint: 'https://mcp.example.com/hub/oauth/token',
       userinfo_endpoint: 'https://mcp.example.com/hub/oauth/userinfo',

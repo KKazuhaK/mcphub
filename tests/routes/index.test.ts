@@ -168,6 +168,8 @@ jest.mock('../../src/controllers/oauthServerController.js', () => ({
   postToken: routeHandler,
   getUserInfo: routeHandler,
   getMetadata: routeHandler,
+  getJwks: routeHandler,
+  rotateOAuthSigningKey: routeHandler,
   getProtectedResourceMetadata: routeHandler,
 }));
 

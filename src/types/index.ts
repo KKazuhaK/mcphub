@@ -377,6 +377,7 @@ export interface IOAuthAuthorizationCode {
   username: string; // User who authorized
   codeChallenge?: string; // PKCE code challenge
   codeChallengeMethod?: string; // PKCE code challenge method
+  resource?: string; // External resource (RFC 8707) the code was authorized for; absent for MCPHub's own routes
 }
 
 // OAuth Token (for MCPHub's authorization server)
@@ -391,10 +392,24 @@ export interface IOAuthToken {
   username: string; // Username
   grantCreatedAt?: string; // ISO time the grant (client + user) was first authorized; carried across refresh rotation
   lastUsedAt?: string; // ISO time this grant last authenticated an MCP request; carried across refresh rotation
+  // External resource (RFC 8707) this grant was issued for. Such a record's `accessToken` is an
+  // opaque internal id that is never disclosed (the client holds a signed JWT instead), so the
+  // record only anchors the refresh token and the connected-client listing.
+  resource?: string;
+}
+
+// An external protected resource that MCPHub's authorization server may issue JWT access tokens for.
+export interface ExternalResource {
+  resource: string; // Absolute https URL (http only on loopback); matched exactly against the `resource` parameter
+  name: string; // Display name, shown on the consent screen and in connected clients
+  allowedClients?: string[]; // OAuth client ids allowed to request it; empty or absent = any registered client
 }
 
 // OAuth Server Configuration
 export interface OAuthServerConfig {
+  externalResources?: ExternalResource[]; // Administrator-only; see docs/adr/0014-external-resource-tokens.md
+  externalTokenLifetimeSeconds?: number; // Cap on external-resource JWT lifetime (default 900)
+  signingKeyActivationDelaySeconds?: number; // Delay before a rotated-in signing key signs (default 900)
   enabled?: boolean; // Enable/disable OAuth authorization server
   accessTokenLifetime?: number; // Access token lifetime in seconds (default: 3600)
   refreshTokenLifetime?: number; // Refresh token lifetime in seconds (default: 1209600 = 14 days)

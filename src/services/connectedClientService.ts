@@ -9,6 +9,7 @@ import { getCachedSystemConfig, setCachedSystemConfig } from '../utils/systemCon
 import { revokeUserClientTokens, revokeUserTokens } from '../models/OAuth.js';
 import type { BearerKey, IOAuthToken, SystemConfig } from '../types/index.js';
 import { logger } from '../utils/logger.js';
+import { findExternalResource } from '../utils/externalResources.js';
 
 export type ConnectedClientKind = 'oauth' | 'key';
 
@@ -21,6 +22,8 @@ export interface ConnectedClient {
   lastUsedAt: string | null;
   expiresAt?: string;
   scopes?: string[];
+  /** Names of the external resources this client holds tokens for (JWT access tokens, ADR 0014). */
+  resources?: string[];
   enabled?: boolean;
   /** Unused past the idle window: refused like a revoked client, still listed so it can be removed. */
   idle: boolean;
@@ -259,10 +262,26 @@ const listOAuthClients = async (
       ...new Set(grants.flatMap((grant) => (grant.scope ? grant.scope.split(' ') : []))),
     ].filter(Boolean);
 
+    // A grant for an external resource is shown as the client with the resource's name.
+    const resourceNames = [
+      ...new Set(
+        grants
+          .filter((grant) => grant.resource)
+          .map(
+            (grant) => findExternalResource(systemConfig, grant.resource!)?.name ?? grant.resource!,
+          ),
+      ),
+    ];
+    const clientName = client?.name?.trim() || clientId;
+
     entries.push({
       id: clientId,
       kind: 'oauth',
-      name: client?.name?.trim() || clientId,
+      name:
+        resourceNames.length > 0 && grants.every((grant) => grant.resource)
+          ? `${clientName} (${resourceNames.join(', ')})`
+          : clientName,
+      ...(resourceNames.length ? { resources: resourceNames } : {}),
       clientId,
       createdAt: new Date(created).toISOString(),
       lastUsedAt: used.length ? new Date(Math.max(...used)).toISOString() : null,

@@ -52,6 +52,10 @@ _Avoid_: subscription, enablement (reserved for the global `enabled` flag), favo
 The OAuth scope `credentials:write:<serverName>`. A short-lived token (five minutes, no refresh token) that lets one allowed client write or delete the signed-in user's own credential binding for exactly that server, and nothing else. Granted only on its own, only to a client listed in the server's administrator-only `credentialWriteClients`. Applies whether or not Workspace Mode is on.
 _Avoid_: credential token, connector token, session forwarding
 
+**External Resource**:
+A protected service outside MCPHub that an administrator lists in `oauthServer.externalResources` (absolute https URL, exact-match, a display name, optional `allowedClients`). A client that requests it with the RFC 8707 `resource` parameter gets a JWT access token (`aud` = the URL, signed by a published MCPHub key) that the service verifies itself against `jwks_uri`; the refresh token stays opaque and bound to it. The token is never valid on MCPHub's own routes.
+_Avoid_: audience, downstream service, connector token
+
 **Destination Binding**:
 The check that a stored personal credential is only used for the destination it was entered against. Each credential-slot binding carries a keyed fingerprint of the destination-relevant parts of the server declaration; when the declaration no longer matches, the binding is stale and treated as missing until the user enters the values again. Applies whether or not Workspace Mode is on.
 _Avoid_: credential pinning, credential lock

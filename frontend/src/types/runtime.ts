@@ -10,7 +10,7 @@ export interface RuntimeConfig {
 export interface ResourceTarget {
   raw: string;
   path: string;
-  kind: 'all' | 'smart' | 'target' | 'server' | 'group' | 'unknown';
+  kind: 'all' | 'smart' | 'target' | 'server' | 'group' | 'external' | 'unknown';
   name?: string;
 }
 

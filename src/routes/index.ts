@@ -151,6 +151,8 @@ import {
   postToken,
   getUserInfo,
   getMetadata,
+  getJwks,
+  rotateOAuthSigningKey,
   getProtectedResourceMetadata,
 } from '../controllers/oauthServerController.js';
 import {
@@ -259,6 +261,7 @@ export const initRoutes = async (app: express.Application): Promise<void> => {
   ); // Public endpoint for token exchange
   app.get('/oauth/userinfo', mcpConnectionRateLimiter, getUserInfo); // Validates OAuth token
   app.get('/.well-known/oauth-authorization-server', mcpConnectionRateLimiter, getMetadata); // Public metadata endpoint
+  app.get('/.well-known/jwks.json', mcpConnectionRateLimiter, getJwks); // Public keys for external-resource JWTs
   app.get(
     [
       '/.well-known/oauth-protected-resource',
@@ -383,6 +386,11 @@ export const initRoutes = async (app: express.Application): Promise<void> => {
   authenticatedRouter.get('/users-stats', getUserStats);
 
   // OAuth Client management routes (admin only)
+  authenticatedRouter.post(
+    '/oauth/signing-keys/rotate',
+    requireAdminMiddleware,
+    rotateOAuthSigningKey,
+  );
   authenticatedRouter.get('/oauth/clients', getAllClients);
   authenticatedRouter.get('/oauth/clients/:clientId', getClient);
   authenticatedRouter.post(

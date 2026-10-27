@@ -9,18 +9,30 @@ import { getBearerTokenFromHeaders, parseBearerAuthorization } from './bearerAut
 import { includesCredentialWriteScope, soleCredentialWriteServer } from './credentialWriteScope.js';
 import { evaluateCredentialWriteScopes } from '../services/credentialWriteScopeService.js';
 
+// Three base64url segments: the shape of every JWT, including the access tokens MCPHub signs for
+// external resources (ADR 0014). MCPHub's own OAuth tokens are opaque hex and never contain a dot.
+const JWT_SHAPE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/;
+
 /**
  * Resolve the user and OAuth client behind a raw OAuth bearer token.
+ *
+ * A JWT is never one: the access tokens MCPHub issues for external resources are for another
+ * audience, and the record behind them holds an internal id that is never disclosed.
  */
 export const resolveOAuthGrantFromToken = async (
   token?: string,
 ): Promise<{ user: IUser; clientId: string } | null> => {
-  if (!token || !isOAuthServerEnabled()) {
+  if (!token || !isOAuthServerEnabled() || JWT_SHAPE.test(token)) {
     return null;
   }
 
   const oauthToken = await getOAuthStoredToken(token);
   if (!oauthToken || !safeCompare(oauthToken.accessToken, token)) {
+    return null;
+  }
+
+  // A grant issued for an external resource is not a bearer for MCPHub's own routes.
+  if (oauthToken.resource) {
     return null;
   }
 
@@ -63,13 +75,13 @@ export type CredentialWriteGrant = {
 export const resolveCredentialWriteGrantFromToken = async (
   token?: string,
 ): Promise<CredentialWriteGrant | null> => {
-  if (!token || !isOAuthServerEnabled()) {
+  if (!token || !isOAuthServerEnabled() || JWT_SHAPE.test(token)) {
     return null;
   }
 
   const oauthToken = await getOAuthStoredToken(token);
   // Only the access token is a bearer: a presented refresh token never matches here.
-  if (!oauthToken || !safeCompare(oauthToken.accessToken, token)) {
+  if (!oauthToken || !safeCompare(oauthToken.accessToken, token) || oauthToken.resource) {
     return null;
   }
 

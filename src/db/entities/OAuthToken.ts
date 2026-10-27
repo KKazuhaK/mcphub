@@ -44,6 +44,10 @@ export class OAuthToken {
   @Column({ name: 'session_version', type: 'varchar', length: 64, nullable: true })
   sessionVersion?: string;
 
+  // External resource (RFC 8707) the grant was issued for; null for MCPHub's own routes.
+  @Column({ type: 'varchar', length: 2048, nullable: true })
+  resource?: string | null;
+
   @Column({ name: 'grant_created_at', type: 'timestamp', nullable: true })
   grantCreatedAt?: Date | null;
 
