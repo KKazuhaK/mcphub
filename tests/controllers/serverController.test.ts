@@ -1005,6 +1005,69 @@ describe('serverController - updateSystemConfig', () => {
     },
   );
 
+  it.each([1, 90, 3650])(
+    'saves activityRetentionDays %s without touching the other workspace settings',
+    async (days) => {
+      mockSystemConfigDao.get.mockResolvedValue({
+        workspace: { enabled: true, enabledAt: '2026-01-01T00:00:00.000Z', clientIdleDays: 30 },
+      });
+      mockRequest.body = { workspace: { activityRetentionDays: days } };
+      await updateSystemConfig(mockRequest as Request, mockResponse as Response);
+      expect(mockSystemConfigDao.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          workspace: {
+            enabled: true,
+            enabledAt: '2026-01-01T00:00:00.000Z',
+            clientIdleDays: 30,
+            activityRetentionDays: days,
+          },
+        }),
+      );
+    },
+  );
+
+  it.each([0, '30', 1.5, -1, 3651, null, NaN, true, [30]])(
+    'rejects activityRetentionDays %p with 400 and saves nothing',
+    async (days) => {
+      mockRequest.body = { workspace: { enabled: true, activityRetentionDays: days } };
+      await updateSystemConfig(mockRequest as Request, mockResponse as Response);
+      expect(mockStatus).toHaveBeenCalledWith(400);
+      expect(mockSystemConfigDao.update).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([1, 30, 3650])('saves administrator activity retention %s', async (days) => {
+    mockSystemConfigDao.get.mockResolvedValue({ activityLog: { storeToolPayload: false } });
+    mockRequest.body = { activityLog: { retentionDays: days } };
+    await updateSystemConfig(mockRequest as Request, mockResponse as Response);
+    expect(mockSystemConfigDao.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        activityLog: { storeToolPayload: false, retentionDays: days },
+      }),
+    );
+  });
+
+  it('removes the administrator retention when null is sent, so activity is kept forever', async () => {
+    mockSystemConfigDao.get.mockResolvedValue({
+      activityLog: { storeToolPayload: true, retentionDays: 30 },
+    });
+    mockRequest.body = { activityLog: { retentionDays: null } };
+    await updateSystemConfig(mockRequest as Request, mockResponse as Response);
+    const saved = mockSystemConfigDao.update.mock.calls.at(-1)![0].activityLog;
+    expect(saved).toEqual({ storeToolPayload: true });
+    expect('retentionDays' in saved).toBe(false);
+  });
+
+  it.each([0, '30', 1.5, -1, 3651, NaN, true, [30]])(
+    'rejects administrator activity retention %p with 400 and saves nothing',
+    async (days) => {
+      mockRequest.body = { activityLog: { retentionDays: days } };
+      await updateSystemConfig(mockRequest as Request, mockResponse as Response);
+      expect(mockStatus).toHaveBeenCalledWith(400);
+      expect(mockSystemConfigDao.update).not.toHaveBeenCalled();
+    },
+  );
+
   it.each([null, {}, { allowedCidrs: '192.168.1.0/24' }, { allowedCidrs: ['192.168.1.0/33'] }])(
     'rejects invalid network configuration %s without saving',
     async (network) => {

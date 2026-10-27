@@ -1115,7 +1115,16 @@
     "smartRoutingIndexReindexConfirmMessage": "Mevcut tüm embedding’ler temizlenecek ve sıfırdan yeniden üretilecek. Bu biraz zaman alabilir ve embedding API kotası harcar.",
     "smartRoutingIndexPersonalCredentials": "Kişisel kimlik bilgisi gerektiren sunucular",
     "smartRoutingIndexSkippedReason": "Atlandı",
-    "smartRoutingIndexIndexedAs": "{{principals}} olarak indekslendi"
+    "smartRoutingIndexIndexedAs": "{{principals}} olarak indekslendi",
+    "activityRetention": "Etkinlik saklama süresi (gün)",
+    "activityRetentionDescription": "Araç çağrısı etkinliğinin ne kadar saklanacağı. Süresiz saklamak için boş bırakın. Kullanıcıların çalışma alanlarında gördüğü geçmiş penceresinden asla kısa olmaz.",
+    "activityRetentionWarning": "Uyarı: bundan eski etkinlik kalıcı olarak silinir ve geri alınamaz.",
+    "activityRetentionPlaceholder": "Süresiz sakla",
+    "activityRetentionInvalid": "1 ile 3650 arasında tam sayı girin veya boş bırakın.",
+    "activityRetentionConfirmTitle": "Eski etkinlik kalıcı olarak silinsin mi?",
+    "activityRetentionConfirmMessage": "{{days}} günden eski etkinlik bir sonraki saatlik temizlikte kalıcı olarak silinecek. Bu geri alınamaz. ({{entered}} girmiş olsanız bile gün sayısı kullanıcı geçmiş penceresinden az olmaz.)",
+    "activityRetentionConfirm": "Kaydet ve sil",
+    "activityRetentionUpdateFailed": "Etkinlik saklama ayarı güncellenemedi"
   },
   "mcpb": {
     "upload": "Yükle",
@@ -1607,6 +1616,53 @@
     "disabled": "Çalışma alanı artık kullanılamıyor. Bir yönetici kapatmış olabilir.",
     "reload": "Yeniden yükle",
     "settingsFailed": "Sunucu ayarları okunamadı, bu yüzden standart gezinme gösteriliyor.",
-    "popupBlocked": "Tarayıcınız oturum açma penceresini engelledi. Hizmetin altında gösterilen bağlantıyı kullanın."
+    "popupBlocked": "Tarayıcınız oturum açma penceresini engelledi. Hizmetin altında gösterilen bağlantıyı kullanın.",
+    "activity": {
+      "tab": "Etkinlik",
+      "title": "Son etkinlik",
+      "description": "Hangi istemcinin, hangi hizmetin hangi aracını ne zaman çağırdığı ve sonucu. Girdiler ve sonuçlar burada asla gösterilmez.",
+      "empty": "Henüz etkinlik yok. İstemcilerinizin yaptığı çağrılar burada görünür.",
+      "emptyFiltered": "Bu filtrelerle eşleşen etkinlik yok.",
+      "loadFailed": "Etkinlik yüklenemedi.",
+      "unavailableTitle": "Etkinlik geçmişi veritabanı modu gerektirir",
+      "unavailableBody": "Bu sunucu çağrı geçmişi saklamadığı için gösterilecek bir şey yok. Bir yöneticiden MCPHub'ı veritabanıyla çalıştırmasını isteyin.",
+      "loadMore": "Daha fazla yükle",
+      "loadingMore": "Yükleniyor…",
+      "shown_one": "{{count}} olay gösteriliyor",
+      "shown_other": "{{count}} olay gösteriliyor",
+      "columns": {
+        "time": "Zaman",
+        "service": "Hizmet",
+        "tool": "Araç",
+        "client": "İstemci",
+        "result": "Sonuç",
+        "reason": "Neden",
+        "duration": "Süre"
+      },
+      "filters": {
+        "label": "Etkinliği filtrele",
+        "service": "Hizmet",
+        "result": "Sonuç",
+        "client": "İstemci",
+        "allServices": "Tüm hizmetler",
+        "allResults": "Tüm sonuçlar",
+        "allClients": "Tüm istemciler"
+      },
+      "result": {
+        "success": "Başarılı",
+        "error": "Başarısız",
+        "blocked": "Engellendi"
+      },
+      "reason": {
+        "tool_error": "Araç bir hata bildirdi",
+        "credential_server_error": "Çağrı, kendi kimlik bilgilerinizi kullanan bir hizmette başarısız oldu",
+        "unavailable": "Araç kullanılamıyordu",
+        "upstream_error": "Hizmet bir hata döndürdü"
+      },
+      "noClient": "Pano veya sistem",
+      "unknownClient": "Bilinmeyen istemci (artık bağlı değil)",
+      "clientGone": "{{name}} (artık bağlı değil)",
+      "duration": "{{ms}} ms"
+    }
   }
 }

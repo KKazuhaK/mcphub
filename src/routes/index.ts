@@ -4,6 +4,7 @@ import { listMyCredentials, updateMyCredential } from '../controllers/credential
 import {
   getWorkspaceEndpoints,
   getWorkspaceSummary,
+  listWorkspaceActivity,
   listWorkspaceClients,
   listWorkspaceServers,
   revokeAllWorkspaceClients,
@@ -194,6 +195,7 @@ import {
   setMountedSsoProviders,
 } from '../services/betterAuthConfig.js';
 import {
+  activityHistoryRateLimiter,
   authAttemptRateLimiter,
   authRegistrationRateLimiter,
   authenticatedRouteRateLimiter,
@@ -290,6 +292,7 @@ export const initRoutes = async (app: express.Application): Promise<void> => {
   authenticatedRouter.get('/workspace/clients', listWorkspaceClients);
   authenticatedRouter.delete('/workspace/clients/:kind/:id', revokeWorkspaceClient);
   authenticatedRouter.delete('/workspace/clients', revokeAllWorkspaceClients);
+  authenticatedRouter.get('/workspace/activity', activityHistoryRateLimiter, listWorkspaceActivity);
   authenticatedRouter.get('/servers', getAllServers);
   authenticatedRouter.get('/servers/:name/share-candidates', getServerShareCandidates);
   authenticatedRouter.get('/servers/:name', getServerConfig);

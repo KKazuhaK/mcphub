@@ -1,4 +1,7 @@
 import type {
+  WorkspaceActivityClient,
+  WorkspaceActivityItem,
+  WorkspaceActivityStatus,
   WorkspaceServer,
   WorkspaceStatusCode,
   WorkspaceSummary,
@@ -224,7 +227,8 @@ export class WorkspaceApiError extends Error {
 export const localizeStatusMessage = (
   status: { message: string; until?: string },
   format: (iso: string) => string,
-): string => (status.until ? status.message.split(status.until).join(format(status.until)) : status.message);
+): string =>
+  status.until ? status.message.split(status.until).join(format(status.until)) : status.message;
 
 /**
  * What a finished read of the settings means for Workspace Mode. A failed read keeps the last
@@ -261,4 +265,93 @@ export const pruneAuthLinks = (
   );
   const kept = Object.entries(links).filter(([name]) => needing.has(name));
   return kept.length === Object.keys(links).length ? links : Object.fromEntries(kept);
+};
+
+export const ACTIVITY_PAGE_SIZE = 25;
+
+export interface ActivityFilters {
+  server?: string;
+  status?: WorkspaceActivityStatus;
+  /** `<kind>:<id>`, as produced by `activityClientValue`. */
+  client?: string;
+}
+
+export const activityClientValue = (client: Pick<WorkspaceActivityClient, 'kind' | 'id'>): string =>
+  `${client.kind}:${client.id}`;
+
+/** Query string for the activity endpoint; empty filters are left out. */
+export const buildActivityQuery = (
+  filters: ActivityFilters,
+  cursor?: string | null,
+  limit: number = ACTIVITY_PAGE_SIZE,
+): string => {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (filters.server) params.set('server', filters.server);
+  if (filters.status) params.set('status', filters.status);
+  if (filters.client) {
+    const split = filters.client.indexOf(':');
+    if (split > 0) {
+      params.set('clientKind', filters.client.slice(0, split));
+      params.set('clientId', filters.client.slice(split + 1));
+    }
+  }
+  if (cursor) params.set('cursor', cursor);
+  return `?${params.toString()}`;
+};
+
+/** Adds a later page after the rows already shown, skipping any row that is already there. */
+export const appendActivityItems = (
+  current: readonly WorkspaceActivityItem[],
+  next: readonly WorkspaceActivityItem[],
+): WorkspaceActivityItem[] => {
+  const seen = new Set(current.map((item) => item.id));
+  return [...current, ...next.filter((item) => !seen.has(item.id))];
+};
+
+/** Translation key for the reason column, or null when the call needs none. */
+export const activityReasonKey = (
+  item: Pick<WorkspaceActivityItem, 'status' | 'reason'>,
+): string | null => {
+  if (!item.reason || item.status === 'success') return null;
+  return item.status === 'blocked'
+    ? `workspacePage.status.${item.reason}`
+    : `workspacePage.activity.reason.${item.reason}`;
+};
+
+/** Filter choices: what the user can see now plus anything the loaded history mentions. */
+export const mergeActivityOptions = (
+  known: readonly string[],
+  items: readonly WorkspaceActivityItem[],
+  selected?: string,
+): string[] =>
+  [
+    ...new Set([...known, ...items.map((item) => item.server), ...(selected ? [selected] : [])]),
+  ].sort((a, b) => a.localeCompare(b));
+
+export interface ActivityClientOption {
+  value: string;
+  name: string | null;
+}
+
+export const mergeActivityClientOptions = (
+  known: ReadonlyArray<{ kind: 'oauth' | 'key'; id: string; name: string }>,
+  items: readonly WorkspaceActivityItem[],
+  selected?: string,
+): ActivityClientOption[] => {
+  const options = new Map<string, ActivityClientOption>();
+  for (const client of known) {
+    options.set(activityClientValue(client), {
+      value: activityClientValue(client),
+      name: client.name,
+    });
+  }
+  for (const item of items) {
+    if (!item.client) continue;
+    const value = activityClientValue(item.client);
+    if (!options.has(value) || (!options.get(value)!.name && item.client.name)) {
+      options.set(value, { value, name: item.client.name });
+    }
+  }
+  if (selected && !options.has(selected)) options.set(selected, { value: selected, name: null });
+  return [...options.values()];
 };

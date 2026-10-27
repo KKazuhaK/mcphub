@@ -16,6 +16,7 @@ import { useServerContext } from '@/contexts/ServerContext';
 import { useGroupData } from '@/hooks/useGroupData';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import SmartRoutingIndexPanel from '@/components/SmartRoutingIndexPanel';
+import ActivityRetentionSetting from '@/components/ActivityRetentionSetting';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiGet, apiPost } from '@/utils/fetchInterceptor';
 import {
@@ -659,6 +660,9 @@ const SettingsPage: React.FC = () => {
     updateNameSeparator,
     updateSessionRebuild,
     updateStoreToolPayload,
+    updateActivityRetentionDays,
+    activityRetentionDays,
+    activityViewDays,
     exportMCPSettings,
     createBearerKey,
     updateBearerKey,
@@ -3948,6 +3952,13 @@ const SettingsPage: React.FC = () => {
                   onCheckedChange={(checked) => updateStoreToolPayload(checked)}
                 />
               </div>
+
+              <ActivityRetentionSetting
+                value={activityRetentionDays}
+                viewWindowDays={activityViewDays}
+                disabled={loading}
+                onSave={updateActivityRetentionDays}
+              />
             </div>
           )}
         </div>

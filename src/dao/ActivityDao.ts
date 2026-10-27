@@ -1,6 +1,12 @@
 import { IActivity, IActivityFilter, IActivityStats } from '../types/index.js';
 import { PaginatedResult } from './index.js';
-import { ActivityRepository } from '../db/repositories/ActivityRepository.js';
+import {
+  ActivityRepository,
+  type ActivityHistoryQuery,
+  type ActivityHistoryRow,
+} from '../db/repositories/ActivityRepository.js';
+
+export type { ActivityHistoryQuery, ActivityHistoryRow };
 
 /**
  * Activity DAO interface - only available in database mode
@@ -15,6 +21,16 @@ export interface ActivityDao {
   ): Promise<PaginatedResult<IActivity>>;
   getStats(filter?: IActivityFilter): Promise<IActivityStats>;
   deleteOlderThan(date: Date): Promise<number>;
+  /** One user's rows, newest first, as metadata only (payload columns are never selected). */
+  findUserHistory(query: ActivityHistoryQuery): Promise<ActivityHistoryRow[]>;
+  /**
+   * Deletes rows older than `date` in batches until none are left or the time budget is spent.
+   * `done` is false when a backlog remains for the next run.
+   */
+  purgeOlderThan(
+    date: Date,
+    options?: { batchSize?: number; budgetMs?: number },
+  ): Promise<{ removed: number; done: boolean }>;
   getDistinctServers(): Promise<string[]>;
   getDistinctTools(): Promise<string[]>;
   getDistinctGroups(): Promise<string[]>;
@@ -48,6 +64,9 @@ export class ActivityDaoDbImpl implements ActivityDao {
       keyName: activity.keyName,
       sourceIp: activity.sourceIp,
       errorMessage: activity.errorMessage,
+      statusCode: activity.statusCode ?? null,
+      clientKind: activity.clientKind ?? null,
+      clientId: activity.clientId ?? null,
     });
 
     return this.mapToActivity(created);
@@ -81,6 +100,17 @@ export class ActivityDaoDbImpl implements ActivityDao {
 
   async deleteOlderThan(date: Date): Promise<number> {
     return await this.repository.deleteOlderThan(date);
+  }
+
+  async findUserHistory(query: ActivityHistoryQuery): Promise<ActivityHistoryRow[]> {
+    return await this.repository.findUserHistory(query);
+  }
+
+  async purgeOlderThan(
+    date: Date,
+    options?: { batchSize?: number; budgetMs?: number },
+  ): Promise<{ removed: number; done: boolean }> {
+    return await this.repository.purgeOlderThan(date, options);
   }
 
   async getDistinctServers(): Promise<string[]> {
@@ -119,6 +149,9 @@ export class ActivityDaoDbImpl implements ActivityDao {
       keyName: entity.keyName,
       sourceIp: entity.sourceIp,
       errorMessage: entity.errorMessage,
+      statusCode: entity.statusCode ?? null,
+      clientKind: entity.clientKind ?? null,
+      clientId: entity.clientId ?? null,
     };
   }
 }

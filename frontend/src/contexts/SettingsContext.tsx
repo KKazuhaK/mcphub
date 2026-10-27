@@ -138,8 +138,9 @@ interface SystemSettings {
     network?: { allowedCidrs?: string[] };
     activityLog?: {
       storeToolPayload?: boolean;
+      retentionDays?: number;
     };
-    workspace?: { enabled?: boolean };
+    workspace?: { enabled?: boolean; activityRetentionDays?: number };
   };
   bearerKeys?: BearerKey[];
 }
@@ -167,6 +168,10 @@ interface SettingsContextValue {
   allowedCidrs: string[];
   updateAllowedCidrs: (value: string[]) => Promise<boolean>;
   storeToolPayload: boolean;
+  // Administrator retention for activity, in days; null keeps activity forever.
+  activityRetentionDays: number | null;
+  // Days of history users see in their workspace (default 90).
+  activityViewDays: number;
   workspaceEnabled: boolean;
   // True once the setting has been read for the signed-in user.
   workspaceResolved: boolean;
@@ -208,6 +213,7 @@ interface SettingsContextValue {
   updateNameSeparator: (value: string) => Promise<boolean | undefined>;
   updateSessionRebuild: (value: boolean) => Promise<boolean | undefined>;
   updateStoreToolPayload: (value: boolean) => Promise<boolean | undefined>;
+  updateActivityRetentionDays: (value: number | null) => Promise<boolean>;
   exportMCPSettings: (serverName?: string) => Promise<any>;
   // Bearer key management
   refreshBearerKeys: () => Promise<void>;
@@ -425,6 +431,8 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
   const [enableSessionRebuild, setEnableSessionRebuild] = useState<boolean>(false);
   const [allowedCidrs, setAllowedCidrs] = useState<string[]>([]);
   const [storeToolPayload, setStoreToolPayload] = useState<boolean>(true);
+  const [activityRetentionDays, setActivityRetentionDays] = useState<number | null>(null);
+  const [activityViewDays, setActivityViewDays] = useState<number>(90);
   const [workspaceEnabled, setWorkspaceEnabled] = useState<boolean>(false);
   const [workspaceResolved, setWorkspaceResolved] = useState<boolean>(false);
   const [workspaceLoadFailed, setWorkspaceLoadFailed] = useState<boolean>(false);
@@ -597,6 +605,12 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
       }
       if (workspace.failed && authRef.current.isAuthenticated) {
         setError(data?.message || 'Failed to fetch settings');
+      }
+      if (data.success) {
+        const retention = data.data?.systemConfig?.activityLog?.retentionDays;
+        setActivityRetentionDays(typeof retention === 'number' ? retention : null);
+        const view = data.data?.systemConfig?.workspace?.activityRetentionDays;
+        setActivityViewDays(typeof view === 'number' ? view : 90);
       }
       if (data.success && data.data?.systemConfig?.activityLog?.storeToolPayload !== undefined) {
         setStoreToolPayload(data.data.systemConfig.activityLog.storeToolPayload);
@@ -1152,6 +1166,28 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
     }
   };
 
+  const updateActivityRetentionDays = async (value: number | null) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiPut('/system-config', { activityLog: { retentionDays: value } });
+      if (data.success) {
+        setActivityRetentionDays(value);
+        showToast(t('settings.systemConfigUpdated'));
+        return true;
+      }
+      setError(data.error || data.message || 'Failed to update activity retention');
+      showToast(data.message || data.error || t('settings.activityRetentionUpdateFailed'));
+      return false;
+    } catch (error) {
+      console.error('Failed to update activity retention', { value, error });
+      showToast(t('settings.activityRetentionUpdateFailed'));
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const exportMCPSettings = async (serverName?: string) => {
     setLoading(true);
     setError(null);
@@ -1301,6 +1337,9 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
     updateNameSeparator,
     updateSessionRebuild,
     updateStoreToolPayload,
+    updateActivityRetentionDays,
+    activityRetentionDays,
+    activityViewDays,
     exportMCPSettings,
     refreshBearerKeys,
     createBearerKey,

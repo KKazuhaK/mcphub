@@ -4508,6 +4508,7 @@ const callToolImpl = async (request: any, extra: any, outcome: { info?: ServerIn
   let appsRouteContext: McpAppsRouteContext;
   const keyId = bearerKeyContext.keyId || extra?.keyId || undefined;
   const keyName = bearerKeyContext.keyName || extra?.keyName || undefined;
+  const clientCredential = requestContextService.getRequestContext()?.credential;
   const sourceIp = requestContextService.getRequestContext()?.remoteAddress || undefined;
   let hostedReservation: HostedCreditReservation | null = null;
   let releaseOnDemandToolCall: (() => void) | undefined;
@@ -4726,6 +4727,8 @@ const callToolImpl = async (request: any, extra: any, outcome: { info?: ServerIn
           username,
           keyId,
           keyName,
+          clientKind: clientCredential?.kind,
+          clientId: clientCredential?.id,
           sourceIp,
           hasCredentialTemplate: hasPersonalAuthentication(targetServerInfo.config),
         });
@@ -4824,6 +4827,8 @@ const callToolImpl = async (request: any, extra: any, outcome: { info?: ServerIn
         username,
         keyId,
         keyName,
+        clientKind: clientCredential?.kind,
+        clientId: clientCredential?.id,
         sourceIp,
         hasCredentialTemplate: hasPersonalAuthentication(targetServerInfo.config),
         errorMessage: result.isError ? 'Tool returned error response' : undefined,
@@ -4963,6 +4968,8 @@ const callToolImpl = async (request: any, extra: any, outcome: { info?: ServerIn
         username,
         keyId,
         keyName,
+        clientKind: clientCredential?.kind,
+        clientId: clientCredential?.id,
         sourceIp,
         hasCredentialTemplate: hasPersonalAuthentication(serverInfo.config),
       });
@@ -5040,6 +5047,8 @@ const callToolImpl = async (request: any, extra: any, outcome: { info?: ServerIn
       username,
       keyId,
       keyName,
+      clientKind: clientCredential?.kind,
+      clientId: clientCredential?.id,
       sourceIp,
       hasCredentialTemplate: hasPersonalAuthentication(serverInfo.config),
       errorMessage: result.isError ? 'Tool returned error response' : undefined,
@@ -5088,6 +5097,8 @@ const callToolImpl = async (request: any, extra: any, outcome: { info?: ServerIn
       username,
       keyId,
       keyName,
+      clientKind: clientCredential?.kind,
+      clientId: clientCredential?.id,
       sourceIp,
       hasCredentialTemplate: hasPersonalAuthentication(serverInfo?.config),
       // The reason is an internal diagnostic; the caller-facing message stays
@@ -5095,6 +5106,7 @@ const callToolImpl = async (request: any, extra: any, outcome: { info?: ServerIn
       errorMessage: unavailable
         ? `${unavailable.message} (reason: ${unavailable.reason})`
         : formatErrorForLogging(error),
+      statusCode: unavailable?.reason,
     });
 
     // For unavailable-target errors, surface exactly the unified message (no
@@ -6004,9 +6016,12 @@ const logBlockedWorkspaceCall = async (
     username,
     keyId: bearerKeyContext.keyId || extra?.keyId || undefined,
     keyName: bearerKeyContext.keyName || extra?.keyName || undefined,
+    clientKind: requestContextService.getRequestContext()?.credential?.kind,
+    clientId: requestContextService.getRequestContext()?.credential?.id,
     sourceIp: requestContextService.getRequestContext()?.remoteAddress || undefined,
     hasCredentialTemplate: hasPersonalAuthentication(target.config),
     errorMessage: `${unavailable.message} (reason: ${unavailable.reason})`,
+    statusCode: unavailable.reason,
   });
 };
 

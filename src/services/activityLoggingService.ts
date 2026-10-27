@@ -14,6 +14,11 @@ const CREDENTIAL_TEMPLATE_PAYLOAD_OMITTED = JSON.stringify({
 });
 const CREDENTIAL_TEMPLATE_ERROR = 'Credential-templated server tool call failed';
 
+const STATUS_CODE_PATTERN = /^[a-z0-9_-]{1,40}$/;
+// Only short internal identifiers are stored; anything else (never expected) is dropped.
+const safeStatusCode = (code?: string): string | null =>
+  code && STATUS_CODE_PATTERN.test(code) ? code : null;
+
 /**
  * Service for logging tool call activities
  * Only logs when in database mode
@@ -53,8 +58,13 @@ export class ActivityLoggingService {
     username?: string;
     keyId?: string;
     keyName?: string;
+    /** Connected-client identity of the credential, when it has one. */
+    clientKind?: 'oauth' | 'key' | null;
+    clientId?: string | null;
     sourceIp?: string;
     errorMessage?: string;
+    /** Server Status code or internal unavailable reason that stopped the call, if any. */
+    statusCode?: string;
     hasCredentialTemplate?: boolean;
   }): Promise<void> {
     if (!this.isEnabled()) {
@@ -90,8 +100,11 @@ export class ActivityLoggingService {
         username: params.username,
         keyId: params.keyId,
         keyName: params.keyName,
+        clientKind: params.clientId ? (params.clientKind ?? null) : null,
+        clientId: params.clientKind ? (params.clientId ?? null) : null,
         sourceIp: params.sourceIp,
         errorMessage,
+        statusCode: safeStatusCode(params.statusCode),
       };
 
       await activityDao.create(activity);

@@ -1,10 +1,16 @@
 import type {
+  WorkspaceActivityPage,
   WorkspaceClient,
   WorkspaceEndpoints,
   WorkspaceServer,
   WorkspaceSummary,
 } from '../types';
-import { WorkspaceApiError, isWorkspaceDisabledMessage } from '../utils/workspace';
+import {
+  WorkspaceApiError,
+  buildActivityQuery,
+  isWorkspaceDisabledMessage,
+  type ActivityFilters,
+} from '../utils/workspace';
 import { apiDelete, apiGet, apiPost, apiPut, type ApiResponse } from '../utils/fetchInterceptor';
 
 // Unwraps `{ success, data }` and turns a failed envelope into an Error.
@@ -69,3 +75,14 @@ export const startPersonalOAuth = async (name: string): Promise<string | undefin
   );
   return data?.authorizationUrl;
 };
+
+export const fetchWorkspaceActivity = async (
+  filters: ActivityFilters,
+  cursor?: string | null,
+): Promise<WorkspaceActivityPage> =>
+  unwrap(
+    await apiGet<ApiResponse<WorkspaceActivityPage>>(
+      `/workspace/activity${buildActivityQuery(filters, cursor)}`,
+    ),
+    'activity',
+  );

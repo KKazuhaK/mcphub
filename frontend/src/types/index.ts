@@ -1005,6 +1005,44 @@ export interface WorkspaceEndpoints {
   servers: WorkspaceServerEndpoint[];
 }
 
+export type WorkspaceActivityStatus = 'success' | 'error' | 'blocked';
+
+export type WorkspaceActivityReason =
+  | 'tool_error'
+  | 'credential_server_error'
+  | 'unavailable'
+  | 'upstream_error'
+  | 'not_selected'
+  | 'paused'
+  | 'maintenance'
+  | 'needs_auth'
+  | 'revoked';
+
+export interface WorkspaceActivityClient {
+  kind: 'oauth' | 'key';
+  id: string;
+  /** Null once the client is gone and its name cannot be recovered. */
+  name: string | null;
+  /** False once the client can no longer act as the user. */
+  active: boolean;
+}
+
+export interface WorkspaceActivityItem {
+  id: string;
+  timestamp: string;
+  server: string;
+  tool: string;
+  status: WorkspaceActivityStatus;
+  durationMs: number;
+  reason?: WorkspaceActivityReason;
+  /** Null for calls that did not arrive with a connected-client credential. */
+  client: WorkspaceActivityClient | null;
+}
+
+export type WorkspaceActivityPage =
+  | { available: false }
+  | { available: true; items: WorkspaceActivityItem[]; nextCursor: string | null };
+
 export interface WorkspaceClient {
   id: string;
   kind: 'oauth' | 'key';

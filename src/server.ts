@@ -34,6 +34,10 @@ import type { Socket } from 'net';
 import { mcpConnectionRateLimiter, spaPageRateLimiter } from './utils/rateLimit.js';
 import { closeHttpServer } from './utils/serverShutdown.js';
 import { logger } from './utils/logger.js';
+import {
+  startActivityRetention,
+  stopActivityRetention,
+} from './services/workspaceActivityService.js';
 
 /**
  * Get the directory of the current module
@@ -117,6 +121,8 @@ export class AppServer {
         for (const target of [...groups, ...servers]) assertSmartRoutingNameAvailable(target.name);
         for (const group of groups) assertSmartRoutingNameAvailable(group.id);
       }
+
+      startActivityRetention();
 
       initMiddlewares(this.app);
       await initRoutes(this.app);
@@ -276,6 +282,8 @@ export class AppServer {
     const httpShutdown = this.server
       ? closeHttpServer(this.server, this.connections)
       : Promise.resolve();
+
+    stopActivityRetention();
 
     // Close all MCP clients and stateless modern MCP exchanges.
     try {
