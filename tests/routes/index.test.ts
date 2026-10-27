@@ -27,6 +27,7 @@ jest.mock('../../src/controllers/serverController.js', () => ({
   updateToolDescription: routeHandler,
   resetToolDescription: routeHandler,
   updateToolHiddenParams: routeHandler,
+  updateToolRisk: routeHandler,
   togglePrompt: routeHandler,
   updatePromptDescription: routeHandler,
   resetPromptDescription: routeHandler,

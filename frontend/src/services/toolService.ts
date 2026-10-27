@@ -156,6 +156,38 @@ export const updateToolHiddenParams = async (
 };
 
 /**
+ * Set (or with `null` clear) the administrator's risk level for one tool. The level can only
+ * raise what the tool's annotations give it.
+ */
+export const updateToolRisk = async (
+  serverName: string,
+  toolName: string,
+  risk: 'read' | 'write' | 'external' | null,
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const response = await apiPut<any>(
+      `/servers/${encodeURIComponent(serverName)}/tools/${encodeURIComponent(toolName)}/risk`,
+      { risk },
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('mcphub_token')}`,
+        },
+      },
+    );
+    return {
+      success: response.success,
+      error: response.success ? undefined : response.message,
+    };
+  } catch (error) {
+    console.error('Error updating tool risk level', { serverName, toolName, error });
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+};
+
+/**
  * Reset a tool's description override for a specific server
  */
 export const resetToolDescription = async (

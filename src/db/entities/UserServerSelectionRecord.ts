@@ -13,6 +13,10 @@ export class UserServerSelectionRecord {
   @Column({ type: 'boolean', default: false })
   selected: boolean;
 
+  // The highest tool risk level the user allows on this server; null reads as `read`.
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  riskCeiling?: 'read' | 'write' | 'external' | null;
+
   @Column({ type: 'varchar', length: 30 })
   updatedAt: string;
 }

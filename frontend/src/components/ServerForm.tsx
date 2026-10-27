@@ -7,7 +7,13 @@ import { getServerConfigPermissionError } from '../utils/serverPermissions.js';
 import { X } from 'lucide-react';
 import { Server, EnvVar, ServerFormData, OpenApiToolStats } from '@/types';
 import { apiGet, apiPost } from '../utils/fetchInterceptor';
-import { buildServerPayload, getAvailabilityEdits } from '../utils/serverFormPayload';
+import {
+  buildServerPayload,
+  getAvailabilityEdits,
+  getToolRiskEdit,
+  getDefaultUserRiskEdit,
+} from '../utils/serverFormPayload';
+import ServerToolRiskField from './ServerToolRiskField';
 import {
   deselectShareUsers,
   filterShareUsers,
@@ -151,6 +157,8 @@ const ServerForm = ({
             until: initialData?.config?.maintenance?.until,
             message: initialData?.config?.maintenance?.message || '',
           },
+          maxToolRisk: initialData?.config?.maxToolRisk ?? ('external' as const),
+          defaultUserRisk: initialData?.config?.defaultUserRisk ?? ('read' as const),
         }
       : {}),
     options: {
@@ -252,6 +260,8 @@ const ServerForm = ({
   const initialAvailability = useRef({
     pausedUsers: formData.pausedUsers,
     maintenance: formData.maintenance,
+    maxToolRisk: formData.maxToolRisk,
+    defaultUserRisk: formData.defaultUserRisk,
   });
 
   const [shareCandidates, setShareCandidates] = useState<string[]>([]);
@@ -606,6 +616,14 @@ const ServerForm = ({
         availabilityEdits:
           auth.user?.isAdmin && workspaceEnabled
             ? getAvailabilityEdits(formData, initialAvailability.current)
+            : undefined,
+        toolRiskEdited:
+          auth.user?.isAdmin && workspaceEnabled
+            ? getToolRiskEdit(formData, initialAvailability.current)
+            : undefined,
+        defaultRiskEdited:
+          auth.user?.isAdmin && workspaceEnabled
+            ? getDefaultUserRiskEdit(formData, initialAvailability.current)
             : undefined,
       });
 
@@ -2082,6 +2100,17 @@ const ServerForm = ({
                   }
                   onPausedUsersChange={(pausedUsers) =>
                     setFormData((prev) => ({ ...prev, pausedUsers }))
+                  }
+                />
+              )}
+
+              {/* Maximum tool risk (admins, Workspace Mode) */}
+              {auth.user?.isAdmin && workspaceEnabled && formData.maxToolRisk && (
+                <ServerToolRiskField
+                  value={formData.maxToolRisk}
+                  defaultValue={formData.defaultUserRisk ?? 'read'}
+                  onChange={(maxToolRisk, defaultUserRisk) =>
+                    setFormData((prev) => ({ ...prev, maxToolRisk, defaultUserRisk }))
                   }
                 />
               )}

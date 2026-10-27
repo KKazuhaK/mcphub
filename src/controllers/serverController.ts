@@ -7,8 +7,20 @@ import {
 } from '../services/credentialBindingService.js';
 import { renameServerSelections } from '../services/userServerSelectionService.js';
 import { assertMaintenanceEndsInFuture } from '../utils/serverMaintenance.js';
+import { primeAnnotationTrust, areAnnotationsTrusted } from '../services/annotationTrustService.js';
+import {
+  assertDefaultWithinCap,
+  assertOverridesOnlyRaise,
+  normalizeToolRiskOverrides,
+  type ToolRiskFields,
+  classifyToolRisk,
+  isToolRiskLevel,
+  riskRank,
+  toolRiskChanged,
+} from '../utils/toolRisk.js';
 import {
   handleServerAvailabilityChange,
+  handleToolRiskChange,
   scheduleMaintenanceExpiry,
   clearMaintenanceExpiry,
   type ServerAvailabilityState,
@@ -28,6 +40,7 @@ import {
   BatchServerResult,
   ServerConfig,
   ServerInfo,
+  ToolRiskLevel,
 } from '../types/index.js';
 import {
   getServersInfo,
@@ -47,6 +60,7 @@ import {
   reinstallServer,
   updateServerInfoVisibility,
   updateServerInfoAvailability,
+  updateServerInfoToolRisk,
 } from '../services/mcpService.js';
 import { clearAllCaches } from '../utils/cacheUtils.js';
 import {
@@ -193,6 +207,12 @@ const adminOnlyFieldRefusal = (
   if (currentUser?.isAdmin === true) return undefined;
   if (hasOwnKey(config, 'pausedUsers')) return 'Only admins can pause a server for specific users';
   if (hasOwnKey(config, 'maintenance')) return 'Only admins can set server maintenance';
+  if (
+    hasOwnKey(config, 'maxToolRisk') ||
+    hasOwnKey(config, 'toolRiskOverrides') ||
+    hasOwnKey(config, 'defaultUserRisk')
+  )
+    return 'Only admins can set tool risk levels';
   return undefined;
 };
 
@@ -203,6 +223,17 @@ const availabilityAfterEdit = (
 ): ServerAvailabilityState => ({
   pausedUsers: hasOwnKey(config, 'pausedUsers') ? config.pausedUsers : existing.pausedUsers,
   maintenance: hasOwnKey(config, 'maintenance') ? config.maintenance : existing.maintenance,
+});
+
+// Tool risk state after an edit: a key the request leaves out keeps its stored value.
+const toolRiskAfterEdit = (existing: ServerConfig, config: ServerConfig): ToolRiskFields => ({
+  maxToolRisk: hasOwnKey(config, 'maxToolRisk') ? config.maxToolRisk : existing.maxToolRisk,
+  defaultUserRisk: hasOwnKey(config, 'defaultUserRisk')
+    ? config.defaultUserRisk
+    : existing.defaultUserRisk,
+  toolRiskOverrides: hasOwnKey(config, 'toolRiskOverrides')
+    ? config.toolRiskOverrides
+    : existing.toolRiskOverrides,
 });
 
 const assignServerOwner = (req: Request, config: ServerConfig, existingOwner?: string): void => {
@@ -297,7 +328,14 @@ const toConnectionRelevantConfig = (
 ): ConnectionRelevantServerConfig => {
   // Only incoming values are validated: a stored pause list or maintenance window does not
   // take part in the comparison and must never make an unrelated edit fail.
-  const { pausedUsers: _pausedUsers, maintenance: _maintenance, ...withoutRuntimeState } = config;
+  const {
+    pausedUsers: _pausedUsers,
+    maintenance: _maintenance,
+    maxToolRisk: _maxToolRisk,
+    toolRiskOverrides: _toolRiskOverrides,
+    defaultUserRisk: _defaultUserRisk,
+    ...withoutRuntimeState
+  } = config;
   const normalized = normalizeServerConfigForPersistence(withoutRuntimeState) as Record<
     string,
     unknown
@@ -675,6 +713,7 @@ export const createServer = async (req: Request, res: Response): Promise<void> =
 
     const normalizedConfig = normalizeServerConfigForPersistence(config);
     assertMaintenanceEndsInFuture(normalizedConfig.maintenance, undefined);
+    assertDefaultWithinCap(normalizedConfig.defaultUserRisk, normalizedConfig.maxToolRisk);
 
     if (
       !normalizedConfig.url &&
@@ -965,6 +1004,7 @@ export const batchCreateServers = async (req: Request, res: Response): Promise<v
         }
 
         assertMaintenanceEndsInFuture(normalizedConfig.maintenance, undefined);
+        assertDefaultWithinCap(normalizedConfig.defaultUserRisk, normalizedConfig.maxToolRisk);
 
         // Set owner property if not provided
         normalizedConfig.owner = currentUser?.isAdmin
@@ -1257,6 +1297,22 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
       maintenance: existingServer.maintenance,
     };
     const availabilityAfter = availabilityAfterEdit(existingServer, normalizedConfig);
+    // An override may only raise a tool above the level its annotations give it.
+    await primeAnnotationTrust();
+    assertOverridesOnlyRaise(
+      normalizedConfig.toolRiskOverrides,
+      name,
+      getServerByName(name)?.tools ?? [],
+      areAnnotationsTrusted(normalizedConfig.owner ?? existingServer.owner),
+    );
+    const toolRiskBefore: ToolRiskFields = {
+      maxToolRisk: existingServer.maxToolRisk,
+      toolRiskOverrides: existingServer.toolRiskOverrides,
+      defaultUserRisk: existingServer.defaultUserRisk,
+    };
+    const toolRiskAfter = toolRiskAfterEdit(existingServer, normalizedConfig);
+    // The user's starting level can never exceed the cap, whichever of the two this save moves.
+    assertDefaultWithinCap(toolRiskAfter.defaultUserRisk, toolRiskAfter.maxToolRisk);
 
     // Set default keep-alive interval for SSE servers if not specified
     if (
@@ -1365,6 +1421,20 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
       if (tools) {
         normalizedConfig.tools = tools;
       }
+      const toolRiskOverrides = movePrefixedItemKeys(
+        // A request that carries the key (even null) decides; one that omits it keeps the
+        // stored map, moved with the rename.
+        hasOwnKey(normalizedConfig, 'toolRiskOverrides')
+          ? normalizedConfig.toolRiskOverrides
+          : existingServer.toolRiskOverrides,
+        name,
+        targetName,
+        isBareToolName,
+      );
+      if (toolRiskOverrides) {
+        normalizedConfig.toolRiskOverrides = toolRiskOverrides;
+        toolRiskAfter.toolRiskOverrides = toolRiskOverrides;
+      }
       const prompts = movePrefixedItemKeys(
         normalizedConfig.prompts ?? existingServer.prompts,
         name,
@@ -1412,8 +1482,10 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
         normalizedConfig.sharedWithUsers,
       );
       updateServerInfoAvailability(finalName, availabilityAfter);
+      updateServerInfoToolRisk(finalName, toolRiskAfter);
       broadcastToolListChanged();
       await handleServerAvailabilityChange(finalName, availabilityBefore, availabilityAfter);
+      if (toolRiskChanged(toolRiskBefore, toolRiskAfter)) await handleToolRiskChange(finalName);
 
       res.json({
         success: true,
@@ -1425,6 +1497,7 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
     const result = await addOrUpdateServer(finalName, normalizedConfig, true); // Allow override for updates
     if (result.success) {
       await handleServerAvailabilityChange(finalName, availabilityBefore, availabilityAfter);
+      if (toolRiskChanged(toolRiskBefore, toolRiskAfter)) await handleToolRiskChange(finalName);
       // On-demand servers repopulate their tool cache via primeOnDemandServers
       // inside initializeClientsFromSettings, which is awaited for a targeted
       // reload. Await it here too: the dashboard refreshes the server list as
@@ -1752,13 +1825,11 @@ export const batchToggleTools = async (req: Request, res: Response): Promise<voi
         (pattern) => typeof pattern !== 'string' || !pattern.trim() || pattern.length > 256,
       )
     ) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message:
-            'Provide enabled (boolean) and 1–100 non-empty tool names or patterns (up to 256 characters each)',
-        });
+      res.status(400).json({
+        success: false,
+        message:
+          'Provide enabled (boolean) and 1–100 non-empty tool names or patterns (up to 256 characters each)',
+      });
       return;
     }
     const server = await loadAuthorizedServer(req, res, serverName);
@@ -1777,18 +1848,17 @@ export const batchToggleTools = async (req: Request, res: Response): Promise<voi
       } catch {
         res.status(409).json({
           success: false,
-          message: 'Personal tool inventory is unavailable; connect with your personal authentication first',
+          message:
+            'Personal tool inventory is unavailable; connect with your personal authentication first',
         });
         return;
       }
     }
     if (!inventory) {
-      res
-        .status(409)
-        .json({
-          success: false,
-          message: 'Server tool inventory is unavailable; connect the server first',
-        });
+      res.status(409).json({
+        success: false,
+        message: 'Server tool inventory is unavailable; connect the server first',
+      });
       return;
     }
     const runtimeNames = inventory.map((tool) => tool.name);
@@ -2077,6 +2147,89 @@ export const updateToolHiddenParams = async (req: Request, res: Response): Promi
   }
 };
 
+// Sets or clears the administrator's risk level for one tool. The level may only raise what the
+// tool's annotations give it; `risk: null` removes the override.
+export const updateToolRisk = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (getRequestUser(req)?.isAdmin !== true) {
+      res.status(403).json({ success: false, message: 'Only admins can set tool risk levels' });
+      return;
+    }
+    const serverName = decodeURIComponent(req.params.serverName);
+    const toolName = decodeURIComponent(req.params.toolName);
+    const { risk } = req.body ?? {};
+    if (!serverName || !toolName || ['__proto__', 'constructor', 'prototype'].includes(toolName)) {
+      res.status(400).json({ success: false, message: 'Server name and tool name are required' });
+      return;
+    }
+    if (risk !== null && !isToolRiskLevel(risk)) {
+      res
+        .status(400)
+        .json({ success: false, message: 'risk must be one of read, write, external, or null' });
+      return;
+    }
+    const server = await loadAuthorizedServer(req, res, serverName);
+    if (!server) return;
+
+    const liveTools = getServerByName(serverName)?.tools ?? [];
+    const runtimeNames = liveToolNames(serverName);
+    const runtimeName = resolveRuntimeToolName(serverName, toolName, runtimeNames);
+    const liveTool = liveTools.find((tool) => tool.name === runtimeName);
+    await primeAnnotationTrust();
+    const computed = liveTool
+      ? areAnnotationsTrusted(server.owner)
+        ? classifyToolRisk(liveTool)
+        : 'external'
+      : undefined;
+    if (computed && risk !== null && riskRank(risk) < riskRank(computed)) {
+      res.status(400).json({
+        success: false,
+        message: `A tool's risk level can only be raised; '${toolName}' is already ${computed}`,
+      });
+      return;
+    }
+
+    const before: ToolRiskFields = {
+      maxToolRisk: server.maxToolRisk,
+      toolRiskOverrides: server.toolRiskOverrides,
+      defaultUserRisk: server.defaultUserRisk,
+    };
+    const overrides: Record<string, ToolRiskLevel> = { ...(server.toolRiskOverrides ?? {}) };
+    // Reuse the key the override is already stored under, as per-tool settings do.
+    const key = findToolConfigKey(overrides, serverName, toolName, runtimeNames);
+    if (risk === null) delete overrides[key];
+    else overrides[key] = risk;
+    // The same validation as a server save: name length, entry limit, trimming.
+    const toolRiskOverrides = normalizeToolRiskOverrides(overrides);
+
+    if (!(await getServerDao().update(serverName, { toolRiskOverrides }))) {
+      res.status(500).json({ success: false, message: 'Failed to save settings' });
+      return;
+    }
+    const after: ToolRiskFields = {
+      maxToolRisk: server.maxToolRisk,
+      toolRiskOverrides,
+      defaultUserRisk: server.defaultUserRisk,
+    };
+    updateServerInfoToolRisk(serverName, after);
+    if (toolRiskChanged(before, after)) {
+      broadcastToolListChanged();
+      await handleToolRiskChange(serverName);
+    }
+    res.json({
+      success: true,
+      data: { risk: risk ?? null },
+      message: `Tool ${toolName} risk level updated successfully`,
+    });
+  } catch (error) {
+    if (error instanceof ServerConfigValidationError) {
+      res.status(400).json({ success: false, message: error.message });
+      return;
+    }
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
 // Reset tool description override for a specific server back to the upstream default
 export const resetToolDescription = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -2161,12 +2314,10 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
     } = req.body;
     const hasNetworkUpdate = network !== undefined;
     if (hasNetworkUpdate && (!network || !validateAllowedCidrs(network.allowedCidrs))) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: 'network.allowedCidrs must be an array of valid IPv4 or IPv6 CIDRs',
-        });
+      res.status(400).json({
+        success: false,
+        message: 'network.allowedCidrs must be an array of valid IPv4 or IPv6 CIDRs',
+      });
       return;
     }
     const { smartRouting } = migrateLegacySmartRoutingConfig(requestSmartRouting);

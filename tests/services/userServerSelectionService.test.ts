@@ -8,8 +8,11 @@ import {
   clearServerSelectionCache,
   deleteUserServerSelections,
   getSelectedServerNames,
+  getUserSelectionScope,
   isWorkspaceEnabled,
   renameServerSelections,
+  resolveRiskCeiling,
+  setServerRiskCeiling,
   setServerSelected,
 } from '../../src/services/userServerSelectionService.js';
 import { setCachedSystemConfig } from '../../src/utils/systemConfigCache.js';
@@ -179,5 +182,91 @@ describe('userServerSelectionService', () => {
     expect(isWorkspaceEnabled()).toBe(false);
     setCachedSystemConfig({ workspace: { enabled: true } });
     expect(isWorkspaceEnabled()).toBe(true);
+  });
+
+  describe('risk ceiling', () => {
+    it('defaults to read for a server the user never chose a level for', async () => {
+      await setServerSelected('alice', 'fetch', true);
+
+      const { names, ceilings } = await getUserSelectionScope('alice');
+
+      expect([...names]).toEqual(['fetch']);
+      expect(ceilings.size).toBe(0);
+      expect(resolveRiskCeiling(ceilings, 'fetch')).toBe('read');
+    });
+
+    it('stores a ceiling per user and server, without selecting', async () => {
+      await setServerRiskCeiling('alice', 'fetch', 'external');
+      await setServerRiskCeiling('alice', 'git', 'write');
+
+      const alice = await getUserSelectionScope('alice');
+      expect(alice.names.size).toBe(0);
+      expect(resolveRiskCeiling(alice.ceilings, 'fetch')).toBe('external');
+      expect(resolveRiskCeiling(alice.ceilings, 'git')).toBe('write');
+      expect(resolveRiskCeiling((await getUserSelectionScope('bob')).ceilings, 'fetch')).toBe(
+        'read',
+      );
+    });
+
+    it('is invalidated by a write, so the next read sees it', async () => {
+      await setServerSelected('alice', 'fetch', true);
+      expect(resolveRiskCeiling((await getUserSelectionScope('alice')).ceilings, 'fetch')).toBe(
+        'read',
+      );
+
+      await setServerRiskCeiling('alice', 'fetch', 'write');
+
+      expect(resolveRiskCeiling((await getUserSelectionScope('alice')).ceilings, 'fetch')).toBe(
+        'write',
+      );
+    });
+
+    it('survives selecting and deselecting the server', async () => {
+      await setServerRiskCeiling('alice', 'fetch', 'write');
+      await setServerSelected('alice', 'fetch', true);
+      await setServerSelected('alice', 'fetch', false);
+      await setServerSelected('alice', 'fetch', true);
+
+      const { names, ceilings } = await getUserSelectionScope('alice');
+      expect([...names]).toEqual(['fetch']);
+      expect(resolveRiskCeiling(ceilings, 'fetch')).toBe('write');
+    });
+
+    it('does not deselect a selected server when the ceiling changes', async () => {
+      await setServerSelected('alice', 'fetch', true);
+      await setServerRiskCeiling('alice', 'fetch', 'external');
+
+      expect([...(await getSelectedServerNames('alice'))]).toEqual(['fetch']);
+    });
+
+    it('treats a stored value that is not a level as read', async () => {
+      await new UserServerSelectionDaoImpl().save({
+        username: 'alice',
+        serverName: 'fetch',
+        selected: true,
+        riskCeiling: 'admin' as never,
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      });
+
+      expect(resolveRiskCeiling((await getUserSelectionScope('alice')).ceilings, 'fetch')).toBe(
+        'read',
+      );
+    });
+
+    it('is removed with the server, the user, and follows a rename', async () => {
+      await setServerRiskCeiling('alice', 'old', 'write');
+      await setServerRiskCeiling('alice', 'other', 'external');
+      await renameServerSelections('old', 'new');
+      let ceilings = (await getUserSelectionScope('alice')).ceilings;
+      expect(resolveRiskCeiling(ceilings, 'new')).toBe('write');
+      expect(resolveRiskCeiling(ceilings, 'old')).toBe('read');
+
+      await deleteUserServerSelections({ serverName: 'new' });
+      ceilings = (await getUserSelectionScope('alice')).ceilings;
+      expect(resolveRiskCeiling(ceilings, 'new')).toBe('read');
+
+      await deleteUserServerSelections({ username: 'alice' });
+      expect((await getUserSelectionScope('alice')).ceilings.size).toBe(0);
+    });
   });
 });

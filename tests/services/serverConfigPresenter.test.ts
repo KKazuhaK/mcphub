@@ -322,4 +322,41 @@ describe('serverConfigPresenter (#1036 Phase 1)', () => {
       expect(presentServerForPrincipal(withPause()).data).toHaveProperty('pausedUsers');
     });
   });
+
+  describe('admin-only tool risk controls', () => {
+    const withRisk = () => ({
+      ...buildRawServerConfig(),
+      maxToolRisk: 'write',
+      defaultUserRisk: 'write',
+      toolRiskOverrides: { 'org-search::get': 'external' },
+    });
+
+    it('are withheld from a non-admin owner but kept for an admin', () => {
+      const owner = presentServerForPrincipal(withRisk(), bob);
+      expect(owner.view).toBe('full');
+      expect(owner.data).not.toHaveProperty('maxToolRisk');
+      expect(owner.data).not.toHaveProperty('toolRiskOverrides');
+      expect(owner.data).not.toHaveProperty('defaultUserRisk');
+
+      const admins = presentServerForPrincipal(withRisk(), admin).data as Record<string, unknown>;
+      expect(admins.maxToolRisk).toBe('write');
+      expect(admins.toolRiskOverrides).toEqual({ 'org-search::get': 'external' });
+    });
+
+    it('are withheld from a shared user', () => {
+      const shared = presentServerForPrincipal(withRisk(), alice);
+      expect(shared.view).toBe('safe');
+      expect(JSON.stringify(shared.data)).not.toMatch(/maxToolRisk|toolRiskOverrides|defaultUserRisk/);
+    });
+
+    it('are withheld from the config block of a list entry for a non-admin owner', () => {
+      const entry = { name: 'org-search', owner: 'bob', config: withRisk() };
+
+      const forOwner = presentServerInfoForPrincipal(entry, bob);
+      expect(forOwner.config).not.toHaveProperty('maxToolRisk');
+      expect(forOwner.config).not.toHaveProperty('toolRiskOverrides');
+      expect(presentServerInfoForPrincipal(entry, admin).config).toHaveProperty('maxToolRisk');
+      expect(entry.config).toHaveProperty('maxToolRisk');
+    });
+  });
 });

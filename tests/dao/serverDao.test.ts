@@ -99,4 +99,52 @@ describe('ServerDaoImpl', () => {
       expect(saved).not.toHaveProperty('maintenance');
     });
   });
+
+  describe('tool risk controls', () => {
+    const stored = {
+      name: 'risky',
+      type: 'sse',
+      url: 'https://example.com/sse',
+      maxToolRisk: 'write',
+      defaultUserRisk: 'write',
+      toolRiskOverrides: { 'risky::get': 'external' },
+    };
+    const run = async (updates: object) => {
+      const dao = new ServerDaoImpl();
+      jest.spyOn(dao as any, 'loadSettings').mockResolvedValue({ mcpServers: { risky: stored } });
+      const save = jest.spyOn(dao as any, 'saveSettings').mockResolvedValue(undefined);
+      await dao.update('risky', updates);
+      return JSON.parse(JSON.stringify(save.mock.calls[0][0].mcpServers.risky));
+    };
+
+    it('stores the cap and the overrides in the settings file and reads them back', async () => {
+      const dao = new ServerDaoImpl();
+      jest.spyOn(dao as any, 'loadSettings').mockResolvedValue({ mcpServers: { risky: stored } });
+
+      const server = await dao.findById('risky');
+
+      expect(server?.maxToolRisk).toBe('write');
+      expect(server?.defaultUserRisk).toBe('write');
+      expect(server?.toolRiskOverrides).toEqual({ 'risky::get': 'external' });
+    });
+
+    it('keeps them through an update that does not name them', async () => {
+      const saved = await run({ description: 'edited' });
+
+      expect(saved.maxToolRisk).toBe('write');
+      expect(saved.defaultUserRisk).toBe('write');
+      expect(saved.toolRiskOverrides).toEqual({ 'risky::get': 'external' });
+    });
+
+    it('removes them when an update clears them', async () => {
+      const saved = await run({ maxToolRisk: undefined, toolRiskOverrides: undefined });
+
+      expect(saved).not.toHaveProperty('maxToolRisk');
+      expect(saved).toHaveProperty('defaultUserRisk', 'write');
+      expect(
+        await run({ defaultUserRisk: undefined }),
+      ).not.toHaveProperty('defaultUserRisk');
+      expect(saved).not.toHaveProperty('toolRiskOverrides');
+    });
+  });
 });

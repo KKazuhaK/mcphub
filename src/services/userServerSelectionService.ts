@@ -1,14 +1,23 @@
 import { getUserServerSelectionDao } from '../dao/DaoFactory.js';
+import type { ToolRiskLevel } from '../types/index.js';
 import { logger } from '../utils/logger.js';
+import { isToolRiskLevel } from '../utils/toolRisk.js';
 import { getCachedSystemConfig } from '../utils/systemConfigCache.js';
 
 // Another instance sharing the database can change a user's selection without this
 // process seeing it, so cached entries expire on their own.
 export const SELECTION_CACHE_TTL_MS = 5000;
 
-// Selected server names per user. Writes through this module invalidate the entry, so
-// tools/list never has to reach storage on the hot path.
-const selectedByUser = new Map<string, { names: Set<string>; expiresAt: number }>();
+// What a user chose for their own scope: the servers they selected and, per server, the
+// highest tool risk level they allow (absent means `read`).
+export interface UserSelectionScope {
+  names: Set<string>;
+  ceilings: Map<string, ToolRiskLevel>;
+}
+
+// Selection per user. Writes through this module invalidate the entry, so tools/list never
+// has to reach storage on the hot path.
+const selectedByUser = new Map<string, { scope: UserSelectionScope; expiresAt: number }>();
 // Bumped on every invalidation. A read that started before a bump must not populate the
 // cache, or it would store a result that predates the write.
 const userGenerations = new Map<string, number>();
@@ -35,29 +44,63 @@ export const isWorkspaceEnabled = (): boolean => {
   }
 };
 
-export const getSelectedServerNames = async (username: string): Promise<Set<string>> => {
+export const getUserSelectionScope = async (username: string): Promise<UserSelectionScope> => {
   const cached = selectedByUser.get(username);
-  if (cached && cached.expiresAt > Date.now()) return cached.names;
+  if (cached && cached.expiresAt > Date.now()) return cached.scope;
   const generation = generationOf(username);
   const rows = await getUserServerSelectionDao().listByUsername(username);
-  const names = new Set(rows.filter((row) => row.selected).map((row) => row.serverName));
+  const scope: UserSelectionScope = {
+    names: new Set(rows.filter((row) => row.selected).map((row) => row.serverName)),
+    ceilings: new Map(
+      rows.flatMap((row) =>
+        isToolRiskLevel(row.riskCeiling) ? [[row.serverName, row.riskCeiling] as const] : [],
+      ),
+    ),
+  };
   if (generation === generationOf(username)) {
-    selectedByUser.set(username, { names, expiresAt: Date.now() + SELECTION_CACHE_TTL_MS });
+    selectedByUser.set(username, { scope, expiresAt: Date.now() + SELECTION_CACHE_TTL_MS });
   }
-  return names;
+  return scope;
 };
+
+export const getSelectedServerNames = async (username: string): Promise<Set<string>> =>
+  (await getUserSelectionScope(username)).names;
+
+/** The level the user allows on a server; `read` until they choose otherwise. */
+export const resolveRiskCeiling = (
+  ceilings: ReadonlyMap<string, ToolRiskLevel>,
+  serverName: string,
+  // What applies until the user chooses: the administrator's default for the server.
+  fallback: ToolRiskLevel = 'read',
+): ToolRiskLevel => ceilings.get(serverName) ?? fallback;
 
 export const setServerSelected = async (
   username: string,
   serverName: string,
   selected: boolean,
 ): Promise<void> => {
+  // Selecting or deselecting never changes the user's risk choice: the DAO keeps it.
   await getUserServerSelectionDao().save({
     username,
     serverName,
     selected,
     updatedAt: new Date().toISOString(),
   });
+  invalidate(username);
+};
+
+/** Changes the user's tool risk ceiling for a server without touching their selection. */
+export const setServerRiskCeiling = async (
+  username: string,
+  serverName: string,
+  riskCeiling: ToolRiskLevel,
+): Promise<void> => {
+  await getUserServerSelectionDao().saveRiskCeiling(
+    username,
+    serverName,
+    riskCeiling,
+    new Date().toISOString(),
+  );
   invalidate(username);
 };
 

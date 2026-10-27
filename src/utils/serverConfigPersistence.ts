@@ -5,6 +5,11 @@ import { validateMaxBufferSize } from './stdioOptions.js';
 import { ServerConfigValidationError } from './serverConfigValidation.js';
 import { ServerConfig } from '../types/index.js';
 import { normalizeMaintenance, normalizePausedUsers } from './serverMaintenance.js';
+import {
+  normalizeDefaultUserRisk,
+  normalizeMaxToolRisk,
+  normalizeToolRiskOverrides,
+} from './toolRisk.js';
 
 const trimToUndefined = (value?: string): string | undefined => {
   if (typeof value !== 'string') {
@@ -354,6 +359,15 @@ export const normalizeServerConfigForPersistence = (config: ServerConfig): Serve
       : {}),
     ...(Object.prototype.hasOwnProperty.call(config, 'maintenance')
       ? { maintenance: normalizeMaintenance(config.maintenance) }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(config, 'maxToolRisk')
+      ? { maxToolRisk: normalizeMaxToolRisk(config.maxToolRisk) }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(config, 'toolRiskOverrides')
+      ? { toolRiskOverrides: normalizeToolRiskOverrides(config.toolRiskOverrides) }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(config, 'defaultUserRisk')
+      ? { defaultUserRisk: normalizeDefaultUserRisk(config.defaultUserRisk) }
       : {}),
     options,
     perSessionClient: config.perSessionClient === true ? true : undefined,

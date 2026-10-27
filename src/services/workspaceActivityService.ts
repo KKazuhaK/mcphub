@@ -1,7 +1,7 @@
 import { getActivityDao, isActivityLoggingEnabled } from '../dao/DaoFactory.js';
 import type { ActivityHistoryRow } from '../dao/ActivityDao.js';
 import { listConnectedClients, type ConnectedClientKind } from './connectedClientService.js';
-import { BLOCKING_CODES } from './userServerStatusService.js';
+import { BLOCKED_ACTIVITY_CODES } from './userServerStatusService.js';
 import { getOAuthClientDao, getSystemConfigDao } from '../dao/index.js';
 import type { SystemConfig } from '../types/index.js';
 import { logger } from '../utils/logger.js';
@@ -38,7 +38,12 @@ export type ActivityReason =
   | 'credential_server_error'
   | 'unavailable'
   | 'upstream_error'
-  | (typeof BLOCKING_CODES)[number];
+  | 'not_selected'
+  | 'paused'
+  | 'maintenance'
+  | 'needs_auth'
+  | 'revoked'
+  | 'risk_not_enabled';
 
 const TOOL_ERROR_MESSAGE = 'Tool returned error response';
 const CREDENTIAL_SERVER_MESSAGE = 'Credential-templated server tool call failed';
@@ -47,10 +52,10 @@ export const classifyActivity = (
   row: Pick<ActivityHistoryRow, 'status' | 'errorMessage' | 'statusCode'>,
 ): { result: ActivityResult; reason?: ActivityReason } => {
   if (row.status !== 'error') return { result: 'success' };
-  const code = row.statusCode as (typeof BLOCKING_CODES)[number] | null | undefined;
+  const code = row.statusCode;
   if (code) {
-    return BLOCKING_CODES.includes(code)
-      ? { result: 'blocked', reason: code }
+    return BLOCKED_ACTIVITY_CODES.includes(code)
+      ? { result: 'blocked', reason: code as ActivityReason }
       : { result: 'error', reason: 'unavailable' };
   }
   const message = row.errorMessage ?? '';
@@ -188,7 +193,7 @@ export const listUserActivity = async (
     clientId: filters.clientId,
     clientKind: filters.clientKind,
     status: filters.status,
-    blockedReasons: [...BLOCKING_CODES],
+    blockedReasons: [...BLOCKED_ACTIVITY_CODES],
     since,
     until: filters.until,
     after: options.cursor,

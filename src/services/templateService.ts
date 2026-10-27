@@ -617,6 +617,9 @@ export async function importTemplate(
       const {
         pausedUsers: _pausedUsers,
         maintenance: _maintenance,
+        maxToolRisk: _maxToolRisk,
+        toolRiskOverrides: _toolRiskOverrides,
+        defaultUserRisk: _defaultUserRisk,
         ...importable
       } = config as ServerConfig;
       const serverConfig: ServerConfig = {

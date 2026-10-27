@@ -9,10 +9,12 @@ import {
   fetchWorkspaceEndpoints,
   fetchWorkspaceServers,
   fetchWorkspaceSummary,
+  saveRiskCeiling,
   saveServerSelection,
   startPersonalOAuth,
 } from '@/services/workspaceService';
-import type { WorkspaceEndpoints, WorkspaceServer, WorkspaceSummary } from '@/types';
+import type { ToolRiskLevel, WorkspaceEndpoints, WorkspaceServer, WorkspaceSummary } from '@/types';
+import { changeRiskCeiling, countHiddenTools } from '@/utils/toolRisk';
 import { copyText } from '@/utils/clipboard';
 import {
   WorkspaceApiError,
@@ -162,6 +164,21 @@ const WorkspaceServicesView: React.FC = () => {
       await refreshAll().catch(() => undefined);
     });
 
+  const onRiskChange = (name: string, riskCeiling: ToolRiskLevel) =>
+    withPending(name, async () => {
+      const server = servers.find((candidate) => candidate.name === name);
+      if (!server) return;
+      const saved = await changeRiskCeiling(server, riskCeiling, {
+        save: saveRiskCeiling,
+        update: (updater) => setServers(updater),
+      });
+      if (!saved) {
+        showToast(t('workspacePage.risk.changeFailed', { name }), 'error');
+        return;
+      }
+      await refreshAll().catch(() => undefined);
+    });
+
   const connectOAuth = (name: string) =>
     withPending(name, async () => {
       // Opened during the click gesture; browsers may block popups after awaits. Cutting the
@@ -213,7 +230,10 @@ const WorkspaceServicesView: React.FC = () => {
 
   if (error && !summary) {
     return (
-      <div className="hub-card flex items-center justify-between gap-3 px-4 py-3 text-sm" role="alert">
+      <div
+        className="hub-card flex items-center justify-between gap-3 px-4 py-3 text-sm"
+        role="alert"
+      >
         <div>
           <div style={{ color: 'var(--hub-err)' }}>
             {t(error.disabled ? 'workspacePage.disabled' : 'workspacePage.loadFailed')}
@@ -229,12 +249,14 @@ const WorkspaceServicesView: React.FC = () => {
           className="hub-btn"
           onClick={() => (error.disabled ? window.location.reload() : void load())}
         >
-          <RefreshCw size={13} /> {t(error.disabled ? 'workspacePage.reload' : 'workspacePage.retry')}
+          <RefreshCw size={13} />{' '}
+          {t(error.disabled ? 'workspacePage.reload' : 'workspacePage.retry')}
         </button>
       </div>
     );
   }
 
+  const hiddenTools = countHiddenTools(servers);
   const endpointByName = new Map((endpoints?.servers ?? []).map((entry) => [entry.name, entry]));
 
   return (
@@ -250,6 +272,17 @@ const WorkspaceServicesView: React.FC = () => {
         )}
         <ToolCountIndicator total={countExposedTools(servers)} />
       </div>
+
+      {hiddenTools > 0 && (
+        <div
+          className="hub-card flex items-center gap-3 px-4 py-3 text-[13.5px]"
+          role="status"
+          data-banner="risk"
+        >
+          <Info size={18} style={{ color: 'var(--hub-warn)' }} aria-hidden />
+          <span>{t('workspacePage.risk.banner', { count: hiddenTools })}</span>
+        </div>
+      )}
 
       <section className="hub-card overflow-hidden" aria-labelledby="workspace-services-title">
         <div className="flex items-center justify-between gap-3 px-4 py-3">
@@ -282,6 +315,7 @@ const WorkspaceServicesView: React.FC = () => {
                 busy={pending.has(server.name)}
                 authorizationUrl={authLinks[server.name]}
                 onToggle={(name, selected) => void onToggle(name, selected)}
+                onRiskChange={(name, riskCeiling) => void onRiskChange(name, riskCeiling)}
                 onAction={(action) => onAction(server, action)}
                 onCopyEndpoint={(url) => void onCopyEndpoint(url)}
               />

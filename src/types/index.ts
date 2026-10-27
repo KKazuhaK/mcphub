@@ -486,8 +486,14 @@ export interface UserServerSelection {
   username: string;
   serverName: string;
   selected: boolean;
+  // The highest tool risk level the user allows on this server; absent means `read`.
+  riskCeiling?: ToolRiskLevel;
   updatedAt: string;
 }
+
+// How far a tool's effects reach, derived from its MCP annotations and ordered
+// read < write < external.
+export type ToolRiskLevel = 'read' | 'write' | 'external';
 
 // What a user can currently do with a server visible to them under Workspace Mode.
 export type UserServerStatusCode =
@@ -546,6 +552,14 @@ export interface ServerConfig {
   // Never exposed to non-admin users, excluded from templates and settings-sync declarations.
   pausedUsers?: string[]; // Usernames for whom this server is paused (status `paused`).
   maintenance?: ServerMaintenance; // Maintenance window (status `maintenance`).
+  // Tool risk controls, effective only under Workspace Mode and administrator-only like the
+  // two fields above. `maxToolRisk` caps every non-admin requester (absent: no cap) and
+  // `toolRiskOverrides` can only raise a tool's computed level.
+  maxToolRisk?: ToolRiskLevel;
+  toolRiskOverrides?: Record<string, ToolRiskLevel>;
+  // The level a user starts at on this server until they choose one; absent means `read`.
+  // Never above `maxToolRisk`.
+  defaultUserRisk?: ToolRiskLevel;
   protocolNegotiation?: 'auto' | 'legacy'; // Streamable HTTP defaults to auto; other transports remain legacy.
   enableKeepAlive?: boolean; // Enable remote health checks; disconnected remote servers always retry
   keepAliveInterval?: number; // Health check interval in milliseconds (default: 60000ms for SSE servers)
@@ -750,6 +764,9 @@ export interface Tool {
   inputSchema: Record<string, unknown>; // Input schema for the tool
   outputSchema?: Record<string, unknown>; // Optional schema for structured output
   annotations?: Record<string, unknown>; // Standard MCP tool annotations
+  // Dashboard projection for administrators under Workspace Mode: risk computed from the
+  // annotations, an administrator override, and the level in force (their maximum).
+  risk?: { computed: ToolRiskLevel; override?: ToolRiskLevel; effective: ToolRiskLevel };
   execution?: Record<string, unknown>; // Standard MCP execution metadata
   icons?: Array<Record<string, unknown>>; // Standard MCP icons
   _meta?: Record<string, unknown>; // Extension metadata, including MCP Apps metadata
@@ -926,7 +943,10 @@ export interface ConfigTemplate {
 
 // Server config within a template - secrets replaced with placeholders
 export interface TemplateServerConfig
-  extends Omit<ServerConfig, 'owner' | 'oauth' | 'pausedUsers' | 'maintenance'> {
+  extends Omit<
+      ServerConfig,
+      'owner' | 'oauth' | 'pausedUsers' | 'maintenance' | 'maxToolRisk' | 'toolRiskOverrides' | 'defaultUserRisk'
+    > {
   env?: Record<string, string>; // Values are either literal or ${PLACEHOLDER}
   headers?: Record<string, string>;
   oauth?: Omit<NonNullable<ServerConfig['oauth']>, 'pendingAuthorization'>;

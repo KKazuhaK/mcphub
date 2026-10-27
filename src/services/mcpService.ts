@@ -54,9 +54,18 @@ import {
 } from './credentialBindingService.js';
 import {
   deleteUserServerSelections,
-  getSelectedServerNames,
+  getUserSelectionScope,
   isWorkspaceEnabled,
+  resolveRiskCeiling,
 } from './userServerSelectionService.js';
+import {
+  getDefaultUserRisk,
+  getEffectiveToolRisk,
+  getMaxToolRisk,
+  getToolRiskInfo,
+  riskRank,
+} from '../utils/toolRisk.js';
+import { areAnnotationsTrusted, primeAnnotationTrust } from './annotationTrustService.js';
 import { clearUserServerFailures } from './userServerFailureStore.js';
 import {
   clearUserListedNames,
@@ -69,6 +78,9 @@ import {
   scheduleAllMaintenanceExpiries,
 } from './serverMaintenanceService.js';
 import {
+  ENABLE_RISK_ACTION,
+  RISK_NOT_ENABLED_CODE,
+  buildRiskNotEnabledMessage,
   buildUserServerStatus,
   getUserServerStatus,
   isAdminBlockedForUser,
@@ -123,6 +135,7 @@ import {
   ProxychainsConfig,
   IGroup,
   IGroupServerConfig,
+  ToolRiskLevel,
 } from '../types/index.js';
 import { expandEnvVars, replaceEnvVars, getNameSeparator } from '../config/index.js';
 import config from '../config/index.js';
@@ -430,7 +443,12 @@ export const initUpstreamServers = async (): Promise<void> => {
   }
 
   // Initialize smart routing service with references to mcpService functions
-  initSmartRoutingService(getVisibleServerInfos, filterToolsByConfig, filterToolsByGroup);
+  initSmartRoutingService(
+    getVisibleServerInfos,
+    filterToolsByConfig,
+    filterToolsByGroup,
+    filterToolsByRisk,
+  );
 };
 
 type McpServerDescriptor = {
@@ -775,6 +793,23 @@ export const updateServerInfoAvailability = (
   };
 };
 
+// Mirrors the tool risk controls into the live server entry, like the availability fields.
+// Neither needs a reconnect; `undefined` clears.
+export const updateServerInfoToolRisk = (
+  serverName: string,
+  risk: Pick<ServerConfig, 'maxToolRisk' | 'toolRiskOverrides' | 'defaultUserRisk'>,
+): void => {
+  const serverInfo = getServerByName(serverName);
+  if (!serverInfo?.config) return;
+  const { maxToolRisk, toolRiskOverrides, defaultUserRisk, ...rest } = serverInfo.config;
+  serverInfo.config = {
+    ...rest,
+    ...(risk.maxToolRisk ? { maxToolRisk: risk.maxToolRisk } : {}),
+    ...(risk.defaultUserRisk ? { defaultUserRisk: risk.defaultUserRisk } : {}),
+    ...(risk.toolRiskOverrides ? { toolRiskOverrides: risk.toolRiskOverrides } : {}),
+  };
+};
+
 export const syncToolEmbedding = async (serverName: string, toolName: string) => {
   const serverInfo = getServerByName(serverName);
   if (!serverInfo) {
@@ -1112,6 +1147,9 @@ const requestDiscoveryInfos = new WeakSet<ServerInfo>();
 // Servers the requesting user selected, set only for MCP requests that workspace
 // selection applies to (see withWorkspaceSelection).
 const workspaceSelectionScope = new AsyncLocalStorage<Set<string>>();
+// The tool risk level the user allows per server, set together with the selection scope and
+// only where selection applies. A server without an entry allows `read`.
+const workspaceRiskScope = new AsyncLocalStorage<ReadonlyMap<string, ToolRiskLevel>>();
 
 const getVisibleServerInfos = (): ServerInfo[] => {
   const visible = getDataService().filterData(principalServerScope.getStore() ?? serverInfos);
@@ -1130,6 +1168,68 @@ const getVisibleServerInfos = (): ServerInfo[] => {
 
 const getVisibleServerByName = (name: string): ServerInfo | undefined => {
   return getVisibleServerInfos().find((serverInfo) => serverInfo.name === name);
+};
+
+// Whether a tool may be listed and called by the current requester under Workspace Mode:
+// - `above-admin-cap`: the server's `maxToolRisk` applies to every requester except
+//   administrators, on every route.
+// - `above-user-ceiling`: the user's own choice, only where Server Selection applies (the
+//   risk scope exists only then). A server without a choice allows `read`.
+// The admin cap wins, so a tool above it never reveals itself through the user's ceiling.
+type ToolRiskOutcome = 'allowed' | 'above-admin-cap' | 'above-user-ceiling';
+
+const assessToolRisk = (
+  serverName: string,
+  config: ServerConfig | undefined,
+  tool: Pick<Tool, 'name' | 'annotations'>,
+  runtimeNames: readonly string[],
+): { level: ToolRiskLevel; outcome: ToolRiskOutcome } => {
+  if (!isWorkspaceEnabled()) {
+    return {
+      level: getEffectiveToolRisk(serverName, tool, config, runtimeNames),
+      outcome: 'allowed',
+    };
+  }
+  const level = getEffectiveToolRisk(
+    serverName,
+    tool,
+    config,
+    runtimeNames,
+    areAnnotationsTrusted(config?.owner),
+  );
+  const user = UserContextService.getInstance().getCurrentUser();
+  const adminCap = user?.isAdmin === true ? 'external' : getMaxToolRisk(config);
+  if (riskRank(level) > riskRank(adminCap)) return { level, outcome: 'above-admin-cap' };
+  const ceilings = workspaceRiskScope.getStore();
+  if (
+    ceilings &&
+    riskRank(level) > riskRank(resolveRiskCeiling(ceilings, serverName, getDefaultUserRisk(config)))
+  ) {
+    return { level, outcome: 'above-user-ceiling' };
+  }
+  return { level, outcome: 'allowed' };
+};
+
+// Leaves out the tools the requester may not use because of their risk level. The tools passed
+// in can be stripped copies (search hits, stored embeddings), so annotations are read from the
+// server's live tool of the same name; a tool nothing is known about counts as `external`.
+const filterToolsByRisk = async <T extends { name: string; annotations?: Record<string, unknown> }>(
+  serverName: string,
+  tools: T[],
+): Promise<T[]> => {
+  if (!isWorkspaceEnabled() || tools.length === 0) return tools;
+  const info = getVisibleServerInfos().find((server) => server.name === serverName);
+  const config = getServerByName(serverName)?.config ?? info?.config;
+  const live = info?.tools ?? getServerByName(serverName)?.tools ?? [];
+  const runtimeNames = live.map((tool) => tool.name);
+  return tools.filter((tool) => {
+    const known =
+      live.find((candidate) => candidate.name === tool.name) ??
+      live.find(
+        (candidate) => normalizeToolNameForServer(serverName, candidate.name) === tool.name,
+      );
+    return assessToolRisk(serverName, config, known ?? tool, runtimeNames).outcome === 'allowed';
+  });
 };
 
 // Per-session upstream clients for isolated servers (perSessionClient: true).
@@ -2861,6 +2961,7 @@ export const getServersInfo = async (
   limit?: number,
   user?: any,
 ): Promise<Omit<ServerInfo, 'client' | 'transport'>[]> => {
+  if (isWorkspaceEnabled()) await primeAnnotationTrust();
   const dataService = getDataService();
   const isNonAdminUser = Boolean(user && !user.isAdmin);
 
@@ -3001,12 +3102,27 @@ export const getServersInfo = async (
         // normalization — check both so the dashboard reflects a disable set
         // either way instead of always showing enabled:true for one of them.
         const runtimeNames = tools.map((tool) => tool.name);
-        const toolsWithEnabled = tools.map((tool) =>
-          buildToolWithDescriptionMetadata(
+        // Administrators see each tool's level under Workspace Mode, to set a cap and raise
+        // single tools; nobody else is told the levels the administrator assigned.
+        const workspaceOn = isWorkspaceEnabled();
+        const showToolRisk = workspaceOn && principal?.isAdmin === true;
+        const trusted = areAnnotationsTrusted(serverConfig?.owner);
+        // Under Workspace Mode a non-admin never sees a tool above the server's cap, here as
+        // on the MCP routes (owners included).
+        const withinCap = (tool: Tool) =>
+          !workspaceOn ||
+          principal?.isAdmin === true ||
+          riskRank(getEffectiveToolRisk(name, tool, serverConfig, runtimeNames, trusted)) <=
+            riskRank(getMaxToolRisk(serverConfig));
+        const toolsWithEnabled = tools.filter(withinCap).map((tool) => ({
+          ...buildToolWithDescriptionMetadata(
             tool,
             findToolConfig(serverConfig?.tools, name, tool.name, runtimeNames),
           ),
-        );
+          ...(showToolRisk
+            ? { risk: getToolRiskInfo(name, tool, serverConfig, runtimeNames, trusted) }
+            : {}),
+        }));
 
         const promptsWithEnabled = prompts.map((prompt) => {
           const promptConfig = serverConfig?.prompts?.[prompt.name];
@@ -3302,10 +3418,22 @@ const filterToolsByConfig = async (serverName: string, tools: Tool[]): Promise<T
 };
 
 // Get server by tool name
+// Whether a server lists a tool by this runtime name. A tool above the administrator's cap
+// does not exist as far as the requester can tell, for the audit entry of a refused call as
+// much as for the call itself.
+const listsToolForRequester = (serverInfo: ServerInfo, toolName: string): boolean => {
+  const runtimeNames = serverInfo.tools.map((tool) => tool.name);
+  const config = getServerByName(serverInfo.name)?.config ?? serverInfo.config;
+  return serverInfo.tools.some(
+    (tool) =>
+      tool.name === toolName &&
+      assessToolRisk(serverInfo.name, config, tool, runtimeNames).outcome !== 'above-admin-cap',
+  );
+};
+
 const getServerByTool = (toolName: string): ServerInfo | undefined => {
   return getVisibleServerInfos().find(
-    (serverInfo) =>
-      serverInfo.enabled !== false && serverInfo.tools.some((tool) => tool.name === toolName),
+    (serverInfo) => serverInfo.enabled !== false && listsToolForRequester(serverInfo, toolName),
   );
 };
 
@@ -3324,6 +3452,22 @@ export class ToolUnavailableError extends Error {
   ) {
     super(message);
     this.name = 'ToolUnavailableError';
+  }
+}
+
+/**
+ * A tool the user can see but has not allowed yet: it is above the risk level they chose for
+ * the server (and within the administrator's cap). Unlike the generic error this one tells
+ * the user what to change, so it is only thrown for tools the requester may use otherwise.
+ */
+export class ToolRiskNotEnabledError extends ToolUnavailableError {
+  constructor(
+    message: string,
+    public readonly server: string,
+    public readonly risk: 'write' | 'external',
+  ) {
+    super(message, RISK_NOT_ENABLED_CODE);
+    this.name = 'ToolRiskNotEnabledError';
   }
 }
 
@@ -4114,6 +4258,27 @@ const findToolOnServer = (
   if (toolConfig && toolConfig.enabled === false) {
     return undefined;
   }
+  // A tool above the administrator's cap is as good as nonexistent. One above the user's own
+  // ceiling is refused with the way to allow it.
+  const risk = assessToolRisk(
+    serverInfo.name,
+    // A per-user runtime carries a resolved copy; the shared entry is authoritative.
+    getServerByName(serverInfo.name)?.config ?? serverInfo.config,
+    tool,
+    serverInfo.tools.map((candidate) => candidate.name),
+  );
+  if (risk.outcome === 'above-admin-cap') return undefined;
+  if (risk.outcome === 'above-user-ceiling') {
+    throw new ToolRiskNotEnabledError(
+      buildRiskNotEnabledMessage(
+        serverInfo.name,
+        normalizeToolNameForServer(serverInfo.name, tool.name),
+        risk.level as 'write' | 'external',
+      ),
+      serverInfo.name,
+      risk.level as 'write' | 'external',
+    );
+  }
   return tool;
 };
 
@@ -4308,6 +4473,7 @@ const listGroupTools = async (
 
       // Filter tools based on server configuration
       let tools = await filterToolsByConfig(serverInfo.name, serverInfo.tools);
+      tools = await filterToolsByRisk(serverInfo.name, tools);
 
       // If this is a group request, apply group-level tool filtering
       tools = await filterToolsByGroup(group, serverInfo.name, tools, groupServerConfig);
@@ -4599,7 +4765,7 @@ const callToolImpl = async (request: any, extra: any, outcome: { info?: ServerIn
           (serverInfo) =>
             serverInfo.enabled !== false &&
             (serverInfo.status === 'connected' || serverInfo.config?.startOnDemand === true) &&
-            serverInfo.tools.some((tool) => tool.name === toolName),
+            listsToolForRequester(serverInfo, toolName),
         );
       }
 
@@ -4612,6 +4778,18 @@ const callToolImpl = async (request: any, extra: any, outcome: { info?: ServerIn
 
       setMetricsServer(targetServerInfo.name);
       outcome.info = targetServerInfo;
+
+      // A sleeping on-demand server must not be started for a tool the requester may not
+      // call. When the cached tool list knows the tool, check it before waking anything.
+      if (
+        targetServerInfo.config?.startOnDemand &&
+        targetServerInfo.status !== 'connected' &&
+        targetServerInfo.tools.some((candidate) => candidate.name === targetToolName)
+      ) {
+        if (!findToolOnServer(targetServerInfo, targetToolName, singleServerAppsRoute)) {
+          throw new ToolUnavailableError(`Tool not available: ${toolName}`, 'tool-not-found');
+        }
+      }
 
       // If the target is an on-demand server that is not yet running, wake it up now.
       // Concurrent callers are serialised via ensureServerReady's singleton promise.
@@ -5108,6 +5286,23 @@ const callToolImpl = async (request: any, extra: any, outcome: { info?: ServerIn
         : formatErrorForLogging(error),
       statusCode: unavailable?.reason,
     });
+
+    // A tool above the user's own risk ceiling is answered like a status: what to change, and
+    // where. Only reachable for tools the requester may otherwise use.
+    if (error instanceof ToolRiskNotEnabledError) {
+      return {
+        content: [{ type: 'text', text: error.message }],
+        isError: true,
+        _meta: {
+          [STATUS_META_KEY]: {
+            server: error.server,
+            code: RISK_NOT_ENABLED_CODE,
+            action: ENABLE_RISK_ACTION,
+            risk: error.risk,
+          },
+        },
+      };
+    }
 
     // For unavailable-target errors, surface exactly the unified message (no
     // error-class name, no reason) so hidden vs nonexistent is indistinguishable.
@@ -6150,14 +6345,16 @@ const runWithWorkspaceSelection = async <T>(
   call?: { request: any; extra: any; operation: McpOperation },
 ): Promise<T> => {
   if (!isWorkspaceEnabled()) return fn();
+  await primeAnnotationTrust();
   const gated = () => (call ? runWithAccessGate(call, fn) : fn());
   if (exempt) return gated();
   const username = UserContextService.getInstance().getCurrentUser()?.username;
   if (!username) return gated();
   const lookupGroup = getGroupLookupName(group);
   if (lookupGroup && (await findRouteGroup(lookupGroup))) return gated();
-  const selected = await getSelectedServerNames(username);
-  const scoped = () => workspaceSelectionScope.run(selected, fn);
+  const { names: selected, ceilings } = await getUserSelectionScope(username);
+  const scoped = () =>
+    workspaceSelectionScope.run(selected, () => workspaceRiskScope.run(ceilings, fn));
   if (!call || call.operation === 'list' || call.operation === 'tools-list') return scoped();
   return runWithWorkspaceStatus(call, selected, scoped);
 };

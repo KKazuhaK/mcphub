@@ -35,7 +35,7 @@ const SAFE_SERVER_CONFIG_FIELDS = [
 const SAFE_SERVER_INFO_OAUTH_KEYS = ['connected', 'clientIdConfigured'] as const;
 
 // Fields only administrators may read, even from a server they own.
-const ADMIN_ONLY_FIELDS = ['pausedUsers'] as const;
+const ADMIN_ONLY_FIELDS = ['pausedUsers', 'maxToolRisk', 'toolRiskOverrides', 'defaultUserRisk'] as const;
 
 const isAdminPrincipal = (principal?: RequestPrincipal | null): boolean =>
   Boolean(

@@ -96,6 +96,16 @@ export class Server {
   @Column({ type: 'simple-json', nullable: true })
   maintenance?: { until?: string; message?: string };
 
+  // Tool risk controls (Workspace Mode only); never part of settings-sync declarations.
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  maxToolRisk?: 'read' | 'write' | 'external';
+
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  defaultUserRisk?: 'read' | 'write' | 'external';
+
+  @Column({ type: 'simple-json', nullable: true })
+  toolRiskOverrides?: Record<string, 'read' | 'write' | 'external'>;
+
   @Column({ type: 'boolean', nullable: true })
   perSessionClient?: boolean;
 

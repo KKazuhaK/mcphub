@@ -318,6 +318,20 @@
       "personalError": "Personal authorization failed",
       "personalSuccess": "Personal authorization saved. Return to Dashboard → Servers.",
       "personalSuccessWorkspace": "Personal authorization saved. Return to your workspace."
+    },
+    "maxToolRisk": {
+      "title": "Maximum tool risk",
+      "description": "The highest tool risk level non-admin users can use on this server. Tools above it are hidden and refused for them; administrators are not limited. Applies only under Workspace Mode.",
+      "read": "Read only",
+      "write": "Read, and change the user's own data",
+      "external": "No limit (default)"
+    },
+    "defaultUserRisk": {
+      "title": "Default level for users",
+      "description": "What users may do with this server's tools until they choose for themselves. They can lower it, or raise it up to the maximum above. Applies only under Workspace Mode.",
+      "read": "Read only (default)",
+      "write": "Read, and change the user's own data",
+      "external": "Everything the maximum allows"
     }
   },
   "status": {
@@ -824,7 +838,18 @@
     "fixJsonBeforeSwitching": "Please fix JSON format before switching to form mode",
     "item": "Item {{index}}",
     "addItem": "Add {{key}} item",
-    "enterKey": "Enter {{key}}"
+    "enterKey": "Enter {{key}}",
+    "risk": {
+      "level": {
+        "read": "Read",
+        "write": "Write",
+        "external": "External"
+      },
+      "override": "Raise risk level",
+      "noOverride": "Computed: {{level}}",
+      "updateSuccess": "Risk level updated",
+      "updateFailed": "Failed to update the risk level"
+    }
   },
   "prompt": {
     "run": "Get",
@@ -1509,7 +1534,11 @@
       "needs_auth": "'{{serverName}}' needs your personal credentials or authorization. Connect it from your workspace.",
       "revoked": "You disconnected your authorization for '{{serverName}}'. Reconnect it from your workspace.",
       "credential_invalid": "Your credentials for '{{serverName}}' were rejected. Update them or reconnect from your workspace.",
-      "error": "'{{serverName}}' is currently unavailable. Try again later."
+      "error": "'{{serverName}}' is currently unavailable. Try again later.",
+      "riskNotEnabled": {
+        "write": "'{{toolName}}' changes your data on '{{serverName}}', which your workspace does not allow yet. Allow changes to your data for '{{serverName}}' in your workspace to use it.",
+        "external": "'{{toolName}}' can act in ways other people can see on '{{serverName}}', which your workspace does not allow yet. Allow actions others can see for '{{serverName}}' in your workspace to use it."
+      }
     }
   },
   "workspacePage": {
@@ -1573,7 +1602,8 @@
       "needs_auth": "Needs sign-in",
       "revoked": "Disconnected",
       "credential_invalid": "Credentials rejected",
-      "error": "Problem"
+      "error": "Problem",
+      "risk_not_enabled": "Tool not allowed in your workspace"
     },
     "actions": {
       "select": "Add to workspace",
@@ -1667,6 +1697,34 @@
       "unknownClient": "Unknown client (no longer connected)",
       "clientGone": "{{name}} (no longer connected)",
       "duration": "{{ms}} ms"
+    },
+    "risk": {
+      "explanation": "Choose what this service's tools may do. Tools above your choice are hidden from your clients and refused if called.",
+      "groupLabel": "What tools of {{name}} may do",
+      "level": {
+        "read": {
+          "label": "Read only",
+          "hint": "Look things up without changing anything."
+        },
+        "write": {
+          "label": "Allow changes to my data",
+          "hint": "Also create or edit your own data."
+        },
+        "external": {
+          "label": "Allow actions others can see",
+          "hint": "Also send, post or act towards other people, and tools that do not say what they do."
+        }
+      },
+      "aboveCap": "Not allowed by your administrator",
+      "changeFailed": "Could not change what {{name}} may do. Try again.",
+      "hiddenNotice_one": "{{count}} tool is hidden by your choice.",
+      "hiddenNotice_other": "{{count}} tools are hidden by your choice.",
+      "banner_one": "{{count}} tool in your selected services is hidden: tools that change data or act for you stay off until you allow them. Open a service below to allow more.",
+      "banner_other": "{{count}} tools in your selected services are hidden: tools that change data or act for you stay off until you allow them. Open a service below to allow more.",
+      "connectToSee": "Connect this service to see its tools and choose what they may do.",
+      "unknownTools": "Connect to see tools",
+      "defaultNote": "Set by your administrator until you choose.",
+      "untrustedHint": "This service is not run by an administrator, so its tools are not verified: all of them count as actions others can see."
     }
   }
 }

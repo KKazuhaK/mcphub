@@ -5,7 +5,7 @@ export type ToolConfig = NonNullable<ServerConfig['tools']>[string];
 
 type InputSchema = Record<string, unknown> | undefined;
 
-const hasKey = (tools: NonNullable<ServerConfig['tools']>, key: string): boolean =>
+const hasKey = (tools: object, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(tools, key);
 
 /**
@@ -37,14 +37,25 @@ export const findToolConfig = (
   serverName: string,
   toolName: string,
   runtimeNames: readonly string[] = [],
-): ToolConfig | undefined => {
-  if (!tools) return undefined;
+): ToolConfig | undefined => findByToolKey(tools, serverName, toolName, runtimeNames);
+
+/**
+ * The same key rule for any map keyed by tool name (per-tool settings other than the
+ * enable/description config, such as risk overrides).
+ */
+export const findByToolKey = <T>(
+  entries: Readonly<Record<string, T>> | undefined,
+  serverName: string,
+  toolName: string,
+  runtimeNames: readonly string[] = [],
+): T | undefined => {
+  if (!entries) return undefined;
   const prefix = `${serverName}${getNameSeparator()}`;
   const runtimeName = toolName.startsWith(prefix) ? toolName : `${prefix}${toolName}`;
   const key = toolConfigKeys(serverName, runtimeName, runtimeNames).find((candidate) =>
-    hasKey(tools, candidate),
+    Object.prototype.hasOwnProperty.call(entries, candidate),
   );
-  return key === undefined ? undefined : tools[key];
+  return key === undefined ? undefined : entries[key];
 };
 
 /**
@@ -70,7 +81,7 @@ export const resolveRuntimeToolName = (
  * unresolved tool (server not connected) is written under the name as given.
  */
 export const findToolConfigKey = (
-  tools: ServerConfig['tools'] | undefined,
+  tools: object | undefined,
   serverName: string,
   toolName: string,
   runtimeNames: readonly string[],

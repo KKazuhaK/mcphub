@@ -83,4 +83,55 @@ describe('UserServerSelectionDaoDbImpl', () => {
       { serverName: 'new' },
     );
   });
+
+  describe('risk ceiling', () => {
+    it('declares a nullable column on the entity', () => {
+      const column = getMetadataArgsStorage().columns.find(
+        (candidate) =>
+          candidate.target === UserServerSelectionRecord &&
+          candidate.propertyName === 'riskCeiling',
+      );
+      expect(column?.options.nullable).toBe(true);
+    });
+
+    it('reads a missing ceiling back as absent and a stored one as is', async () => {
+      mockRepository.findBy.mockResolvedValue([
+        { ...selection, riskCeiling: null },
+        { ...selection, serverName: 'git', riskCeiling: 'write' },
+      ]);
+
+      const rows = await new UserServerSelectionDaoDbImpl().listByUsername('alice');
+
+      expect(rows[0]).toEqual(selection);
+      expect(rows[0]).not.toHaveProperty('riskCeiling');
+      expect(rows[1]).toEqual({ ...selection, serverName: 'git', riskCeiling: 'write' });
+    });
+
+    it('does not touch the ceiling column when a selection is saved without one', async () => {
+      await new UserServerSelectionDaoDbImpl().save(selection);
+
+      const [row] = mockRepository.upsert.mock.calls[0];
+      expect(row.riskCeiling).toBeUndefined();
+    });
+
+    it('upserts the ceiling alone, leaving `selected` out so it keeps its value', async () => {
+      await new UserServerSelectionDaoDbImpl().saveRiskCeiling(
+        'alice',
+        'fetch',
+        'external',
+        '2026-01-02T00:00:00.000Z',
+      );
+
+      expect(mockRepository.upsert).toHaveBeenCalledWith(
+        {
+          username: 'alice',
+          serverName: 'fetch',
+          riskCeiling: 'external',
+          updatedAt: '2026-01-02T00:00:00.000Z',
+        },
+        ['serverName', 'username'],
+      );
+      expect(mockRepository.upsert.mock.calls[0][0]).not.toHaveProperty('selected');
+    });
+  });
 });

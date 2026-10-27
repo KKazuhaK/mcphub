@@ -745,3 +745,64 @@ test('first boot migration carries maintenance and the pause list into the datab
   await expect(initializeDatabaseMode()).resolves.toBe(true);
   expect(servers.get('remote')).toMatchObject({ pausedUsers: ['bob'], maintenance });
 });
+
+test('leaves tool risk controls to the dashboard and keeps OAuth when they change', async () => {
+  write({ mcpServers: { remote: { ...remote, oauth: { scopes: ['read'] } } } });
+  await syncSettingsToDatabase();
+  await persistTokens('remote', { accessToken: 'live' });
+  const hash = servers.get('remote')?.settingsSyncHash;
+  const dao = new ServerDaoDbImpl();
+
+  // An admin caps the server and raises a tool from the dashboard.
+  await dao.update('remote', {
+    maxToolRisk: 'write',
+    defaultUserRisk: 'write',
+    toolRiskOverrides: { 'remote::get': 'external' },
+  });
+  expect(servers.get('remote')?.settingsSyncHash).toBe(hash);
+
+  // A restart reconciles the unchanged declaration without touching either field.
+  await syncSettingsToDatabase();
+  expect(servers.get('remote')).toMatchObject({
+    maxToolRisk: 'write',
+    defaultUserRisk: 'write',
+    toolRiskOverrides: { 'remote::get': 'external' },
+    settingsSyncHash: hash,
+  });
+  expect((servers.get('remote')?.oauth as Record<string, unknown>).accessToken).toBe('live');
+
+  // Declaring them is not a way to set them, and does not change the fingerprint.
+  write({
+    mcpServers: {
+      remote: {
+        ...remote,
+        oauth: { scopes: ['read'] },
+        maxToolRisk: 'read',
+        defaultUserRisk: 'read',
+        toolRiskOverrides: 'nonsense',
+      },
+    },
+  });
+  await syncSettingsToDatabase();
+  expect(servers.get('remote')).toMatchObject({
+    maxToolRisk: 'write',
+    defaultUserRisk: 'write',
+    toolRiskOverrides: { 'remote::get': 'external' },
+    settingsSyncHash: hash,
+  });
+  expect((servers.get('remote')?.oauth as Record<string, unknown>).accessToken).toBe('live');
+});
+
+test('first boot migration carries tool risk controls into the database', async () => {
+  delete process.env.MCPHUB_SETTINGS_SYNC;
+  const toolRiskOverrides = { 'remote::get': 'external' };
+  write({
+    mcpServers: { remote: { ...remote, maxToolRisk: 'write', defaultUserRisk: 'write', toolRiskOverrides } },
+  });
+  await expect(initializeDatabaseMode()).resolves.toBe(true);
+  expect(servers.get('remote')).toMatchObject({
+    maxToolRisk: 'write',
+    defaultUserRisk: 'write',
+    toolRiskOverrides,
+  });
+});

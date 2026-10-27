@@ -11,8 +11,11 @@ const selectionRows: Array<{
   username: string;
   serverName: string;
   selected: boolean;
+  riskCeiling?: 'read' | 'write' | 'external';
   updatedAt: string;
 }> = [];
+// Replaces every server's live tools when set.
+let liveTools: Array<{ name: string; annotations?: Record<string, unknown> }> | null;
 const mockNotifyUserListsChanged = jest.fn();
 const mockGetCredentialBindingStatus = jest.fn();
 
@@ -32,8 +35,28 @@ jest.mock('../../src/dao/DaoFactory.js', () => ({
       const index = selectionRows.findIndex(
         (row) => row.username === selection.username && row.serverName === selection.serverName,
       );
-      if (index >= 0) selectionRows.splice(index, 1);
-      selectionRows.push(selection);
+      const previous = index >= 0 ? selectionRows.splice(index, 1)[0] : undefined;
+      const riskCeiling = selection.riskCeiling ?? previous?.riskCeiling;
+      selectionRows.push({ ...selection, ...(riskCeiling ? { riskCeiling } : {}) });
+    },
+    saveRiskCeiling: async (
+      username: string,
+      serverName: string,
+      riskCeiling: 'read' | 'write' | 'external',
+      updatedAt: string,
+    ) => {
+      const index = selectionRows.findIndex(
+        (row) => row.username === username && row.serverName === serverName,
+      );
+      const previous = index >= 0 ? selectionRows.splice(index, 1)[0] : undefined;
+      selectionRows.push({
+        selected: false,
+        ...previous,
+        username,
+        serverName,
+        riskCeiling,
+        updatedAt,
+      });
     },
   }),
 }));
@@ -49,9 +72,18 @@ jest.mock('../../src/config/index.js', () => ({
 jest.mock('../../src/services/mcpService.js', () => ({
   getServerByName: (name: string) => ({
     name,
-    tools: [{ name: `${name}::a` }, { name: `${name}::b` }, { name: 'bare' }],
+    tools: liveTools ?? [
+      { name: `${name}::a`, annotations: { readOnlyHint: true } },
+      { name: `${name}::b`, annotations: { readOnlyHint: true } },
+      { name: 'bare', annotations: { readOnlyHint: true } },
+    ],
   }),
   notifyUserListsChanged: (...args: unknown[]) => mockNotifyUserListsChanged(...args),
+}));
+// Annotations are believed for servers owned by an administrator ("admin" here).
+jest.mock('../../src/services/annotationTrustService.js', () => ({
+  primeAnnotationTrust: async () => undefined,
+  areAnnotationsTrusted: (owner?: string) => !owner || owner === 'admin',
 }));
 jest.mock('../../src/services/credentialBindingService.js', () => ({
   getCredentialBindingStatus: (...args: unknown[]) => mockGetCredentialBindingStatus(...args),
@@ -67,6 +99,7 @@ import {
   getWorkspaceEndpoints,
   getWorkspaceSummary,
   listWorkspaceServers,
+  updateWorkspaceRisk,
   updateWorkspaceSelection,
 } from '../../src/controllers/workspaceController.js';
 import { initI18n } from '../../src/utils/i18n.js';
@@ -90,6 +123,7 @@ const buildApp = () => {
   app.get('/api/workspace/servers', listWorkspaceServers);
   app.get('/api/workspace/summary', getWorkspaceSummary);
   app.put('/api/workspace/servers/:name/selection', updateWorkspaceSelection);
+  app.put('/api/workspace/servers/:name/risk', updateWorkspaceRisk);
   app.get('/api/workspace/endpoints', getWorkspaceEndpoints);
   return app;
 };
@@ -102,6 +136,7 @@ describe('workspace API', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     selectionRows.length = 0;
+    liveTools = null;
     groupNames = [];
     clearServerSelectionCache();
     clearUserServerFailures();
@@ -165,6 +200,11 @@ describe('workspace API', () => {
           selected: true,
           enabled: true,
           toolCount: 3,
+          riskCeiling: 'read',
+          riskCeilingIsDefault: true,
+          riskCounts: { read: 3, write: 0, external: 0 },
+          maxAllowedRisk: 'external',
+          annotationsTrusted: true,
           requiresPersonalCredential: false,
           credentialConfigured: true,
           status: { code: 'available', action: null, message: expect.any(String) },
@@ -173,7 +213,12 @@ describe('workspace API', () => {
           name: 'alice-tool',
           selected: false,
           enabled: false,
-          toolCount: 3,
+          toolCount: 0,
+          riskCeiling: 'read',
+          riskCeilingIsDefault: true,
+          riskCounts: { read: 0, write: 0, external: 3 },
+          maxAllowedRisk: 'external',
+          annotationsTrusted: false,
           requiresPersonalCredential: false,
           credentialConfigured: true,
           status: { code: 'not_selected', action: 'select', message: expect.any(String) },
@@ -183,6 +228,11 @@ describe('workspace API', () => {
           selected: false,
           enabled: true,
           toolCount: 3,
+          riskCeiling: 'read',
+          riskCeilingIsDefault: true,
+          riskCounts: { read: 3, write: 0, external: 0 },
+          maxAllowedRisk: 'external',
+          annotationsTrusted: true,
           requiresPersonalCredential: true,
           credentialConfigured: false,
           status: { code: 'not_selected', action: 'select', message: expect.any(String) },
@@ -549,5 +599,247 @@ describe('workspace API', () => {
         servers: [],
       });
     });
+  });
+});
+
+describe('workspace API: tool risk levels', () => {
+  const app = buildApp();
+  const alice = { 'x-test-user': asUser('alice') };
+  const root = { 'x-test-user': asUser('root', true) };
+
+  // get: read-only; edit: closed world; send: no annotations; drop: disabled in the config.
+  const tools = [
+    { name: 'svc::get', annotations: { readOnlyHint: true } },
+    { name: 'svc::edit', annotations: { openWorldHint: false } },
+    { name: 'svc::edit2', annotations: { openWorldHint: false } },
+    { name: 'svc::send' },
+    { name: 'svc::drop' },
+  ];
+  const view = async (headers: Record<string, string> = alice) =>
+    (await request(app).get('/api/workspace/servers').set(headers).expect(200)).body.data.find(
+      (entry: { name: string }) => entry.name === 'svc',
+    );
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    selectionRows.length = 0;
+    groupNames = [];
+    clearServerSelectionCache();
+    clearUserServerFailures();
+    workspaceConfig = { workspace: { enabled: true } };
+    mockGetCredentialBindingStatus.mockResolvedValue({ configured: false });
+    liveTools = tools;
+    servers = [
+      {
+        name: 'svc',
+        owner: 'admin',
+        visibility: 'public',
+        tools: { 'svc::drop': { enabled: false } },
+      },
+    ];
+  });
+
+  it('reports the ceiling (read by default), the counts by level and the cap', async () => {
+    const entry = await view();
+    expect(entry.riskCeiling).toBe('read');
+    expect(entry.riskCounts).toEqual({ read: 1, write: 2, external: 1 });
+    expect(entry.maxAllowedRisk).toBe('external');
+    // Only tools within the ceiling are counted as exposed.
+    expect(entry.toolCount).toBe(1);
+  });
+
+  it('counts tools as the ceiling rises', async () => {
+    await request(app)
+      .put('/api/workspace/servers/svc/risk')
+      .set(alice)
+      .send({ riskCeiling: 'write' })
+      .expect(200);
+    expect((await view()).toolCount).toBe(3);
+    await request(app)
+      .put('/api/workspace/servers/svc/risk')
+      .set(alice)
+      .send({ riskCeiling: 'external' })
+      .expect(200);
+    expect((await view()).toolCount).toBe(4);
+  });
+
+  it('counts only tools within the administrator’s cap, using effective levels', async () => {
+    servers[0].maxToolRisk = 'write';
+    servers[0].toolRiskOverrides = { 'svc::edit2': 'external', get: 'write', send: 'read' };
+
+    const entry = await view();
+    expect(entry.maxAllowedRisk).toBe('write');
+    expect(entry.riskCounts).toEqual({ read: 0, write: 2, external: 0 });
+
+    // Administrators are not capped.
+    const adminEntry = await view(root);
+    expect(adminEntry.maxAllowedRisk).toBe('external');
+    expect(adminEntry.riskCounts).toEqual({ read: 0, write: 2, external: 2 });
+  });
+
+  it('stores the ceiling without selecting, notifies only that user, and keeps it through selection', async () => {
+    await request(app)
+      .put('/api/workspace/servers/svc/risk')
+      .set(alice)
+      .send({ riskCeiling: 'write' })
+      .expect(200, { success: true, data: { name: 'svc', riskCeiling: 'write' } });
+
+    expect(selectionRows).toEqual([
+      expect.objectContaining({
+        username: 'alice',
+        serverName: 'svc',
+        selected: false,
+        riskCeiling: 'write',
+      }),
+    ]);
+    expect(mockNotifyUserListsChanged).toHaveBeenCalledTimes(1);
+    expect(mockNotifyUserListsChanged).toHaveBeenCalledWith('alice');
+    expect((await view()).selected).toBe(false);
+
+    await request(app)
+      .put('/api/workspace/servers/svc/selection')
+      .set(alice)
+      .send({ selected: true })
+      .expect(200);
+    expect(selectionRows[0]).toMatchObject({ selected: true, riskCeiling: 'write' });
+    expect((await view()).riskCeiling).toBe('write');
+  });
+
+  it('does not change a selection that already exists', async () => {
+    selectionRows.push({
+      username: 'alice',
+      serverName: 'svc',
+      selected: true,
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+    await request(app)
+      .put('/api/workspace/servers/svc/risk')
+      .set(alice)
+      .send({ riskCeiling: 'external' })
+      .expect(200);
+    expect(selectionRows).toEqual([
+      expect.objectContaining({ selected: true, riskCeiling: 'external' }),
+    ]);
+  });
+
+  it('keeps each user’s ceiling apart', async () => {
+    await request(app)
+      .put('/api/workspace/servers/svc/risk')
+      .set(alice)
+      .send({ riskCeiling: 'external' })
+      .expect(200);
+    expect((await view({ 'x-test-user': asUser('bob') })).riskCeiling).toBe('read');
+  });
+
+  it('rejects invalid bodies with 400', async () => {
+    for (const body of [{}, { riskCeiling: 'admin' }, { riskCeiling: 1 }, { riskCeiling: null }]) {
+      await request(app).put('/api/workspace/servers/svc/risk').set(alice).send(body).expect(400);
+    }
+    expect(selectionRows).toEqual([]);
+  });
+
+  it('rejects a level above the administrator’s cap with 400, but not for an administrator', async () => {
+    servers[0].maxToolRisk = 'write';
+    await request(app)
+      .put('/api/workspace/servers/svc/risk')
+      .set(alice)
+      .send({ riskCeiling: 'external' })
+      .expect(400);
+    await request(app)
+      .put('/api/workspace/servers/svc/risk')
+      .set(alice)
+      .send({ riskCeiling: 'write' })
+      .expect(200);
+    await request(app)
+      .put('/api/workspace/servers/svc/risk')
+      .set(root)
+      .send({ riskCeiling: 'external' })
+      .expect(200);
+  });
+
+  it('requires a visible server, as selection does', async () => {
+    servers.push({ name: 'secret', owner: 'admin', visibility: 'private' });
+    await request(app)
+      .put('/api/workspace/servers/secret/risk')
+      .set(alice)
+      .send({ riskCeiling: 'write' })
+      .expect(404);
+    await request(app)
+      .put('/api/workspace/servers/missing/risk')
+      .set(alice)
+      .send({ riskCeiling: 'write' })
+      .expect(404);
+    expect(selectionRows).toEqual([]);
+    expect(mockNotifyUserListsChanged).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 when the setting is off and 401 without a user', async () => {
+    workspaceConfig = { workspace: { enabled: false } };
+    await request(app)
+      .put('/api/workspace/servers/svc/risk')
+      .set(alice)
+      .send({ riskCeiling: 'write' })
+      .expect(404);
+    workspaceConfig = { workspace: { enabled: true } };
+    await request(app)
+      .put('/api/workspace/servers/svc/risk')
+      .send({ riskCeiling: 'write' })
+      .expect(401);
+  });
+
+  it('reports the administrator’s default as the ceiling until the user chooses, clamped by the cap', async () => {
+    servers[0].defaultUserRisk = 'write';
+    let entry = await view();
+    expect(entry).toMatchObject({ riskCeiling: 'write', riskCeilingIsDefault: true, toolCount: 3 });
+
+    // A cap under the default wins.
+    servers[0].maxToolRisk = 'read';
+    entry = await view();
+    expect(entry).toMatchObject({ riskCeiling: 'read', riskCeilingIsDefault: true, toolCount: 1 });
+
+    servers[0].maxToolRisk = undefined;
+    await request(app)
+      .put('/api/workspace/servers/svc/risk')
+      .set(alice)
+      .send({ riskCeiling: 'read' })
+      .expect(200);
+    entry = await view();
+    expect(entry).toMatchObject({ riskCeiling: 'read', riskCeilingIsDefault: false, toolCount: 1 });
+    // The default itself is the administrator's business.
+    expect(JSON.stringify(entry)).not.toContain('defaultUserRisk');
+    // Another user is unaffected by alice's choice.
+    expect(await view({ 'x-test-user': asUser('bob') })).toMatchObject({
+      riskCeiling: 'write',
+      riskCeilingIsDefault: true,
+    });
+  });
+
+  it('reports unknown tools, not zeros, for a service with personal credentials and no shared list', async () => {
+    liveTools = [];
+    servers[0].credentialTemplate = [{ target: 'env', name: 'API_KEY' }];
+    const entry = await view();
+    expect(entry.toolCount).toBeNull();
+    expect(entry.riskCounts).toBeNull();
+    // A service with no credentials and no tools genuinely has none.
+    servers[0].credentialTemplate = undefined;
+    expect(await view()).toMatchObject({
+      toolCount: 0,
+      riskCounts: { read: 0, write: 0, external: 0 },
+    });
+  });
+
+  it('counts every tool of a server a non-admin owns as external and says annotations are not trusted', async () => {
+    servers[0].owner = 'alice';
+    const entry = await view();
+    expect(entry.annotationsTrusted).toBe(false);
+    expect(entry.riskCounts).toEqual({ read: 0, write: 0, external: 4 });
+    expect(entry.toolCount).toBe(0);
+    servers[0].owner = 'admin';
+    expect((await view()).annotationsTrusted).toBe(true);
+  });
+
+  it('never exposes the administrator’s overrides themselves', async () => {
+    servers[0].toolRiskOverrides = { 'svc::get': 'external' };
+    expect(JSON.stringify(await view())).not.toContain('toolRiskOverrides');
   });
 });

@@ -132,4 +132,66 @@ describe('UserServerSelectionDaoImpl', () => {
         .sort(),
     ).toEqual(['alice:new:true', 'alice:other:true', 'bob:new:false']);
   });
+
+  describe('risk ceiling', () => {
+    it('stores a ceiling without selecting, and a later selection keeps it', async () => {
+      const dao = new UserServerSelectionDaoImpl();
+      await dao.saveRiskCeiling('alice', 'fetch', 'write', '2026-01-02T00:00:00.000Z');
+
+      expect(dao.readAll()).toEqual([
+        {
+          username: 'alice',
+          serverName: 'fetch',
+          selected: false,
+          riskCeiling: 'write',
+          updatedAt: '2026-01-02T00:00:00.000Z',
+        },
+      ]);
+
+      await dao.save(selection('alice', 'fetch'));
+      expect(await dao.listByUsername('alice')).toEqual([
+        { ...selection('alice', 'fetch'), riskCeiling: 'write' },
+      ]);
+    });
+
+    it('keeps an existing selection when only the ceiling changes', async () => {
+      const dao = new UserServerSelectionDaoImpl();
+      await dao.save(selection('alice', 'fetch', true));
+      await dao.saveRiskCeiling('alice', 'fetch', 'external', '2026-01-02T00:00:00.000Z');
+
+      expect(dao.readAll()).toEqual([
+        {
+          ...selection('alice', 'fetch', true),
+          riskCeiling: 'external',
+          updatedAt: '2026-01-02T00:00:00.000Z',
+        },
+      ]);
+    });
+
+    it('replaces a stored ceiling only when a new one is given, and stays per user and server', async () => {
+      const dao = new UserServerSelectionDaoImpl();
+      await dao.saveRiskCeiling('alice', 'fetch', 'write', '2026-01-02T00:00:00.000Z');
+      await dao.saveRiskCeiling('bob', 'fetch', 'external', '2026-01-02T00:00:00.000Z');
+      await dao.save({ ...selection('alice', 'fetch'), riskCeiling: 'read' });
+
+      expect(
+        dao
+          .readAll()
+          .map((row) => `${row.username}:${row.serverName}:${row.riskCeiling}`)
+          .sort(),
+      ).toEqual(['alice:fetch:read', 'bob:fetch:external']);
+    });
+
+    it('follows a renamed server and is removed with the server or the user', async () => {
+      const dao = new UserServerSelectionDaoImpl();
+      await dao.saveRiskCeiling('alice', 'old', 'write', '2026-01-02T00:00:00.000Z');
+      await dao.renameServer('old', 'new');
+      expect(dao.readAll().map((row) => [row.serverName, row.riskCeiling])).toEqual([
+        ['new', 'write'],
+      ]);
+
+      await dao.delete({ username: 'alice' });
+      expect(dao.readAll()).toEqual([]);
+    });
+  });
 });

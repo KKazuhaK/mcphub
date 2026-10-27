@@ -318,6 +318,20 @@
       "personalError": "Échec de l’autorisation personnelle",
       "personalSuccess": "Autorisation personnelle enregistrée. Retournez au tableau de bord → Serveurs.",
       "personalSuccessWorkspace": "Autorisation personnelle enregistrée. Retournez à votre espace de travail."
+    },
+    "maxToolRisk": {
+      "title": "Risque maximal des outils",
+      "description": "Le niveau de risque le plus élevé que les utilisateurs non administrateurs peuvent utiliser sur ce serveur. Les outils au-delà sont masqués et refusés pour eux ; les administrateurs ne sont pas limités. S'applique uniquement en mode espace de travail.",
+      "read": "Lecture seule",
+      "write": "Lecture, et modification des données propres à l'utilisateur",
+      "external": "Aucune limite (par défaut)"
+    },
+    "defaultUserRisk": {
+      "title": "Niveau par défaut des utilisateurs",
+      "description": "Ce que les utilisateurs peuvent faire avec les outils de ce serveur tant qu'ils n'ont pas choisi. Ils peuvent l'abaisser, ou l'élever jusqu'au maximum ci-dessus. S'applique uniquement en mode espace de travail.",
+      "read": "Lecture seule (par défaut)",
+      "write": "Lecture, et modification des données propres à l'utilisateur",
+      "external": "Tout ce que le maximum autorise"
     }
   },
   "status": {
@@ -823,7 +837,18 @@
     "fixJsonBeforeSwitching": "Veuillez corriger le format JSON avant de passer en mode formulaire",
     "item": "Élément {{index}}",
     "addItem": "Ajouter un élément {{key}}",
-    "enterKey": "Entrez {{key}}"
+    "enterKey": "Entrez {{key}}",
+    "risk": {
+      "level": {
+        "read": "Lecture",
+        "write": "Écriture",
+        "external": "Externe"
+      },
+      "override": "Relever le niveau de risque",
+      "noOverride": "Calculé : {{level}}",
+      "updateSuccess": "Niveau de risque mis à jour",
+      "updateFailed": "Échec de la mise à jour du niveau de risque"
+    }
   },
   "prompt": {
     "run": "Obtenir",
@@ -1507,7 +1532,11 @@
       "needs_auth": "« {{serverName}} » nécessite vos identifiants ou votre autorisation personnels. Connectez-le depuis votre espace de travail.",
       "revoked": "Vous avez déconnecté votre autorisation pour « {{serverName}} ». Reconnectez-la depuis votre espace de travail.",
       "credential_invalid": "Vos identifiants pour « {{serverName}} » ont été refusés. Mettez-les à jour ou reconnectez-vous depuis votre espace de travail.",
-      "error": "« {{serverName}} » est actuellement indisponible. Réessayez plus tard."
+      "error": "« {{serverName}} » est actuellement indisponible. Réessayez plus tard.",
+      "riskNotEnabled": {
+        "write": "« {{toolName}} » modifie vos données sur « {{serverName}} », ce que votre espace de travail n'autorise pas encore. Autorisez les modifications de vos données pour « {{serverName}} » dans votre espace de travail pour l'utiliser.",
+        "external": "« {{toolName}} » peut agir de façon visible par d'autres personnes sur « {{serverName}} », ce que votre espace de travail n'autorise pas encore. Autorisez les actions visibles par d'autres pour « {{serverName}} » dans votre espace de travail pour l'utiliser."
+      }
     }
   },
   "workspacePage": {
@@ -1576,7 +1605,8 @@
       "needs_auth": "Connexion requise",
       "revoked": "Déconnecté",
       "credential_invalid": "Identifiants refusés",
-      "error": "Problème"
+      "error": "Problème",
+      "risk_not_enabled": "Outil non autorisé dans votre espace de travail"
     },
     "actions": {
       "select": "Ajouter à l'espace de travail",
@@ -1670,6 +1700,36 @@
       "unknownClient": "Client inconnu (plus connecté)",
       "clientGone": "{{name}} (plus connecté)",
       "duration": "{{ms}} ms"
+    },
+    "risk": {
+      "explanation": "Choisissez ce que les outils de ce service peuvent faire. Les outils au-delà de votre choix sont masqués pour vos clients et refusés s'ils sont appelés.",
+      "groupLabel": "Ce que les outils de {{name}} peuvent faire",
+      "level": {
+        "read": {
+          "label": "Lecture seule",
+          "hint": "Consulter sans rien modifier."
+        },
+        "write": {
+          "label": "Autoriser la modification de mes données",
+          "hint": "Créer ou modifier aussi vos propres données."
+        },
+        "external": {
+          "label": "Autoriser les actions visibles par d'autres",
+          "hint": "Envoyer, publier ou agir aussi envers d'autres personnes, ainsi que les outils qui n'indiquent pas ce qu'ils font."
+        }
+      },
+      "aboveCap": "Non autorisé par votre administrateur",
+      "changeFailed": "Impossible de modifier ce que {{name}} peut faire. Réessayez.",
+      "hiddenNotice_one": "{{count}} outil est masqué selon votre choix.",
+      "hiddenNotice_other": "{{count}} outils sont masqués selon votre choix.",
+      "hiddenNotice_many": "{{count}} outils sont masqués selon votre choix.",
+      "banner_one": "{{count}} outil de vos services sélectionnés est masqué : les outils qui modifient des données ou agissent pour vous restent désactivés tant que vous ne les autorisez pas. Ouvrez un service ci-dessous pour en autoriser davantage.",
+      "banner_other": "{{count}} outils de vos services sélectionnés sont masqués : les outils qui modifient des données ou agissent pour vous restent désactivés tant que vous ne les autorisez pas. Ouvrez un service ci-dessous pour en autoriser davantage.",
+      "banner_many": "{{count}} outils de vos services sélectionnés sont masqués : les outils qui modifient des données ou agissent pour vous restent désactivés tant que vous ne les autorisez pas. Ouvrez un service ci-dessous pour en autoriser davantage.",
+      "connectToSee": "Connectez ce service pour voir ses outils et choisir ce qu'ils peuvent faire.",
+      "unknownTools": "Connectez-vous pour voir les outils",
+      "defaultNote": "Défini par votre administrateur tant que vous n'avez pas choisi.",
+      "untrustedHint": "Ce service n'est pas géré par un administrateur : ses outils ne sont pas vérifiés et comptent tous comme des actions visibles par d'autres."
     }
   }
 }

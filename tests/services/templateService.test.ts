@@ -615,4 +615,54 @@ describe('templateService', () => {
       );
     });
   });
+
+  describe('tool risk controls', () => {
+    it('are not set by an imported template', async () => {
+      mockServerDao.findAll.mockResolvedValue([]);
+      mockGroupDao.findAll.mockResolvedValue([]);
+      mockGroupDao.findByName.mockResolvedValue(null);
+      mockAddServer.mockResolvedValue(undefined);
+
+      await importTemplate(
+        {
+          version: '1.0',
+          name: 'Test',
+          createdAt: new Date().toISOString(),
+          servers: {
+            s1: {
+              type: 'sse',
+              url: 'http://localhost:3001',
+              maxToolRisk: 'read',
+              defaultUserRisk: 'read',
+              toolRiskOverrides: { get: 'external' },
+            },
+          },
+          groups: [],
+          requiredEnvVars: [],
+        } as never,
+        'alice',
+      );
+
+      const config = mockAddServer.mock.calls[0][1];
+      expect(config).not.toHaveProperty('maxToolRisk');
+      expect(config).not.toHaveProperty('toolRiskOverrides');
+      expect(config).not.toHaveProperty('defaultUserRisk');
+    });
+
+    it('are left out of exported templates', async () => {
+      mockServerDao.findAll.mockResolvedValue([
+        {
+          name: 's1',
+          type: 'sse',
+          url: 'http://localhost:3001',
+          maxToolRisk: 'read',
+          defaultUserRisk: 'read',
+          toolRiskOverrides: { get: 'external' },
+        },
+      ]);
+      mockGroupDao.findAll.mockResolvedValue([{ id: 'g1', name: 'G', servers: ['s1'] }]);
+      const template = await exportTemplate({ name: 'Test' });
+      expect(JSON.stringify(template)).not.toMatch(/maxToolRisk|toolRiskOverrides|defaultUserRisk/);
+    });
+  });
 });

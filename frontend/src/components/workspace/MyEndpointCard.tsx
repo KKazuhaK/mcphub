@@ -64,15 +64,9 @@ const MyEndpointCard: React.FC<MyEndpointCardProps> = ({ aggregate, smartRouting
   const [mode, setMode] = useState<'direct' | 'smart'>('direct');
   const [clientId, setClientId] = useState<ClientSnippetId>('generic-mcp-servers');
 
-  const smartUrl = useMemo(
-    () => buildSmartEndpoint(aggregate, getSmartRoutingPath()),
-    [aggregate],
-  );
+  const smartUrl = useMemo(() => buildSmartEndpoint(aggregate, getSmartRoutingPath()), [aggregate]);
   const activeUrl = mode === 'smart' ? smartUrl : aggregate;
-  const blocks = useMemo(
-    () => buildWorkspaceSnippets(clientId, activeUrl),
-    [clientId, activeUrl],
-  );
+  const blocks = useMemo(() => buildWorkspaceSnippets(clientId, activeUrl), [clientId, activeUrl]);
 
   const tabClass = (active: boolean) =>
     'hub-btn' + (active ? ' primary' : '') + ' !px-2.5 !py-1 text-[12px]';
@@ -103,7 +97,11 @@ const MyEndpointCard: React.FC<MyEndpointCardProps> = ({ aggregate, smartRouting
 
       <div className="space-y-2">
         <h3 className="text-[13px] font-medium">{t('workspacePage.endpoint.snippets')}</h3>
-        <div className="flex flex-wrap gap-2" role="group" aria-label={t('workspacePage.endpoint.mode')}>
+        <div
+          className="flex flex-wrap gap-2"
+          role="group"
+          aria-label={t('workspacePage.endpoint.mode')}
+        >
           {(['direct', 'smart'] as const).map((value) => (
             <button
               key={value}
@@ -116,7 +114,11 @@ const MyEndpointCard: React.FC<MyEndpointCardProps> = ({ aggregate, smartRouting
             </button>
           ))}
         </div>
-        <div className="flex flex-wrap gap-2" role="tablist" aria-label={t('workspacePage.endpoint.client')}>
+        <div
+          className="flex flex-wrap gap-2"
+          role="tablist"
+          aria-label={t('workspacePage.endpoint.client')}
+        >
           {WORKSPACE_SNIPPET_CLIENTS.map((id) => (
             <button
               key={id}
