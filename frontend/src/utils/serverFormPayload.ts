@@ -7,7 +7,30 @@ interface BuildServerPayloadInput {
   serverType: ServerType;
   envVars: EnvVar[];
   headerVars: EnvVar[];
+  // Which admin-only availability fields the admin changed; absent means neither.
+  availabilityEdits?: AvailabilityEdits;
 }
+
+export interface AvailabilityEdits {
+  pausedUsers?: boolean;
+  maintenance?: boolean;
+}
+
+type AvailabilityFields = Pick<ServerFormData, 'pausedUsers' | 'maintenance'>;
+
+// Compares the form's availability fields with what the form started from.
+export const getAvailabilityEdits = (
+  current: AvailabilityFields,
+  initial: AvailabilityFields,
+): AvailabilityEdits => ({
+  pausedUsers:
+    current.pausedUsers !== undefined &&
+    JSON.stringify([...new Set(current.pausedUsers)].sort()) !==
+      JSON.stringify([...new Set(initial.pausedUsers ?? [])].sort()),
+  maintenance:
+    current.maintenance !== undefined &&
+    JSON.stringify(current.maintenance) !== JSON.stringify(initial.maintenance),
+});
 
 const buildKeyValueRecord = (vars: EnvVar[]): Record<string, string> => {
   const record: Record<string, string> = {};
@@ -41,6 +64,17 @@ const normalizeSharedUsers = (usernames?: string[]): string[] => {
         .filter((username) => username.length > 0),
     ),
   );
+};
+
+const buildMaintenance = (
+  maintenance: NonNullable<ServerFormData['maintenance']>,
+): ServerConfig['maintenance'] => {
+  if (!maintenance.enabled) {
+    return null;
+  }
+  const until = maintenance.until?.trim();
+  const message = maintenance.message.trim();
+  return { ...(until ? { until } : {}), ...(message ? { message } : {}) };
 };
 
 const buildOptions = (options?: ServerFormData['options']) => {
@@ -242,6 +276,7 @@ export const buildServerPayload = ({
   serverType,
   envVars,
   headerVars,
+  availabilityEdits,
 }: BuildServerPayloadInput) => {
   const env = buildKeyValueRecord(envVars);
   const headers = buildKeyValueRecord(headerVars);
@@ -255,6 +290,15 @@ export const buildServerPayload = ({
     visibility: formData.visibility ?? 'private',
     sharedWithUsers:
       formData.visibility === 'group' ? normalizeSharedUsers(formData.sharedWithUsers) : undefined,
+    // Sent only when the admin actually changed them in the form: an untouched or hidden
+    // field leaves the stored value alone (and a malformed stored value cannot fail a save).
+    // `null` and `[]` clear.
+    ...(availabilityEdits?.pausedUsers && formData.pausedUsers !== undefined
+      ? { pausedUsers: normalizeSharedUsers(formData.pausedUsers) }
+      : {}),
+    ...(availabilityEdits?.maintenance && formData.maintenance !== undefined
+      ? { maintenance: buildMaintenance(formData.maintenance) }
+      : {}),
     credentialTemplate: formData.credentialTemplate?.map((slot) => ({
       ...slot,
       target:

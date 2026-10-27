@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
+import { useSettings } from '../contexts/SettingsContext';
+import ServerAvailabilityFields from './ServerAvailabilityFields';
 import { getServerConfigPermissionError } from '../utils/serverPermissions.js';
 import { X } from 'lucide-react';
 import { Server, EnvVar, ServerFormData, OpenApiToolStats } from '@/types';
 import { apiGet, apiPost } from '../utils/fetchInterceptor';
-import { buildServerPayload } from '../utils/serverFormPayload';
+import { buildServerPayload, getAvailabilityEdits } from '../utils/serverFormPayload';
 import {
   deselectShareUsers,
   filterShareUsers,
@@ -62,6 +64,7 @@ const ServerForm = ({
 }: ServerFormProps) => {
   const { t } = useTranslation();
   const { auth } = useAuth();
+  const { workspaceEnabled } = useSettings();
 
   // Native `pattern`/`maxLength` on the name field are enforced on create and
   // on edit of an already-valid name. Editing a legacy (invalid) name without
@@ -139,6 +142,17 @@ const ServerForm = ({
     passthroughHeaders: initialData?.config?.passthroughHeaders?.join(', ') || '',
     visibility: (initialData?.config?.visibility ?? 'private') as 'private' | 'group' | 'public',
     sharedWithUsers: initialData?.config?.sharedWithUsers || [],
+    // Admins only: the fields stay undefined for anyone else, so their saves leave them alone.
+    ...(auth.user?.isAdmin
+      ? {
+          pausedUsers: initialData?.config?.pausedUsers || [],
+          maintenance: {
+            enabled: Boolean(initialData?.config?.maintenance),
+            until: initialData?.config?.maintenance?.until,
+            message: initialData?.config?.maintenance?.message || '',
+          },
+        }
+      : {}),
     options: {
       maxBufferSize: initialData?.config?.options?.maxBufferSize,
       timeout:
@@ -232,6 +246,12 @@ const ServerForm = ({
             passthroughHeaders: '',
             cookieSession: false,
           },
+  });
+
+  // What the availability fields started as, to tell whether the admin touched them.
+  const initialAvailability = useRef({
+    pausedUsers: formData.pausedUsers,
+    maintenance: formData.maintenance,
   });
 
   const [shareCandidates, setShareCandidates] = useState<string[]>([]);
@@ -582,6 +602,11 @@ const ServerForm = ({
         serverType,
         envVars,
         headerVars,
+        // Only a visible, edited field is sent; anything else keeps its stored value.
+        availabilityEdits:
+          auth.user?.isAdmin && workspaceEnabled
+            ? getAvailabilityEdits(formData, initialAvailability.current)
+            : undefined,
       });
 
       const permissionError = getServerConfigPermissionError(payload.config, auth.user?.isAdmin);
@@ -2045,6 +2070,21 @@ const ServerForm = ({
                   </div>
                 )}
               </div>
+
+              {/* Maintenance and per-user pause (admins, Workspace Mode) */}
+              {auth.user?.isAdmin && workspaceEnabled && formData.maintenance && (
+                <ServerAvailabilityFields
+                  serverName={initialData?.name}
+                  maintenance={formData.maintenance}
+                  pausedUsers={formData.pausedUsers || []}
+                  onMaintenanceChange={(maintenance) =>
+                    setFormData((prev) => ({ ...prev, maintenance }))
+                  }
+                  onPausedUsersChange={(pausedUsers) =>
+                    setFormData((prev) => ({ ...prev, pausedUsers }))
+                  }
+                />
+              )}
 
               {/* Passthrough Headers Configuration */}
               <div>

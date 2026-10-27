@@ -160,6 +160,17 @@
     "visibilityPublicShort": "Public",
     "visibilityPublic": "Public — tous les utilisateurs authentifiés",
     "visibilityDescription": "Contrôle quels utilisateurs non administrateurs peuvent découvrir et appeler ce serveur. Les administrateurs ont toujours accès.",
+    "maintenance": {
+      "title": "Maintenance",
+      "description": "Les utilisateurs qui ont sélectionné ce serveur le voient en maintenance et ne peuvent pas l'utiliser avant l'heure de fin ou la désactivation. La connexion reste active. S'applique uniquement en mode espace de travail.",
+      "until": "Fin à (facultatif)",
+      "message": "Message pour les utilisateurs (facultatif)"
+    },
+    "pauseForUsers": {
+      "title": "Suspendre pour des utilisateurs",
+      "description": "Le serveur reste disponible pour tous les autres. S'applique uniquement en mode espace de travail.",
+      "afterCreate": "Enregistrez le serveur avant de sélectionner des utilisateurs."
+    },
     "shareWithUsers": "Partager avec des utilisateurs",
     "shareWithUsersDescription": "Les utilisateurs sélectionnés peuvent découvrir et appeler ce serveur, mais ne peuvent pas gérer sa configuration.",
     "shareCandidatesLoading": "Chargement des utilisateurs...",
@@ -1480,6 +1491,8 @@
       "available": "« {{serverName}} » est disponible.",
       "not_selected": "« {{serverName}} » ne fait pas partie de votre espace de travail. Sélectionnez-le dans Tableau de bord → Espace de travail pour l'utiliser.",
       "paused": "« {{serverName}} » a été mis en pause par un administrateur.",
+      "maintenance": "'{{serverName}}' est en maintenance. Réessayez plus tard.",
+      "maintenanceUntil": "'{{serverName}}' est en maintenance jusqu'à {{until}}. Réessayez plus tard.",
       "needs_auth": "« {{serverName}} » nécessite vos identifiants ou votre autorisation personnels. Connectez-le dans Tableau de bord → Identifiants ou Serveurs.",
       "revoked": "Vous avez déconnecté votre autorisation pour « {{serverName}} ». Reconnectez-la dans Tableau de bord → Serveurs.",
       "credential_invalid": "Vos identifiants pour « {{serverName}} » ont été refusés. Mettez-les à jour dans Tableau de bord → Identifiants ou reconnectez-vous dans Tableau de bord → Serveurs.",

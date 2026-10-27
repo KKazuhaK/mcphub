@@ -160,6 +160,17 @@
     "visibilityPublicShort": "Público",
     "visibilityPublic": "Público — todos los usuarios autenticados",
     "visibilityDescription": "Controla qué usuarios no administradores pueden descubrir y llamar a este servidor. Los administradores siempre tienen acceso.",
+    "maintenance": {
+      "title": "Mantenimiento",
+      "description": "Los usuarios que seleccionaron este servidor lo ven en mantenimiento y no pueden usarlo hasta que pase la hora de fin o lo desactives. La conexión sigue activa. Solo se aplica en el modo de espacio de trabajo.",
+      "until": "Termina el (opcional)",
+      "message": "Mensaje para los usuarios (opcional)"
+    },
+    "pauseForUsers": {
+      "title": "Pausar para usuarios",
+      "description": "El servidor sigue disponible para el resto. Solo se aplica en el modo de espacio de trabajo.",
+      "afterCreate": "Guarda el servidor antes de seleccionar usuarios."
+    },
     "shareWithUsers": "Compartir con usuarios",
     "shareWithUsersDescription": "Los usuarios seleccionados pueden descubrir y llamar a este servidor, pero no pueden gestionar su configuración.",
     "shareCandidatesLoading": "Cargando usuarios...",
@@ -1482,6 +1493,8 @@
       "available": "'{{serverName}}' está disponible.",
       "not_selected": "'{{serverName}}' no está en tu espacio de trabajo. Selecciónalo en Panel → Espacio de trabajo para usarlo.",
       "paused": "Un administrador ha pausado '{{serverName}}'.",
+      "maintenance": "'{{serverName}}' está en mantenimiento. Inténtalo de nuevo más tarde.",
+      "maintenanceUntil": "'{{serverName}}' está en mantenimiento hasta {{until}}. Inténtalo de nuevo más tarde.",
       "needs_auth": "'{{serverName}}' necesita tus credenciales o autorización personales. Conéctalo en Panel → Credenciales o Servidores.",
       "revoked": "Has desconectado tu autorización para '{{serverName}}'. Vuelve a conectarla en Panel → Servidores.",
       "credential_invalid": "Se rechazaron tus credenciales para '{{serverName}}'. Actualízalas en Panel → Credenciales o vuelve a conectar en Panel → Servidores.",

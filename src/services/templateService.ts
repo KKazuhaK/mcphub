@@ -613,8 +613,14 @@ export async function importTemplate(
     const serverName = nameValidation.normalized as string;
 
     try {
+      // Runtime admin state is not part of a template; a hand-edited one must not set it.
+      const {
+        pausedUsers: _pausedUsers,
+        maintenance: _maintenance,
+        ...importable
+      } = config as ServerConfig;
       const serverConfig: ServerConfig = {
-        ...config,
+        ...importable,
         enabled: config.enabled ?? true,
         owner: owner || 'admin',
       };

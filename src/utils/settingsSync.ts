@@ -27,6 +27,9 @@ const fingerprintDeclaration = async (declaration: string, previous?: string): P
   return `${salt}:${hash}`;
 };
 
+// Columns edited at runtime from the dashboard; absent from declarations and fingerprints.
+const RUNTIME_STATE_COLUMNS = new Set(['pausedUsers', 'maintenance']);
+
 const name = z
   .string()
   .min(1)
@@ -147,7 +150,13 @@ export async function syncSettingsToDatabase(): Promise<void> {
   // Normalize before opening a transaction so invalid declarations cannot partially apply.
   const servers = await Promise.all(
     Object.entries(declaration.mcpServers ?? {}).map(async ([serverName, input]) => {
-      const config = normalizeServerConfigForPersistence(input as ServerConfig);
+      // Runtime admin state is never declared; ignore (rather than validate) a stray copy.
+      const {
+        pausedUsers: _pausedUsers,
+        maintenance: _maintenance,
+        ...declared
+      } = input as ServerConfig;
+      const config = normalizeServerConfigForPersistence(declared);
       if (
         !config.type ||
         (config.type === 'stdio' && !config.command) ||
@@ -189,7 +198,11 @@ export async function syncSettingsToDatabase(): Promise<void> {
       const hash = await fingerprintDeclaration(signature, existing?.settingsSyncHash);
       const sameTarget =
         existing &&
-        normalizeServerConfigForPersistence(existing as ServerConfig).type === config.type &&
+        normalizeServerConfigForPersistence({
+          ...(existing as ServerConfig),
+          pausedUsers: undefined,
+          maintenance: undefined,
+        }).type === config.type &&
         existing.url === config.url &&
         (existing.owner ?? null) === (config.owner ?? null);
       const declaredOAuthMatches = Object.entries(config.oauth ?? {}).every(([key, value]) =>
@@ -212,6 +225,8 @@ export async function syncSettingsToDatabase(): Promise<void> {
       };
       // Emit null for every omitted nullable configuration column. TypeORM skips undefined.
       for (const column of serverRepo.metadata.columns) {
+        // Runtime admin state is never declared, so a sync must leave it as the admin set it.
+        if (RUNTIME_STATE_COLUMNS.has(column.propertyName)) continue;
         if (column.isNullable && column.propertyName !== 'settingsSyncHash') {
           data[column.propertyName] =
             column.propertyName === 'oauth'

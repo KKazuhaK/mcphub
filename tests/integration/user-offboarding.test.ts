@@ -77,7 +77,10 @@ jest.mock('../../src/services/forwardAuthService.js', () => ({
 jest.mock('../../src/services/services.js', () => ({
   getDataService: () => ({ getPermissions: () => [] }),
 }));
-jest.mock('../../src/services/mcpService.js', () => ({ updateServerInfoVisibility: jest.fn() }));
+jest.mock('../../src/services/mcpService.js', () => ({
+  updateServerInfoVisibility: jest.fn(),
+  updateServerInfoAvailability: jest.fn(),
+}));
 jest.mock('../../src/services/credentialBindingService.js', () => ({
   deleteCredentialBindings: jest.fn(),
 }));
@@ -130,7 +133,14 @@ describe('local user offboarding', () => {
         sharedWithUsers: ['victim', 'other'],
       },
     ];
-    servers = [{ name: 's1', visibility: 'group', sharedWithUsers: ['victim', 'other'] }];
+    servers = [
+      {
+        name: 's1',
+        visibility: 'group',
+        sharedWithUsers: ['victim', 'other'],
+        pausedUsers: ['victim', 'other'],
+      },
+    ];
     adminJwt = userToken(users[0]);
     victimJwt = userToken(users[1]);
     await initOAuthServer();
@@ -213,6 +223,7 @@ describe('local user offboarding', () => {
     expect(tokens).toHaveLength(0);
     expect(groups[0].sharedWithUsers).toEqual(['other']);
     expect(servers[0].sharedWithUsers).toEqual(['other']);
+    expect(servers[0].pausedUsers).toEqual(['other']);
     expect(getAuthorizationCode(code)).toBeUndefined();
     expect(
       (await request(app).post('/mcp/g1').auth(livePair.access_token, { type: 'bearer' })).status,

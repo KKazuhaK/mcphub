@@ -4,6 +4,7 @@ import { validateCredentialTemplate } from './credentialTemplate.js';
 import { validateMaxBufferSize } from './stdioOptions.js';
 import { ServerConfigValidationError } from './serverConfigValidation.js';
 import { ServerConfig } from '../types/index.js';
+import { normalizeMaintenance, normalizePausedUsers } from './serverMaintenance.js';
 
 const trimToUndefined = (value?: string): string | undefined => {
   if (typeof value !== 'string') {
@@ -346,6 +347,14 @@ export const normalizeServerConfigForPersistence = (config: ServerConfig): Serve
     owner,
     visibility,
     sharedWithUsers,
+    // Only emitted when the request carries the key: absent means "unchanged" under the
+    // DAO's shallow merge, while null or an empty value clears the stored one.
+    ...(Object.prototype.hasOwnProperty.call(config, 'pausedUsers')
+      ? { pausedUsers: normalizePausedUsers(config.pausedUsers) }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(config, 'maintenance')
+      ? { maintenance: normalizeMaintenance(config.maintenance) }
+      : {}),
     options,
     perSessionClient: config.perSessionClient === true ? true : undefined,
     // The dashboard sends `startOnDemand: undefined` when the toggle is off, which

@@ -53,5 +53,13 @@ A user's all-servers MCP route (`/:user/mcp`, or `/:user/mcp/$smart` under Smart
 _Avoid_: personal URL (ambiguous with personal URL credential slots), aggregate endpoint
 
 **Server Status**:
-What one user would meet calling one visible server under Workspace Mode: a stable `code` (`available`, `not_selected`, `paused`, `needs_auth`, `revoked`, `credential_invalid`, `error`), a short message, and the `action` that resolves it (`select`, `connect`, `contact_admin`, `retry_later`, or none). Reported for servers the user can see only; a server they cannot see keeps the generic "not available" answer. `paused` is the global `enabled` flag; `revoked` means the user disconnected personal OAuth; `credential_invalid` and recorded `error` describe the user's most recent attempt, never block a call, and heal on the next success.
+What one user would meet calling one visible server under Workspace Mode: a stable `code` (`available`, `not_selected`, `paused`, `maintenance`, `needs_auth`, `revoked`, `credential_invalid`, `error`), a short message, and the `action` that resolves it (`select`, `connect`, `contact_admin`, `retry_later`, or none). Reported for servers the user can see only; a server they cannot see keeps the generic "not available" answer. `paused` is the global `enabled` flag or the user being listed in the server's `pausedUsers`; `maintenance` is an active admin maintenance window; `revoked` means the user disconnected personal OAuth; `credential_invalid` and recorded `error` describe the user's most recent attempt, never block a call, and heal on the next success.
 _Avoid_: health, availability (ambiguous with the shared connection state)
+
+**Maintenance**:
+An admin-set window on one server (`maintenance: { until?, message? }`, admin-only to write) during which every requester except administrators, including system keys, sees it as `maintenance` and cannot list or call it, on every route including admin group routes and dashboard calls, while the upstream stays connected. It ends by itself when `until` passes; nothing is written to end it. Effective only under Workspace Mode.
+_Avoid_: downtime, disabled (reserved for the global `enabled` flag)
+
+**Per-user Pause**:
+A server's `pausedUsers` list: the server is `paused` for the listed usernames only (administrators included) on every route, and unaffected for everyone else. Readable and writable by admins only. An access control, not a selection. Effective only under Workspace Mode.
+_Avoid_: block, ban, per-user disable

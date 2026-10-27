@@ -1,5 +1,5 @@
 import type { ServerFormData } from '../../frontend/src/types';
-import { buildServerPayload } from '../../frontend/src/utils/serverFormPayload';
+import { buildServerPayload, getAvailabilityEdits } from '../../frontend/src/utils/serverFormPayload';
 
 describe('buildServerPayload', () => {
   it('preserves args credential targets and placeholders when editing stdio servers', () => {
@@ -529,4 +529,82 @@ describe('upstream protocol config in dashboard payloads', () => {
       ).toBeUndefined();
     },
   );
+});
+
+describe('admin availability fields in dashboard payloads', () => {
+  const stored = {
+    pausedUsers: ['bob'],
+    maintenance: { enabled: true, until: '2999-01-01T00:00:00.000Z', message: 'Upgrading.' },
+  };
+  const form = (overrides: Partial<ServerFormData> = {}): ServerFormData => ({
+    name: 'remote',
+    url: 'https://example.com/mcp',
+    command: '',
+    arguments: '',
+    env: [],
+    headers: [],
+    ...stored,
+    ...overrides,
+  });
+  const build = (
+    formData: ServerFormData,
+    availabilityEdits?: Parameters<typeof buildServerPayload>[0]['availabilityEdits'],
+  ) =>
+    buildServerPayload({
+      formData,
+      serverType: 'streamable-http',
+      envVars: [],
+      headerVars: [],
+      availabilityEdits,
+    }).config;
+
+  it('omits both keys when nothing was edited, hidden or not', () => {
+    const edits = getAvailabilityEdits(form(), stored);
+    expect(edits).toEqual({ pausedUsers: false, maintenance: false });
+
+    for (const config of [build(form(), edits), build(form())]) {
+      expect(config).not.toHaveProperty('pausedUsers');
+      expect(config).not.toHaveProperty('maintenance');
+    }
+  });
+
+  it('sends only the field the admin changed', () => {
+    const edits = getAvailabilityEdits(form({ pausedUsers: ['bob', 'carol'] }), stored);
+    expect(edits).toEqual({ pausedUsers: true, maintenance: false });
+
+    const config = build(form({ pausedUsers: ['bob', 'carol'] }), edits);
+    expect(config.pausedUsers).toEqual(['bob', 'carol']);
+    expect(config).not.toHaveProperty('maintenance');
+  });
+
+  it('is not fooled by reordering or duplicates in the pause list', () => {
+    expect(getAvailabilityEdits(form({ pausedUsers: ['bob', 'bob'] }), stored).pausedUsers).toBe(
+      false,
+    );
+  });
+
+  it('sends null to clear a window the admin switched off, even a malformed stored one', () => {
+    const malformed = { ...stored, maintenance: { enabled: true, until: 'garbage', message: '' } };
+    const cleared = form({ maintenance: { enabled: false, until: 'garbage', message: '' } });
+    const edits = getAvailabilityEdits(cleared, malformed);
+    expect(edits.maintenance).toBe(true);
+
+    expect(build(cleared, edits).maintenance).toBeNull();
+  });
+
+  it('sends an edited window with its zone-qualified end time', () => {
+    const edited = form({ maintenance: { ...stored.maintenance, message: 'New text' } });
+    const config = build(edited, getAvailabilityEdits(edited, stored));
+    expect(config.maintenance).toEqual({
+      until: '2999-01-01T00:00:00.000Z',
+      message: 'New text',
+    });
+  });
+
+  it('never sends the keys for a form that does not carry them (non-admins)', () => {
+    const plain = form({ pausedUsers: undefined, maintenance: undefined });
+    const config = build(plain, getAvailabilityEdits(plain, stored));
+    expect(config).not.toHaveProperty('pausedUsers');
+    expect(config).not.toHaveProperty('maintenance');
+  });
 });

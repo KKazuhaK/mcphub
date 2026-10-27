@@ -160,6 +160,17 @@
     "visibilityPublicShort": "Công khai",
     "visibilityPublic": "Công khai — mọi người dùng đã xác thực",
     "visibilityDescription": "Kiểm soát những người dùng (không phải quản trị viên) có thể khám phá và gọi máy chủ này. Quản trị viên luôn có quyền truy cập.",
+    "maintenance": {
+      "title": "Bảo trì",
+      "description": "Người dùng đã chọn máy chủ này sẽ thấy nó đang bảo trì và không thể dùng cho đến khi hết thời gian hoặc bạn tắt bảo trì. Kết nối vẫn giữ nguyên. Chỉ áp dụng ở chế độ không gian làm việc.",
+      "until": "Kết thúc lúc (tùy chọn)",
+      "message": "Thông báo cho người dùng (tùy chọn)"
+    },
+    "pauseForUsers": {
+      "title": "Tạm dừng cho người dùng",
+      "description": "Máy chủ vẫn khả dụng với mọi người khác. Chỉ áp dụng ở chế độ không gian làm việc.",
+      "afterCreate": "Hãy lưu máy chủ trước khi chọn người dùng."
+    },
     "shareWithUsers": "Chia sẻ với người dùng",
     "shareWithUsersDescription": "Người dùng được chọn có thể khám phá và gọi máy chủ này, nhưng không thể quản lý cấu hình của nó.",
     "shareCandidatesLoading": "Đang tải người dùng...",
@@ -1482,6 +1493,8 @@
       "available": "'{{serverName}}' đang khả dụng.",
       "not_selected": "'{{serverName}}' không nằm trong không gian làm việc của bạn. Hãy chọn nó trong Bảng điều khiển → Không gian làm việc để sử dụng.",
       "paused": "'{{serverName}}' đã bị quản trị viên tạm dừng.",
+      "maintenance": "'{{serverName}}' đang được bảo trì. Vui lòng thử lại sau.",
+      "maintenanceUntil": "'{{serverName}}' đang được bảo trì đến {{until}}. Vui lòng thử lại sau.",
       "needs_auth": "'{{serverName}}' cần thông tin xác thực hoặc quyền truy cập cá nhân của bạn. Hãy kết nối trong Bảng điều khiển → Thông tin xác thực hoặc Máy chủ.",
       "revoked": "Bạn đã ngắt ủy quyền cho '{{serverName}}'. Hãy kết nối lại trong Bảng điều khiển → Máy chủ.",
       "credential_invalid": "Thông tin xác thực của bạn cho '{{serverName}}' bị từ chối. Hãy cập nhật trong Bảng điều khiển → Thông tin xác thực hoặc kết nối lại trong Bảng điều khiển → Máy chủ.",

@@ -2,6 +2,7 @@ import type {
   ServerConfig,
   ServerInfo,
   UserServerStatus,
+  ServerMaintenance,
   UserServerStatusAction,
   UserServerStatusCode,
   WorkspaceEndpointState,
@@ -15,6 +16,7 @@ import {
 } from '../utils/credentialTemplate.js';
 import { getT } from '../utils/i18n.js';
 import { logger } from '../utils/logger.js';
+import { getActiveMaintenance, isPausedForUser } from '../utils/serverMaintenance.js';
 import { getCredentialBindingStatus } from './credentialBindingService.js';
 import { RequestContextService } from './requestContextService.js';
 import {
@@ -30,6 +32,7 @@ import { isWorkspaceEnabled } from './userServerSelectionService.js';
 export const USER_SERVER_STATUS_CODES: readonly UserServerStatusCode[] = [
   'not_selected',
   'paused',
+  'maintenance',
   'needs_auth',
   'revoked',
   'credential_invalid',
@@ -41,6 +44,7 @@ export const USER_SERVER_STATUS_ACTIONS: Record<UserServerStatusCode, UserServer
   available: null,
   not_selected: 'select',
   paused: 'contact_admin',
+  maintenance: 'retry_later',
   needs_auth: 'connect',
   revoked: 'connect',
   credential_invalid: 'connect',
@@ -60,6 +64,10 @@ export interface UserServerStateInputs {
   selected: boolean;
   // The global `enabled` flag.
   enabled: boolean;
+  // An administrator paused this server for this user only (`pausedUsers`).
+  pausedForUser?: boolean;
+  // The maintenance window in force right now; expired windows are filtered out by the caller.
+  maintenance?: ServerMaintenance;
   personalAuth: PersonalAuthState;
   // A shared server whose own connection is down.
   sharedConnectionFailed: boolean;
@@ -74,6 +82,7 @@ export interface ResolvedUserServerState {
   since?: string;
   // Overrides the default action of the code.
   action?: UserServerStatusAction;
+  maintenance?: ServerMaintenance;
 }
 
 const iso = (at: number): string => new Date(at).toISOString();
@@ -81,7 +90,8 @@ const iso = (at: number): string => new Date(at).toISOString();
 // Reports the first state that applies. Pure: all inputs are gathered by the caller.
 export const resolveUserServerState = (input: UserServerStateInputs): ResolvedUserServerState => {
   if (!input.selected) return { code: 'not_selected' };
-  if (!input.enabled) return { code: 'paused' };
+  if (!input.enabled || input.pausedForUser) return { code: 'paused' };
+  if (input.maintenance) return { code: 'maintenance', maintenance: input.maintenance };
   // A user who cannot hold personal credentials at all needs an administrator.
   if (input.personalAuth === 'ineligible') return { code: 'needs_auth', action: 'contact_admin' };
   if (input.personalAuth === 'missing') return { code: 'needs_auth' };
@@ -105,6 +115,7 @@ export const resolveUserServerState = (input: UserServerStateInputs): ResolvedUs
 const BLOCKING_CODES: readonly UserServerStatusCode[] = [
   'not_selected',
   'paused',
+  'maintenance',
   'needs_auth',
   'revoked',
 ];
@@ -144,6 +155,7 @@ const DEFAULT_MESSAGES: Record<UserServerStatusCode, string> = {
   not_selected:
     "'{{serverName}}' is not in your workspace. Select it in Dashboard → Workspace to use it.",
   paused: "'{{serverName}}' is paused by an administrator.",
+  maintenance: "'{{serverName}}' is under maintenance. Try again later.",
   needs_auth:
     "'{{serverName}}' needs your personal credentials or authorization. Connect it in Dashboard → Credentials or Servers.",
   revoked:
@@ -159,18 +171,31 @@ export const buildUserServerStatus = (
   serverName: string,
   language: string | undefined = requestLanguage(),
 ): UserServerStatus => {
-  const defaultValue = DEFAULT_MESSAGES[state.code].replace('{{serverName}}', serverName);
-  const message =
-    getT(language)(`workspace.status.${state.code}`, { serverName, defaultValue }) || defaultValue;
+  const until = state.code === 'maintenance' ? state.maintenance?.until : undefined;
+  // A maintenance window with an end time has its own wording, so translations can place it.
+  const key = until ? 'maintenanceUntil' : state.code;
+  const defaultValue = (
+    until
+      ? "'{{serverName}}' is under maintenance until {{until}}. Try again later."
+      : DEFAULT_MESSAGES[state.code]
+  )
+    .replace('{{serverName}}', serverName)
+    .replace('{{until}}', until ?? '');
+  let message =
+    getT(language)(`workspace.status.${key}`, { serverName, until, defaultValue }) || defaultValue;
+  // The one admin-written sentence a status carries: validated plain text, at most 200 chars.
+  const note = state.code === 'maintenance' ? state.maintenance?.message : undefined;
+  if (note) message = `${message} ${note}`;
   return {
     code: state.code,
     message,
     action: state.action !== undefined ? state.action : USER_SERVER_STATUS_ACTIONS[state.code],
     ...(state.since ? { since: state.since } : {}),
+    ...(until ? { until } : {}),
   };
 };
 
-type StatusUser = { username: string; credentialEligible?: boolean };
+type StatusUser = { username: string; isAdmin?: boolean; credentialEligible?: boolean };
 
 // Whether the user has supplied what a personal-auth server needs.
 export const getPersonalAuthState = async (
@@ -214,6 +239,17 @@ export interface UserServerStatusSubject {
   info?: ServerInfo;
 }
 
+// Whether an administrator has made this server unusable for the requester: paused for them
+// alone, or in maintenance (administrators bypass maintenance so they can test; a request
+// without a user, such as a system key, does not). The global `enabled` flag is checked separately.
+export const isAdminBlockedForUser = (
+  config: ServerConfig | undefined,
+  user: { username?: string; isAdmin?: boolean } | null | undefined,
+  now: number = Date.now(),
+): boolean =>
+  isPausedForUser(config, user?.username) ||
+  (user?.isAdmin !== true && Boolean(getActiveMaintenance(config, now)));
+
 // Gathers the inputs for one (user, server) pair. `selected` is whether the server counts
 // as part of the user's scope on this route. `personalAuth` may be passed when the caller
 // already looked it up.
@@ -223,12 +259,16 @@ export const getUserServerStatus = async (options: {
   selected: boolean;
   personalAuth?: PersonalAuthState;
   language?: string;
+  // Injectable clock for maintenance expiry.
+  now?: number;
 }): Promise<UserServerStatus> => {
   const { user, subject, selected } = options;
   // Credentials are only worth looking up for a server that is otherwise in play.
   const personalAuth =
     options.personalAuth ??
-    (selected && subject.enabled
+    (selected &&
+    subject.enabled &&
+    !isAdminBlockedForUser(subject.config, user, options.now)
       ? await getPersonalAuthState(user, subject.name, subject.config)
       : 'not_required');
   const revokedAt =
@@ -236,6 +276,8 @@ export const getUserServerStatus = async (options: {
   const state = resolveUserServerState({
     selected,
     enabled: subject.enabled,
+    pausedForUser: isPausedForUser(subject.config, user.username),
+    maintenance: user.isAdmin ? undefined : getActiveMaintenance(subject.config, options.now),
     personalAuth,
     sharedConnectionFailed: isSharedConnectionDown(subject.config, subject.info),
     failure: getUserServerFailure(user.username, subject.name),

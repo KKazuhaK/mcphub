@@ -208,6 +208,11 @@ export interface MyCredentialBinding {
   updatedAt: string | null;
 }
 
+export interface ServerMaintenance {
+  until?: string; // ISO 8601
+  message?: string; // Plain text, at most 200 characters
+}
+
 // Server config types
 export interface ServerConfig {
   credentialTemplate?: CredentialSlot[];
@@ -223,6 +228,9 @@ export interface ServerConfig {
   // Per-server visibility for non-admin users.
   visibility?: 'private' | 'group' | 'public';
   sharedWithUsers?: string[];
+  // Admin runtime state, effective only under Workspace Mode. `null` clears on save.
+  pausedUsers?: string[];
+  maintenance?: ServerMaintenance | null;
   protocolNegotiation?: 'auto' | 'legacy'; // Streamable HTTP defaults to auto; other transports remain legacy.
   enableKeepAlive?: boolean; // Enable remote health checks; disconnected remote servers always retry
   keepAliveInterval?: number; // Health check interval in milliseconds (default: 60000ms)
@@ -350,6 +358,7 @@ export interface Server {
   version?: string;
   owner?: string;
   visibility?: 'private' | 'group' | 'public';
+  maintenance?: ServerMaintenance; // Present while a maintenance window is in force
   status: ServerStatus;
   error?: string;
   recovery?: { attempts: number; lastAttemptAt?: number; nextAttemptAt?: number };
@@ -418,6 +427,9 @@ export interface ServerFormData {
   // Visibility for non-admin users.
   visibility?: 'private' | 'group' | 'public';
   sharedWithUsers?: string[];
+  // Admins only; left undefined for everyone else so a save leaves the stored values alone.
+  pausedUsers?: string[];
+  maintenance?: { enabled: boolean; until?: string; message: string };
   options?: {
     timeout?: number;
     resetTimeoutOnProgress?: boolean;

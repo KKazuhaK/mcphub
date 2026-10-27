@@ -279,4 +279,47 @@ describe('serverConfigPresenter (#1036 Phase 1)', () => {
       });
     });
   });
+  describe('admin-only pause list', () => {
+    const withPause = () => ({
+      ...buildRawServerConfig(),
+      pausedUsers: ['carol'],
+      maintenance: { until: '2026-10-27T18:00:00.000Z', message: 'Upgrading.' },
+    });
+
+    it('is withheld from a non-admin owner but kept for an admin', () => {
+      const owner = presentServerForPrincipal(withPause(), bob);
+      expect(owner.view).toBe('full');
+      expect(owner.data).not.toHaveProperty('pausedUsers');
+      expect((owner.data as Record<string, unknown>).maintenance).toEqual({
+        until: '2026-10-27T18:00:00.000Z',
+        message: 'Upgrading.',
+      });
+      expect(
+        (presentServerForPrincipal(withPause(), admin).data as Record<string, unknown>).pausedUsers,
+      ).toEqual(['carol']);
+    });
+
+    it('is withheld from a shared user, along with the maintenance configuration', () => {
+      const shared = presentServerForPrincipal(withPause(), alice);
+      expect(shared.view).toBe('safe');
+      expect(JSON.stringify(shared.data)).not.toContain('carol');
+    });
+
+    it('is withheld from the config block of a list entry for a non-admin owner', () => {
+      const entry = { name: 'org-search', owner: 'bob', config: withPause() };
+
+      const forOwner = presentServerInfoForPrincipal(entry, bob);
+      expect(forOwner.config).not.toHaveProperty('pausedUsers');
+      expect(forOwner.config).toHaveProperty('maintenance');
+      expect(presentServerInfoForPrincipal(entry, admin).config).toHaveProperty('pausedUsers');
+      expect(entry.config).toHaveProperty('pausedUsers');
+    });
+
+    it('uses the ambient user when no principal is passed', () => {
+      mockGetCurrentUser.mockReturnValue(bob);
+      expect(presentServerForPrincipal(withPause()).data).not.toHaveProperty('pausedUsers');
+      mockGetCurrentUser.mockReturnValue(admin);
+      expect(presentServerForPrincipal(withPause()).data).toHaveProperty('pausedUsers');
+    });
+  });
 });

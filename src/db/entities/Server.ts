@@ -89,6 +89,13 @@ export class Server {
   @Column({ type: 'simple-json', nullable: true })
   passthroughHeaders?: string[];
 
+  // Runtime admin state (Workspace Mode only); never part of settings-sync declarations.
+  @Column({ type: 'simple-json', nullable: true })
+  pausedUsers?: string[];
+
+  @Column({ type: 'simple-json', nullable: true })
+  maintenance?: { until?: string; message?: string };
+
   @Column({ type: 'boolean', nullable: true })
   perSessionClient?: boolean;
 

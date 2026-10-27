@@ -55,4 +55,48 @@ describe('ServerDaoImpl', () => {
     expect(server.idleTimeoutMs).toBe(120000);
     expect(server.options).toEqual({ timeout: 5000 });
   });
+  describe('maintenance and per-user pause', () => {
+    const stored = {
+      name: 'maintained',
+      type: 'sse',
+      url: 'https://example.com/sse',
+      pausedUsers: ['bob'],
+      maintenance: { until: '2026-10-27T18:00:00.000Z', message: 'Upgrading.' },
+    };
+    const run = async (updates: object) => {
+      const dao = new ServerDaoImpl();
+      jest
+        .spyOn(dao as any, 'loadSettings')
+        .mockResolvedValue({ mcpServers: { maintained: stored } });
+      const save = jest.spyOn(dao as any, 'saveSettings').mockResolvedValue(undefined);
+      await dao.update('maintained', updates);
+      return JSON.parse(JSON.stringify(save.mock.calls[0][0].mcpServers.maintained));
+    };
+
+    it('stores both fields in the settings file and reads them back', async () => {
+      const dao = new ServerDaoImpl();
+      jest
+        .spyOn(dao as any, 'loadSettings')
+        .mockResolvedValue({ mcpServers: { maintained: stored } });
+
+      const server = await dao.findById('maintained');
+
+      expect(server?.pausedUsers).toEqual(['bob']);
+      expect(server?.maintenance).toEqual(stored.maintenance);
+    });
+
+    it('keeps them through an update that does not name them', async () => {
+      const saved = await run({ description: 'edited' });
+
+      expect(saved.pausedUsers).toEqual(['bob']);
+      expect(saved.maintenance).toEqual(stored.maintenance);
+    });
+
+    it('removes them when an update clears them', async () => {
+      const saved = await run({ pausedUsers: undefined, maintenance: undefined });
+
+      expect(saved).not.toHaveProperty('pausedUsers');
+      expect(saved).not.toHaveProperty('maintenance');
+    });
+  });
 });

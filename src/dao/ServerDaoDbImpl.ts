@@ -103,6 +103,8 @@ export class ServerDaoDbImpl implements ServerDao {
       owner: entity.owner,
       visibility: entity.visibility ?? 'private',
       sharedWithUsers: entity.sharedWithUsers,
+      pausedUsers: entity.pausedUsers,
+      maintenance: entity.maintenance,
       enableKeepAlive: entity.enableKeepAlive,
       keepAliveInterval: entity.keepAliveInterval,
       protocolNegotiation: entity.protocolNegotiation,
@@ -156,6 +158,8 @@ export class ServerDaoDbImpl implements ServerDao {
     assignNullable('owner');
     assign('visibility');
     assignNullable('sharedWithUsers');
+    assignNullable('pausedUsers');
+    assignNullable('maintenance');
     if (hasOwn('enableKeepAlive')) {
       updateData.enableKeepAlive = entity.enableKeepAlive ?? false;
     }
@@ -297,6 +301,8 @@ export class ServerDaoDbImpl implements ServerDao {
     owner?: string;
     visibility?: 'private' | 'group' | 'public';
     sharedWithUsers?: string[];
+    pausedUsers?: string[];
+    maintenance?: ServerConfig['maintenance'];
     enableKeepAlive?: boolean;
     keepAliveInterval?: number;
     tools?: Record<string, { enabled: boolean; description?: string; hiddenParams?: string[] }>;
@@ -334,6 +340,9 @@ export class ServerDaoDbImpl implements ServerDao {
       owner: server.owner,
       visibility: server.visibility ?? 'private',
       sharedWithUsers: server.sharedWithUsers,
+      // Unset columns read back as null.
+      pausedUsers: server.pausedUsers ?? undefined,
+      maintenance: server.maintenance ?? undefined,
       enableKeepAlive: server.enableKeepAlive,
       keepAliveInterval: server.keepAliveInterval,
       protocolNegotiation: server.protocolNegotiation ?? undefined,

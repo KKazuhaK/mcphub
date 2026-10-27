@@ -63,8 +63,15 @@ import {
   hasUserListedName,
   recordUserListedNames,
 } from './userServerListedNamesStore.js';
+import { getActiveMaintenance, isPausedForUser } from '../utils/serverMaintenance.js';
 import {
+  clearMaintenanceExpiry,
+  scheduleAllMaintenanceExpiries,
+} from './serverMaintenanceService.js';
+import {
+  buildUserServerStatus,
   getUserServerStatus,
+  isAdminBlockedForUser,
   isBlockingStatus,
   isStructuredCredentialError,
   reportCredentialRejected,
@@ -415,6 +422,13 @@ export const initUpstreamServers = async (): Promise<void> => {
   // Register all tools from upstream servers
   await registerAllTools(true);
 
+  // Maintenance windows that end while the process runs notify the users who selected them.
+  try {
+    scheduleAllMaintenanceExpiries(await getServerDao().findAll());
+  } catch (error) {
+    logger.warn('Failed to schedule maintenance expiries', { error });
+  }
+
   // Initialize smart routing service with references to mcpService functions
   initSmartRoutingService(getVisibleServerInfos, filterToolsByConfig, filterToolsByGroup);
 };
@@ -706,6 +720,16 @@ export const notifyUserListsChanged = (username: string): void => {
   broadcastListChanged('prompt', (server) => server.sendPromptListChanged(), belongsToUser);
 };
 
+// Usernames that currently have an MCP session open.
+export const listSessionUsernames = (): string[] => {
+  const usernames = new Set<string>();
+  for (const sessionId of Object.keys(servers)) {
+    const username = getSessionUsername(sessionId);
+    if (username) usernames.add(username);
+  }
+  return [...usernames];
+};
+
 // Changing or removing credentials, or a user or server going away, makes any remembered
 // upstream failure for the affected (user, server) pairs obsolete.
 credentialBindingEvents.on('invalidate', (filter?: { serverName?: string; username?: string }) => {
@@ -733,6 +757,22 @@ export const updateServerInfoVisibility = (
       sharedWithUsers,
     };
   }
+};
+
+// Mirrors a pause list or maintenance edit into the live server entry. Neither field needs a
+// reconnect, so the entry is patched in place; `undefined` clears.
+export const updateServerInfoAvailability = (
+  serverName: string,
+  availability: Pick<ServerConfig, 'pausedUsers' | 'maintenance'>,
+): void => {
+  const serverInfo = getServerByName(serverName);
+  if (!serverInfo?.config) return;
+  const { pausedUsers, maintenance, ...rest } = serverInfo.config;
+  serverInfo.config = {
+    ...rest,
+    ...(availability.pausedUsers ? { pausedUsers: availability.pausedUsers } : {}),
+    ...(availability.maintenance ? { maintenance: availability.maintenance } : {}),
+  };
 };
 
 export const syncToolEmbedding = async (serverName: string, toolName: string) => {
@@ -1075,10 +1115,17 @@ const workspaceSelectionScope = new AsyncLocalStorage<Set<string>>();
 
 const getVisibleServerInfos = (): ServerInfo[] => {
   const visible = getDataService().filterData(principalServerScope.getStore() ?? serverInfos);
+  // Pause and maintenance are access controls: under Workspace Mode they hide a server on
+  // every route, whatever the user selected. Administrators bypass maintenance; a request
+  // without a user does not.
+  const user = UserContextService.getInstance().getCurrentUser();
+  const accessible = isWorkspaceEnabled()
+    ? visible.filter((info) => !isAdminBlockedForUser(info.config, user))
+    : visible;
   const selected = workspaceSelectionScope.getStore();
   return selected
-    ? visible.filter((info) => info.enabled !== false && selected.has(info.name))
-    : visible;
+    ? accessible.filter((info) => info.enabled !== false && selected.has(info.name))
+    : accessible;
 };
 
 const getVisibleServerByName = (name: string): ServerInfo | undefined => {
@@ -2990,6 +3037,10 @@ export const getServersInfo = async (
           instructions,
           owner,
           visibility,
+          // Visible to everyone who can see the server; the pause list never is.
+          ...(isWorkspaceEnabled() && getActiveMaintenance(serverConfig)
+            ? { maintenance: getActiveMaintenance(serverConfig) }
+            : {}),
           status,
           error,
           tools: toolsWithEnabled,
@@ -3330,6 +3381,7 @@ export const removeServer = async (
   closeServer(name);
   await deleteCredentialBindings({ serverName: name });
   await deleteUserServerSelections({ serverName: name });
+  clearMaintenanceExpiry(name);
 
   try {
     await removeServerToolEmbeddings(name);
@@ -5987,21 +6039,108 @@ const runWithWorkspaceStatus = async <T>(
   return workspaceStatusResult(operation, request, target.name, status) as T;
 };
 
+// The servers a call addresses, among everything the requester may see, ignoring selection:
+// the single server of a single-server route or a dashboard/REST call, otherwise every
+// visible server that exposes the requested name.
+const findAccessCallTargets = async (
+  request: any,
+  extra: any,
+  operation: McpOperation,
+  username: string,
+): Promise<ServerInfo[]> => {
+  const visible = getDataService().filterData(serverInfos);
+  if (typeof extra?.server === 'string')
+    return visible.filter((info) => info.name === extra.server);
+  const lookupGroup = getGroupLookupName(getMcpRequestGroup(extra));
+  let candidates = visible;
+  if (lookupGroup) {
+    const routeGroup = await findRouteGroup(lookupGroup);
+    if (!routeGroup) return visible.filter((info) => info.name === lookupGroup);
+    // On a group route only the group's own servers can be named, and only to callers the
+    // group is open to; anything else keeps the generic "not available" answer.
+    if (!canAccessGroupRoute(routeGroup)) return [];
+    const members = new Set(
+      normalizeGroupServers(routeGroup.servers || []).map((config) => config.name),
+    );
+    candidates = visible.filter((info) => members.has(info.name));
+  }
+  const name = ['call_tool', 'describe_tool'].includes(request?.params?.name)
+    ? request.params.arguments?.toolName
+    : operation === 'resource'
+      ? request?.params?.uri
+      : request?.params?.name;
+  if (typeof name !== 'string') return [];
+  const kind =
+    operation === 'resource' ? 'resources' : operation === 'prompt' ? 'prompts' : 'tools';
+  return candidates.filter(
+    (info) =>
+      (
+        (kind === 'resources'
+          ? (info.resources ?? []).map((item: Resource) => item.uri)
+          : (
+              ((kind === 'prompts' ? info.prompts : info.tools) as
+                | Array<{ name: string }>
+                | undefined) ?? []
+            ).map((item) => item.name)) as string[]
+      ).includes(name) || hasUserListedName(username, info.name, kind, name),
+  );
+};
+
+// Pause and maintenance stop a call on every route and for every caller, selection or not,
+// with the status as the answer. Servers the requester is blocked from are already left out
+// of their lists. A call is only stopped when every server it could reach is blocked.
+const runWithAccessGate = async <T>(
+  call: { request: any; extra: any; operation: McpOperation },
+  run: () => Promise<T>,
+): Promise<T> => {
+  if (call.operation === 'list' || call.operation === 'tools-list') return run();
+  const user = UserContextService.getInstance().getCurrentUser();
+  const targets = await findAccessCallTargets(
+    call.request,
+    call.extra,
+    call.operation,
+    user?.username ?? '',
+  );
+  const blocked = targets.filter((info) => isAdminBlockedForUser(info.config, user));
+  if (!targets.length || blocked.length < targets.length) return run();
+  const target = blocked[0];
+  const startedAt = Date.now();
+  const status = buildUserServerStatus(
+    isPausedForUser(target.config, user?.username)
+      ? { code: 'paused' }
+      : { code: 'maintenance', maintenance: getActiveMaintenance(target.config) },
+    target.name,
+  );
+  await logBlockedWorkspaceCall(
+    call.operation,
+    call.request,
+    call.extra,
+    target,
+    status,
+    startedAt,
+  );
+  return workspaceStatusResult(call.operation, call.request, target.name, status) as T;
+};
+
 // Runs `fn` with the requesting user's server selection applied to everything that
 // resolves visible servers. Selection applies to MCP transport requests that have an
 // authenticated user and do not target an admin-defined group (the all-servers route,
 // bare $smart, or a single server). A group name wins over a server name, as in routing.
+// Pause and maintenance apply on every route, so routes selection does not touch still
+// pass through the access gate.
 const runWithWorkspaceSelection = async <T>(
   group: string | undefined,
   exempt: boolean,
   fn: () => Promise<T>,
   call?: { request: any; extra: any; operation: McpOperation },
 ): Promise<T> => {
-  if (!isWorkspaceEnabled() || exempt) return fn();
+  if (!isWorkspaceEnabled()) return fn();
+  const gated = () => (call ? runWithAccessGate(call, fn) : fn());
+  if (exempt) return gated();
   const username = UserContextService.getInstance().getCurrentUser()?.username;
-  if (!username) return fn();
+  if (!username) return gated();
   const lookupGroup = getGroupLookupName(group);
-  if (lookupGroup && (await findRouteGroup(lookupGroup))) return fn();
+  if (lookupGroup && (await findRouteGroup(lookupGroup))) return gated();
   const selected = await getSelectedServerNames(username);
   const scoped = () => workspaceSelectionScope.run(selected, fn);
   if (!call || call.operation === 'list' || call.operation === 'tools-list') return scoped();

@@ -29,10 +29,17 @@ export const buildDuplicateServerName = (sourceName: string): string => {
  * authorize - on its own instead of silently reusing the source's upstream
  * identity, so the stored access/refresh tokens (and any half-finished
  * authorization) are dropped while the static client configuration
- * (`clientId`, `clientSecret`, `scopes`, endpoints) is kept.
+ * (`clientId`, `clientSecret`, `scopes`, endpoints) is kept. The source's pause list
+ * and maintenance window are runtime admin state and are not copied.
  */
 export const buildDuplicateSource = (server: Server): Server => {
-  const { oauth, ...config } = server.config ?? {};
+  // The pause list and maintenance window belong to the source server's runtime state.
+  const {
+    oauth,
+    pausedUsers: _pausedUsers,
+    maintenance: _maintenance,
+    ...config
+  } = server.config ?? {};
   const { accessToken, refreshToken, pendingAuthorization, ...oauthConfig } = oauth ?? {};
 
   return {

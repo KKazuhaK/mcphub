@@ -107,6 +107,9 @@ jest.mock('../../src/utils/smartRouting.js', () => ({
   getSmartRoutingConfig: jest.fn(async () => ({ progressiveDisclosure: true })),
 }));
 jest.mock('../../src/services/groupService.js', () => ({
+  normalizeGroupServers: jest.fn((servers: any[]) =>
+    servers.map((server) => (typeof server === 'string' ? { name: server } : server)),
+  ),
   getGroupServerExposedName: jest.fn((config: any) => config.alias || config.name),
   getServerConfigsInGroup: jest.fn(async (group: string) =>
     group === 'team' ? teamGroup.servers : [],

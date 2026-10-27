@@ -42,6 +42,22 @@ describe('buildDuplicateServerName', () => {
 });
 
 describe('buildDuplicateSource', () => {
+  it('does not copy the pause list or maintenance window of the source', () => {
+    const source = buildServer();
+    source.config = {
+      ...source.config,
+      pausedUsers: ['bob'],
+      maintenance: { until: '2999-01-01T00:00:00.000Z', message: 'Upgrading.' },
+    };
+
+    const duplicate = buildDuplicateSource(source);
+
+    expect(duplicate.config).not.toHaveProperty('pausedUsers');
+    expect(duplicate.config).not.toHaveProperty('maintenance');
+    expect(duplicate.config?.url).toBe('https://example.com/mcp');
+    expect(source.config).toHaveProperty('pausedUsers');
+  });
+
   it('pre-fills the new name and keeps the source configuration', () => {
     const source = buildServer();
 

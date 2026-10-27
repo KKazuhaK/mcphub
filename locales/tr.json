@@ -160,6 +160,17 @@
     "visibilityPublicShort": "Herkese açık",
     "visibilityPublic": "Herkese açık — kimliği doğrulanmış tüm kullanıcılar",
     "visibilityDescription": "Yönetici olmayan hangi kullanıcıların bu sunucuyu bulup çağırabileceğini denetler. Yöneticiler her zaman erişebilir.",
+    "maintenance": {
+      "title": "Bakım",
+      "description": "Bu sunucuyu seçen kullanıcılar onu bakımda görür ve bitiş zamanı geçene veya bakımı kapatana kadar kullanamaz. Bağlantı açık kalır. Yalnızca çalışma alanı modunda geçerlidir.",
+      "until": "Bitiş zamanı (isteğe bağlı)",
+      "message": "Kullanıcılar için mesaj (isteğe bağlı)"
+    },
+    "pauseForUsers": {
+      "title": "Kullanıcılar için duraklat",
+      "description": "Sunucu diğer herkes için kullanılabilir kalır. Yalnızca çalışma alanı modunda geçerlidir.",
+      "afterCreate": "Kullanıcı seçmeden önce sunucuyu kaydedin."
+    },
     "shareWithUsers": "Kullanıcılarla paylaş",
     "shareWithUsersDescription": "Seçilen kullanıcılar bu sunucuyu bulup çağırabilir, ancak yapılandırmasını yönetemez.",
     "shareCandidatesLoading": "Kullanıcılar yükleniyor...",
@@ -1479,6 +1490,8 @@
       "available": "{{serverName}} kullanılabilir.",
       "not_selected": "{{serverName}} çalışma alanınızda değil. Kullanmak için Pano → Çalışma Alanı bölümünden seçin.",
       "paused": "{{serverName}} bir yönetici tarafından duraklatıldı.",
+      "maintenance": "'{{serverName}}' bakımda. Lütfen daha sonra tekrar deneyin.",
+      "maintenanceUntil": "'{{serverName}}' {{until}} tarihine kadar bakımda. Lütfen daha sonra tekrar deneyin.",
       "needs_auth": "{{serverName}} için kişisel kimlik bilgileriniz veya yetkilendirmeniz gerekli. Pano → Kimlik Bilgileri veya Sunucular bölümünden bağlayın.",
       "revoked": "{{serverName}} için yetkilendirmenizin bağlantısını kestiniz. Pano → Sunucular bölümünden yeniden bağlayın.",
       "credential_invalid": "{{serverName}} için kimlik bilgileriniz reddedildi. Pano → Kimlik Bilgileri bölümünde güncelleyin veya Pano → Sunucular bölümünden yeniden bağlanın.",

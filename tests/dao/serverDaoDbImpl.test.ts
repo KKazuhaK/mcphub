@@ -364,7 +364,6 @@ describe('ServerDaoDbImpl', () => {
   });
 });
 
-
 test('credential templates survive database create, partial update and explicit removal', async () => {
   const dao = new ServerDaoDbImpl();
   const credentialTemplate = [
@@ -405,5 +404,66 @@ describe('protocolNegotiation database persistence', () => {
     expect((await dao.findById('remote'))?.protocolNegotiation).toBe('legacy');
     await dao.update('remote', { protocolNegotiation: undefined });
     expect(mockRepository.update).toHaveBeenLastCalledWith('remote', { protocolNegotiation: null });
+  });
+  describe('maintenance and per-user pause', () => {
+    const maintenance = { until: '2026-10-27T18:00:00.000Z', message: 'Upgrading.' };
+
+    it('persists both fields on create and maps them back', async () => {
+      const dao = new ServerDaoDbImpl();
+      mockRepository.create.mockResolvedValue({
+        name: 'maintained',
+        enabled: true,
+        pausedUsers: ['bob'],
+        maintenance,
+      });
+
+      const result = await dao.create({
+        name: 'maintained',
+        type: 'sse',
+        url: 'https://example.com/sse',
+        pausedUsers: ['bob'],
+        maintenance,
+      });
+
+      expect(mockRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ pausedUsers: ['bob'], maintenance }),
+      );
+      expect(result.pausedUsers).toEqual(['bob']);
+      expect(result.maintenance).toEqual(maintenance);
+    });
+
+    it('reads unset columns as absent rather than null', async () => {
+      const dao = new ServerDaoDbImpl();
+      mockRepository.findByName.mockResolvedValue({
+        name: 'plain',
+        enabled: true,
+        pausedUsers: null,
+        maintenance: null,
+      });
+
+      const result = await dao.findById('plain');
+
+      expect(result?.pausedUsers).toBeUndefined();
+      expect(result?.maintenance).toBeUndefined();
+    });
+
+    it('updates only the fields the update names, and clears them with null', async () => {
+      const dao = new ServerDaoDbImpl();
+      mockRepository.update.mockResolvedValue({ name: 'maintained', enabled: true });
+
+      await dao.update('maintained', { maintenance });
+      expect(mockRepository.update).toHaveBeenLastCalledWith('maintained', { maintenance });
+
+      await dao.update('maintained', { pausedUsers: undefined, maintenance: undefined });
+      expect(mockRepository.update).toHaveBeenLastCalledWith('maintained', {
+        pausedUsers: null,
+        maintenance: null,
+      });
+
+      await dao.update('maintained', { description: 'only this' });
+      expect(mockRepository.update).toHaveBeenLastCalledWith('maintained', {
+        description: 'only this',
+      });
+    });
   });
 });

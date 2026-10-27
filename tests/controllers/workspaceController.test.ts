@@ -245,6 +245,55 @@ describe('workspace API', () => {
       expect(status['needs-key'].message).toContain('needs-key');
     });
 
+    it('reports maintenance and a per-user pause without exposing who else is paused', async () => {
+      servers[0] = {
+        ...servers[0],
+        maintenance: { until: '2999-01-01T00:00:00.000Z', message: 'Upgrading.' },
+        pausedUsers: ['alice', 'bob'],
+      };
+      servers[3] = { ...servers[3], credentialTemplate: undefined, pausedUsers: ['bob'] };
+      select('alice', 'public-tool', 'needs-key');
+      select('bob', 'public-tool', 'needs-key');
+
+      const response = await request(app)
+        .get('/api/workspace/servers')
+        .set({ 'x-test-user': asUser('alice') })
+        .expect(200);
+      const status = Object.fromEntries(
+        response.body.data.map((server: { name: string; status: unknown }) => [
+          server.name,
+          server.status,
+        ]),
+      ) as Record<string, Record<string, string>>;
+
+      // Paused for alice outranks maintenance.
+      expect(status['public-tool']).toMatchObject({ code: 'paused', action: 'contact_admin' });
+      expect(status['needs-key'].code).toBe('available');
+      expect(JSON.stringify(response.body)).not.toContain('pausedUsers');
+      expect(JSON.stringify(response.body)).not.toContain('bob');
+
+      // Carol is not paused, so she meets the maintenance window.
+      select('carol', 'public-tool');
+      const selected = await request(app)
+        .get('/api/workspace/servers')
+        .set({ 'x-test-user': asUser('carol') })
+        .expect(200);
+      expect(
+        selected.body.data.find((s: { name: string }) => s.name === 'public-tool').status,
+      ).toMatchObject({
+        code: 'maintenance',
+        action: 'retry_later',
+        until: '2999-01-01T00:00:00.000Z',
+        message: expect.stringContaining('Upgrading.'),
+      });
+    });
+
+    it('stops counting an expired maintenance window', async () => {
+      servers[0] = { ...servers[0], maintenance: { until: '2000-01-01T00:00:00.000Z' } };
+      select('alice', 'public-tool');
+      expect((await statusOf())['public-tool'].code).toBe('available');
+    });
+
     it('reports an unselected server as not_selected whatever else is wrong with it', async () => {
       expect((await statusOf())['alice-tool']).toMatchObject({
         code: 'not_selected',
@@ -356,6 +405,7 @@ describe('workspace API', () => {
           available: 0,
           not_selected: 3,
           paused: 0,
+          maintenance: 0,
           needs_auth: 0,
           revoked: 0,
           credential_invalid: 0,

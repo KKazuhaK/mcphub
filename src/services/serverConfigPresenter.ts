@@ -1,5 +1,6 @@
 import type { CredentialSlot } from '../types/index.js';
 import { authorizationService, RequestPrincipal } from './authorizationService.js';
+import { UserContextService } from './userContextService.js';
 
 // Safe server representation for issue #1036 Phase 1: shared users may see a
 // server's metadata but never its connection configuration. The restricted
@@ -32,6 +33,27 @@ const SAFE_SERVER_CONFIG_FIELDS = [
 // OAuth session-recovery fields exposed on ServerInfo list entries; only the
 // connected/clientIdConfigured indicators are safe for non-config-readers.
 const SAFE_SERVER_INFO_OAUTH_KEYS = ['connected', 'clientIdConfigured'] as const;
+
+// Fields only administrators may read, even from a server they own.
+const ADMIN_ONLY_FIELDS = ['pausedUsers'] as const;
+
+const isAdminPrincipal = (principal?: RequestPrincipal | null): boolean =>
+  Boolean(
+    (principal === undefined ? UserContextService.getInstance().getCurrentUser() : principal)
+      ?.isAdmin,
+  );
+
+const withoutAdminOnlyFields = <T extends object>(
+  value: T,
+  principal?: RequestPrincipal | null,
+): T => {
+  if (isAdminPrincipal(principal) || !ADMIN_ONLY_FIELDS.some((field) => field in value)) {
+    return value;
+  }
+  const copy = { ...(value as Record<string, unknown>) };
+  for (const field of ADMIN_ONLY_FIELDS) delete copy[field];
+  return copy as T;
+};
 
 const clone = <T>(value: T): T =>
   typeof structuredClone === 'function'
@@ -81,7 +103,7 @@ export const presentServerForPrincipal = <T extends object>(
   principal?: RequestPrincipal | null,
 ): PresentedServer<T> => {
   if (authorizationService.can('server.config.read', config as ServerConfigLike, principal)) {
-    return { view: 'full', data: clone(config) };
+    return { view: 'full', data: withoutAdminOnlyFields(clone(config), principal) };
   }
   return { view: 'safe', data: presentSafeServerConfig(config as ServerConfigLike) as T };
 };
@@ -110,7 +132,10 @@ export const presentServerInfoForPrincipal = <T extends object>(
   principal?: RequestPrincipal | null,
 ): T => {
   if (authorizationService.can('server.config.read', info as ServerConfigLike, principal)) {
-    return info;
+    const config = (info as { config?: object }).config;
+    const visible =
+      config && typeof config === 'object' ? withoutAdminOnlyFields(config, principal) : config;
+    return visible === config ? info : ({ ...info, config: visible } as T);
   }
 
   const entry = { ...(info as ServerConfigLike) };

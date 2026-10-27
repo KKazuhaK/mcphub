@@ -473,11 +473,11 @@ export interface UserServerSelection {
 }
 
 // What a user can currently do with a server visible to them under Workspace Mode.
-// `maintenance` is reserved for the admin pause/maintenance split.
 export type UserServerStatusCode =
   | 'available'
   | 'not_selected'
   | 'paused'
+  | 'maintenance'
   | 'needs_auth'
   | 'revoked'
   | 'credential_invalid'
@@ -492,6 +492,15 @@ export interface UserServerStatus {
   action: UserServerStatusAction;
   // ISO timestamp of when the state began, when it is known.
   since?: string;
+  // ISO timestamp of when a `maintenance` state is expected to end, when the admin set one.
+  until?: string;
+}
+
+// Admin-set maintenance window. Takes effect only under Workspace Mode. While present and
+// `until` is absent or in the future, the server is in maintenance for every user.
+export interface ServerMaintenance {
+  until?: string; // ISO 8601 instant; maintenance is over once it passes
+  message?: string; // Plain text shown to users, at most 200 characters
 }
 
 export type WorkspaceEndpointState = 'normal' | 'partial' | 'empty';
@@ -516,6 +525,10 @@ export interface ServerConfig {
   // See issues #817 and #1037.
   visibility?: ServerVisibility;
   sharedWithUsers?: string[]; // Local MCPHub usernames allowed when visibility is 'group'.
+  // Runtime admin state, effective only under Workspace Mode (stored but ignored otherwise).
+  // Never exposed to non-admin users, excluded from templates and settings-sync declarations.
+  pausedUsers?: string[]; // Usernames for whom this server is paused (status `paused`).
+  maintenance?: ServerMaintenance; // Maintenance window (status `maintenance`).
   protocolNegotiation?: 'auto' | 'legacy'; // Streamable HTTP defaults to auto; other transports remain legacy.
   enableKeepAlive?: boolean; // Enable remote health checks; disconnected remote servers always retry
   keepAliveInterval?: number; // Health check interval in milliseconds (default: 60000ms for SSE servers)
@@ -674,6 +687,7 @@ export interface ServerInfo {
   owner?: string; // Owner of the server, defaults to 'admin' user
   visibility?: ServerVisibility; // Carried over from ServerConfig so dataService.filterData can apply #817 visibility rules at runtime.
   sharedWithUsers?: string[]; // Carried over for restricted user-sharing authorization.
+  maintenance?: ServerMaintenance; // Reported in list responses only while a window is in force under Workspace Mode.
   status: 'connected' | 'connecting' | 'disconnected' | 'oauth_required'; // Current connection status
   error: string | null; // Error message if any
   tools: Tool[]; // List of tools available on the server
@@ -891,7 +905,8 @@ export interface ConfigTemplate {
 }
 
 // Server config within a template - secrets replaced with placeholders
-export interface TemplateServerConfig extends Omit<ServerConfig, 'owner' | 'oauth'> {
+export interface TemplateServerConfig
+  extends Omit<ServerConfig, 'owner' | 'oauth' | 'pausedUsers' | 'maintenance'> {
   env?: Record<string, string>; // Values are either literal or ${PLACEHOLDER}
   headers?: Record<string, string>;
   oauth?: Omit<NonNullable<ServerConfig['oauth']>, 'pendingAuthorization'>;

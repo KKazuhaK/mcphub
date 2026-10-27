@@ -160,6 +160,17 @@
     "visibilityPublicShort": "公开",
     "visibilityPublic": "公开 — 所有已登录用户可见",
     "visibilityDescription": "控制哪些非管理员用户可以发现并调用此服务器。管理员始终拥有访问权限。",
+    "maintenance": {
+      "title": "维护",
+      "description": "选择了该服务器的用户会看到它处于维护中，在结束时间到达或你关闭维护之前无法使用。上游连接保持不变。仅在工作区模式下生效。",
+      "until": "结束时间（可选）",
+      "message": "给用户的说明（可选）"
+    },
+    "pauseForUsers": {
+      "title": "对指定用户暂停",
+      "description": "其他用户仍可正常使用该服务器。仅在工作区模式下生效。",
+      "afterCreate": "请先保存服务器，再选择用户。"
+    },
     "shareWithUsers": "共享给用户",
     "shareWithUsersDescription": "选中的用户可以发现并调用此服务器，但不能管理其配置。",
     "shareCandidatesLoading": "正在加载用户...",
@@ -1484,6 +1495,8 @@
       "available": "服务器“{{serverName}}”可用。",
       "not_selected": "服务器“{{serverName}}”不在你的工作区中。请在控制台 → 工作区中选择后再使用。",
       "paused": "服务器“{{serverName}}”已被管理员暂停。",
+      "maintenance": "服务器“{{serverName}}”正在维护中，请稍后再试。",
+      "maintenanceUntil": "服务器“{{serverName}}”正在维护中，预计持续到 {{until}}，请稍后再试。",
       "needs_auth": "服务器“{{serverName}}”需要你的个人凭据或授权。请在控制台 → 凭据或服务器中连接。",
       "revoked": "你已断开对服务器“{{serverName}}”的授权。请在控制台 → 服务器中重新连接。",
       "credential_invalid": "服务器“{{serverName}}”拒绝了你的凭据。请在控制台 → 凭据中更新，或在控制台 → 服务器中重新连接。",
