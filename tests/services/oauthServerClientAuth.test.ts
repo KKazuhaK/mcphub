@@ -73,6 +73,23 @@ describe('oauthModel.getClient enforces per-client authentication (GHSA-3m7m)', 
     expect((result as { clientId: string }).clientId).toBe('conf-client');
   });
 
+  it('returns a confidential client for the authorize endpoint lookup (null secret)', async () => {
+    mockFindOAuthClientById.mockResolvedValue(confidentialClient);
+    const result = await model.getClient('conf-client', null as never);
+    expect(result).not.toBe(false);
+    expect((result as { clientId: string }).clientId).toBe('conf-client');
+  });
+
+  it('still rejects an unknown client for the authorize endpoint lookup (null secret)', async () => {
+    mockFindOAuthClientById.mockResolvedValue(undefined);
+    await expect(model.getClient('nope', null as never)).resolves.toBe(false);
+  });
+
+  it('rejects an empty-string secret for a confidential client', async () => {
+    mockFindOAuthClientById.mockResolvedValue(confidentialClient);
+    await expect(model.getClient('conf-client', '')).resolves.toBe(false);
+  });
+
   it('still accepts a public (secret-less) client without a secret', async () => {
     mockFindOAuthClientById.mockResolvedValue(publicClient);
     const result = await model.getClient('pub-client');

@@ -28,8 +28,15 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
    * Confidential clients (a secret is registered) MUST always present their
    * secret, even when the global requireClientSecret toggle is off — that
    * toggle only permits secret-less PUBLIC clients (GHSA-3m7m).
+   *
+   * Null convention: @node-oauth/oauth2-server's authorize handler calls
+   * `getClient(clientId, null)` to look the client up and validate the
+   * redirect_uri; no credentials exist at that stage, so `null` means
+   * "lookup only" and skips the secret check. The token handler never passes
+   * null: it passes the presented secret, or `undefined` when none was sent
+   * (e.g. PKCE-only requests), which must stay rejected for confidential clients.
    */
-  getClient: async (clientId: string, clientSecret?: string) => {
+  getClient: async (clientId: string, clientSecret?: string | null) => {
     let client = await findOAuthClientById(clientId);
 
     // CIMD fallback: URL-shaped client_ids resolve to public clients via their
@@ -52,8 +59,9 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
       return false;
     }
 
-    // If the registered client has a secret, it must be presented and match.
-    if (client.clientSecret) {
+    // If the registered client has a secret, it must be presented and match
+    // (unless this is the authorize endpoint's lookup-only call, see above).
+    if (client.clientSecret && clientSecret !== null) {
       if (!clientSecret || !safeCompare(client.clientSecret, clientSecret)) {
         return false;
       }
