@@ -316,7 +316,8 @@
       "personalReconnect": "Reconnect",
       "personalDisconnect": "Disconnect",
       "personalError": "Personal authorization failed",
-      "personalSuccess": "Personal authorization saved. Return to Dashboard → Servers."
+      "personalSuccess": "Personal authorization saved. Return to Dashboard → Servers.",
+      "personalSuccessWorkspace": "Personal authorization saved. Return to your workspace."
     }
   },
   "status": {
@@ -1486,19 +1487,129 @@
     "failed": "Unable to manage credentials",
     "showAll": "Show all servers",
     "loading": "Loading…",
-    "empty": "No shared servers require personal credentials."
+    "empty": "No shared servers require personal credentials.",
+    "missingWorkspace": "Personal credentials required for '{{serverName}}'. Add them from your workspace."
   },
   "workspace": {
     "status": {
       "available": "'{{serverName}}' is available.",
-      "not_selected": "'{{serverName}}' is not in your workspace. Select it in Dashboard → Workspace to use it.",
+      "not_selected": "'{{serverName}}' is not in your workspace. Select it in your workspace to use it.",
       "paused": "'{{serverName}}' is paused by an administrator.",
       "maintenance": "'{{serverName}}' is under maintenance. Try again later.",
       "maintenanceUntil": "'{{serverName}}' is under maintenance until {{until}}. Try again later.",
-      "needs_auth": "'{{serverName}}' needs your personal credentials or authorization. Connect it in Dashboard → Credentials or Servers.",
-      "revoked": "You disconnected your authorization for '{{serverName}}'. Reconnect it in Dashboard → Servers.",
-      "credential_invalid": "Your credentials for '{{serverName}}' were rejected. Update them in Dashboard → Credentials or reconnect in Dashboard → Servers.",
+      "needs_auth": "'{{serverName}}' needs your personal credentials or authorization. Connect it from your workspace.",
+      "revoked": "You disconnected your authorization for '{{serverName}}'. Reconnect it from your workspace.",
+      "credential_invalid": "Your credentials for '{{serverName}}' were rejected. Update them or reconnect from your workspace.",
       "error": "'{{serverName}}' is currently unavailable. Try again later."
     }
+  },
+  "workspacePage": {
+    "nav": "Workspace",
+    "title": "My workspace",
+    "subtitle": "Choose the MCP services your clients can use, check their status, and copy your personal endpoint.",
+    "loading": "Loading your workspace…",
+    "loadFailed": "Unable to load your workspace.",
+    "retry": "Retry",
+    "toggleFailed": "Could not update {{name}}. The change was undone.",
+    "connectFailed": "Could not start the connection.",
+    "banner": {
+      "noneSelected": "Select services to start",
+      "normal_one": "Your selected service is ready.",
+      "normal_other": "All {{count}} selected services are ready.",
+      "partial_one": "{{attention}} of {{selected}} selected service needs attention",
+      "partial_other": "{{attention}} of {{selected}} selected services need attention",
+      "noneUsable_one": "Your selected service is not available right now.",
+      "noneUsable_other": "None of your {{count}} selected services are available right now."
+    },
+    "endpoint": {
+      "title": "My endpoint",
+      "description": "One URL for every service you select. It stays the same when you change your selection.",
+      "direct": "Direct endpoint",
+      "smart": "Smart routing endpoint",
+      "smartHint": "Smart routing exposes a small set of search and call tools instead of every tool, which keeps your client's context small.",
+      "smartDisabled": "Smart routing is not enabled on this server; ask an administrator.",
+      "snippets": "Client configuration",
+      "mode": "Endpoint type",
+      "mode_direct": "Direct",
+      "mode_smart": "Smart routing",
+      "client": "Client",
+      "clientGeneric": "Generic MCP JSON",
+      "clientClaude": "Claude Desktop / Claude Code",
+      "clientCursor": "Cursor",
+      "authNote": "Snippets contain only the URL. Your client signs in through OAuth the first time it connects."
+    },
+    "tools": {
+      "warning": "Your selection exposes {{count}} tools. Large tool lists can crowd your client's context.",
+      "strongWarning": "Your selection exposes {{count}} tools, which is too many for most clients. Use the smart routing endpoint or per-service endpoints instead.",
+      "label_one": "tool from your available services",
+      "label_other": "tools from your available services"
+    },
+    "services": {
+      "tab": "Services",
+      "title": "Available services",
+      "description": "Turn services on or off for your endpoint.",
+      "empty": "No services are available to you yet.",
+      "toggleFor": "Include {{name}} in my workspace",
+      "copyEndpoint": "Copy endpoint",
+      "copyEndpointFor": "Copy endpoint for {{name}}",
+      "endpointConflict": "No separate endpoint: a group has the same name as this service. Use your main endpoint instead.",
+      "toolCount_one": "{{count}} tool",
+      "toolCount_other": "{{count}} tools"
+    },
+    "status": {
+      "available": "Ready",
+      "not_selected": "Not selected",
+      "paused": "Paused",
+      "maintenance": "Maintenance",
+      "needs_auth": "Needs sign-in",
+      "revoked": "Disconnected",
+      "credential_invalid": "Credentials rejected",
+      "error": "Problem"
+    },
+    "actions": {
+      "select": "Add to workspace",
+      "selectFor": "Add {{name}} to my workspace",
+      "connect": "Connect",
+      "connectFor": "Connect {{name}}",
+      "contactAdmin": "Ask an administrator",
+      "retryLater": "Try again later",
+      "retryUntil": "Try again after {{until}}",
+      "openAuthorization": "Open the sign-in page"
+    },
+    "clients": {
+      "tab": "Connected clients",
+      "title": "Connected clients",
+      "description": "Apps and keys that can use your endpoint as you.",
+      "empty": "No clients are connected.",
+      "loadFailed": "Unable to load connected clients.",
+      "never": "Never",
+      "idle": "Idle",
+      "idleHint": "Not used for a long time; it is refused until you connect again.",
+      "kind": {
+        "oauth": "OAuth app",
+        "key": "API key"
+      },
+      "columns": {
+        "name": "Name",
+        "kind": "Type",
+        "created": "Created",
+        "lastUsed": "Last used",
+        "expires": "Expires"
+      },
+      "revoke": "Revoke",
+      "revokeFor": "Revoke {{name}}",
+      "revokeTitle": "Revoke this client?",
+      "revokeMessage": "Revoke {{name}}? It loses access immediately. Your other clients and your endpoint URL are not affected.",
+      "revokeAll": "Revoke all",
+      "revokeAllTitle": "Revoke all clients?",
+      "revokeAllMessage": "Every connected client loses access immediately. Your endpoint URL stays the same, and every client must re-authorize before it can connect again.",
+      "revoked": "Client revoked.",
+      "revokedAll": "All clients revoked.",
+      "revokeFailed": "Unable to revoke."
+    },
+    "disabled": "Workspace is no longer available. An administrator may have turned it off.",
+    "reload": "Reload",
+    "settingsFailed": "Could not read the server settings, so the standard navigation is shown.",
+    "popupBlocked": "Your browser blocked the sign-in window. Use the link shown under the service."
   }
 }

@@ -13,6 +13,8 @@ export interface ApiResponse<T = any> {
   data?: T;
   message?: string;
   error?: string;
+  // HTTP status, set only when the request did not succeed.
+  status?: number;
 }
 
 // Global interceptors store
@@ -148,6 +150,7 @@ export const apiRequest = async <T = any>(endpoint: string, init: RequestInit = 
         responseObj.message =
           responseObj.message || `HTTP ${response.status}: ${response.statusText}`;
       }
+      responseObj.status = response.status;
     }
 
     return data;

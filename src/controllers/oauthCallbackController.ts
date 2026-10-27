@@ -29,6 +29,7 @@ import { loadServerConfig } from '../services/oauthSettingsStore.js';
 import { validateAuthorizationIss } from '../utils/oauthIssuer.js';
 import type { ServerInfo } from '../types/index.js';
 import { logger } from '../utils/logger.js';
+import { isWorkspaceEnabled } from '../services/userServerSelectionService.js';
 
 /**
  * Basic HTML escaping helper to prevent XSS in generated pages.
@@ -310,7 +311,7 @@ export const handleOAuthCallback = async (req: Request, res: Response) => {
             t,
             'success',
             t('oauthCallback.authorizationSuccessful'),
-            t('server.oauth.personalSuccess'),
+            t(isWorkspaceEnabled() ? 'server.oauth.personalSuccessWorkspace' : 'server.oauth.personalSuccess'),
             undefined,
             true,
           ),
@@ -324,7 +325,9 @@ export const handleOAuthCallback = async (req: Request, res: Response) => {
             t,
             'error',
             t('oauthCallback.authorizationFailed'),
-            'Personal authorization failed; reconnect in Dashboard → Servers.',
+            isWorkspaceEnabled()
+              ? 'Personal authorization failed; reconnect from your workspace.'
+              : 'Personal authorization failed; reconnect in Dashboard → Servers.',
           ),
         );
     }

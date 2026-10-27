@@ -45,7 +45,7 @@ module.exports = {
     },
   },
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/src/$1',
+    '^@/(.*)$': '<rootDir>/frontend/src/$1',
     '^(\\.{1,2}/.*)\\.js$': '$1',
     '^uuid$': '<rootDir>/tests/shims/uuid.ts',
   },

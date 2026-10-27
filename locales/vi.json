@@ -316,7 +316,8 @@
       "personalReconnect": "Kết nối lại",
       "personalDisconnect": "Ngắt kết nối",
       "personalError": "Ủy quyền cá nhân thất bại",
-      "personalSuccess": "Đã lưu ủy quyền cá nhân. Quay lại Bảng điều khiển → Máy chủ."
+      "personalSuccess": "Đã lưu ủy quyền cá nhân. Quay lại Bảng điều khiển → Máy chủ.",
+      "personalSuccessWorkspace": "Đã lưu ủy quyền cá nhân. Hãy quay lại không gian làm việc của bạn."
     }
   },
   "status": {
@@ -1486,19 +1487,124 @@
     "failed": "Không thể quản lý thông tin xác thực",
     "showAll": "Hiển thị tất cả các máy chủ",
     "loading": "Đang tải…",
-    "empty": "Không có máy chủ dùng chung nào yêu cầu thông tin xác thực cá nhân."
+    "empty": "Không có máy chủ dùng chung nào yêu cầu thông tin xác thực cá nhân.",
+    "missingWorkspace": "Yêu cầu thông tin xác thực cá nhân đối với '{{serverName}}'. Hãy thêm chúng từ không gian làm việc của bạn."
   },
   "workspace": {
     "status": {
       "available": "'{{serverName}}' đang khả dụng.",
-      "not_selected": "'{{serverName}}' không nằm trong không gian làm việc của bạn. Hãy chọn nó trong Bảng điều khiển → Không gian làm việc để sử dụng.",
+      "not_selected": "'{{serverName}}' không nằm trong không gian làm việc của bạn. Hãy chọn nó trong không gian làm việc của bạn để sử dụng.",
       "paused": "'{{serverName}}' đã bị quản trị viên tạm dừng.",
       "maintenance": "'{{serverName}}' đang được bảo trì. Vui lòng thử lại sau.",
       "maintenanceUntil": "'{{serverName}}' đang được bảo trì đến {{until}}. Vui lòng thử lại sau.",
-      "needs_auth": "'{{serverName}}' cần thông tin xác thực hoặc quyền truy cập cá nhân của bạn. Hãy kết nối trong Bảng điều khiển → Thông tin xác thực hoặc Máy chủ.",
-      "revoked": "Bạn đã ngắt ủy quyền cho '{{serverName}}'. Hãy kết nối lại trong Bảng điều khiển → Máy chủ.",
-      "credential_invalid": "Thông tin xác thực của bạn cho '{{serverName}}' bị từ chối. Hãy cập nhật trong Bảng điều khiển → Thông tin xác thực hoặc kết nối lại trong Bảng điều khiển → Máy chủ.",
+      "needs_auth": "'{{serverName}}' cần thông tin xác thực hoặc quyền truy cập cá nhân của bạn. Hãy kết nối từ không gian làm việc của bạn.",
+      "revoked": "Bạn đã ngắt ủy quyền cho '{{serverName}}'. Hãy kết nối lại từ không gian làm việc của bạn.",
+      "credential_invalid": "Thông tin xác thực của bạn cho '{{serverName}}' bị từ chối. Hãy cập nhật hoặc kết nối lại từ không gian làm việc của bạn.",
       "error": "'{{serverName}}' hiện không khả dụng. Vui lòng thử lại sau."
     }
+  },
+  "workspacePage": {
+    "nav": "Không gian làm việc",
+    "title": "Không gian làm việc của tôi",
+    "subtitle": "Chọn các dịch vụ MCP mà ứng dụng khách của bạn có thể dùng, xem trạng thái và sao chép endpoint cá nhân.",
+    "loading": "Đang tải không gian làm việc…",
+    "loadFailed": "Không thể tải không gian làm việc của bạn.",
+    "retry": "Thử lại",
+    "toggleFailed": "Không thể cập nhật {{name}}. Thay đổi đã được hoàn tác.",
+    "connectFailed": "Không thể bắt đầu kết nối.",
+    "banner": {
+      "noneSelected": "Chọn dịch vụ để bắt đầu",
+      "normal_other": "Cả {{count}} dịch vụ đã chọn đều sẵn sàng.",
+      "partial_other": "{{attention}} trên {{selected}} dịch vụ đã chọn cần được xử lý",
+      "noneUsable_other": "Hiện không có dịch vụ nào trong {{count}} dịch vụ bạn đã chọn khả dụng."
+    },
+    "endpoint": {
+      "title": "Endpoint của tôi",
+      "description": "Một URL cho mọi dịch vụ bạn chọn. URL không đổi khi bạn thay đổi lựa chọn.",
+      "direct": "Endpoint trực tiếp",
+      "smart": "Endpoint định tuyến thông minh",
+      "smartHint": "Định tuyến thông minh chỉ cung cấp một số ít công cụ tìm kiếm và gọi thay vì mọi công cụ, giúp ngữ cảnh của ứng dụng khách gọn nhẹ.",
+      "smartDisabled": "Máy chủ này chưa bật định tuyến thông minh; hãy hỏi quản trị viên.",
+      "snippets": "Cấu hình ứng dụng khách",
+      "mode": "Loại endpoint",
+      "mode_direct": "Trực tiếp",
+      "mode_smart": "Định tuyến thông minh",
+      "client": "Ứng dụng khách",
+      "clientGeneric": "JSON MCP chung",
+      "clientClaude": "Claude Desktop / Claude Code",
+      "clientCursor": "Cursor",
+      "authNote": "Đoạn cấu hình chỉ chứa URL. Ứng dụng khách sẽ đăng nhập qua OAuth ở lần kết nối đầu tiên."
+    },
+    "tools": {
+      "warning": "Lựa chọn của bạn cung cấp {{count}} công cụ. Danh sách công cụ dài có thể làm đầy ngữ cảnh của ứng dụng khách.",
+      "strongWarning": "Lựa chọn của bạn cung cấp {{count}} công cụ, quá nhiều đối với hầu hết ứng dụng khách. Hãy dùng endpoint định tuyến thông minh hoặc endpoint theo từng dịch vụ.",
+      "label_other": "công cụ từ các dịch vụ khả dụng của bạn"
+    },
+    "services": {
+      "tab": "Dịch vụ",
+      "title": "Dịch vụ khả dụng",
+      "description": "Bật hoặc tắt dịch vụ cho endpoint của bạn.",
+      "empty": "Bạn chưa có dịch vụ nào khả dụng.",
+      "toggleFor": "Đưa {{name}} vào không gian làm việc của tôi",
+      "copyEndpoint": "Sao chép endpoint",
+      "copyEndpointFor": "Sao chép endpoint của {{name}}",
+      "endpointConflict": "Không có endpoint riêng: có một nhóm trùng tên với dịch vụ này. Hãy dùng endpoint chính của bạn.",
+      "toolCount_other": "{{count}} công cụ"
+    },
+    "status": {
+      "available": "Sẵn sàng",
+      "not_selected": "Chưa chọn",
+      "paused": "Tạm dừng",
+      "maintenance": "Đang bảo trì",
+      "needs_auth": "Cần đăng nhập",
+      "revoked": "Đã ngắt kết nối",
+      "credential_invalid": "Thông tin xác thực bị từ chối",
+      "error": "Có sự cố"
+    },
+    "actions": {
+      "select": "Thêm vào không gian làm việc",
+      "selectFor": "Thêm {{name}} vào không gian làm việc của tôi",
+      "connect": "Kết nối",
+      "connectFor": "Kết nối {{name}}",
+      "contactAdmin": "Hãy hỏi quản trị viên",
+      "retryLater": "Hãy thử lại sau",
+      "retryUntil": "Hãy thử lại sau {{until}}",
+      "openAuthorization": "Mở trang đăng nhập"
+    },
+    "clients": {
+      "tab": "Ứng dụng khách đã kết nối",
+      "title": "Ứng dụng khách đã kết nối",
+      "description": "Ứng dụng và khóa có thể dùng endpoint của bạn thay mặt bạn.",
+      "empty": "Chưa có ứng dụng khách nào kết nối.",
+      "loadFailed": "Không thể tải danh sách ứng dụng khách đã kết nối.",
+      "never": "Chưa bao giờ",
+      "idle": "Không hoạt động",
+      "idleHint": "Đã lâu không dùng; sẽ bị từ chối cho đến khi bạn kết nối lại.",
+      "kind": {
+        "oauth": "Ứng dụng OAuth",
+        "key": "Khóa API"
+      },
+      "columns": {
+        "name": "Tên",
+        "kind": "Loại",
+        "created": "Ngày tạo",
+        "lastUsed": "Dùng lần cuối",
+        "expires": "Hết hạn"
+      },
+      "revoke": "Thu hồi",
+      "revokeFor": "Thu hồi {{name}}",
+      "revokeTitle": "Thu hồi ứng dụng khách này?",
+      "revokeMessage": "Thu hồi {{name}}? Ứng dụng sẽ mất quyền truy cập ngay lập tức. Các ứng dụng khách khác và URL endpoint của bạn không bị ảnh hưởng.",
+      "revokeAll": "Thu hồi tất cả",
+      "revokeAllTitle": "Thu hồi mọi ứng dụng khách?",
+      "revokeAllMessage": "Mọi ứng dụng khách đã kết nối sẽ mất quyền truy cập ngay lập tức. URL endpoint của bạn giữ nguyên, và mỗi ứng dụng khách phải được cấp quyền lại trước khi kết nối lại.",
+      "revoked": "Đã thu hồi ứng dụng khách.",
+      "revokedAll": "Đã thu hồi mọi ứng dụng khách.",
+      "revokeFailed": "Không thể thu hồi."
+    },
+    "disabled": "Không gian làm việc không còn khả dụng. Có thể quản trị viên đã tắt nó.",
+    "reload": "Tải lại",
+    "settingsFailed": "Không thể đọc cài đặt máy chủ nên hiển thị điều hướng tiêu chuẩn.",
+    "popupBlocked": "Trình duyệt đã chặn cửa sổ đăng nhập. Hãy dùng liên kết hiển thị dưới dịch vụ."
   }
 }

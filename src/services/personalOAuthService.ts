@@ -13,6 +13,7 @@ import {
 } from '../utils/credentialTemplate.js';
 import type { ServerConfig } from '../types/index.js';
 import type { OAuthSettingsContext, ServerConfigWithOAuth } from './oauthSettingsStore.js';
+import { isWorkspaceEnabled } from './userServerSelectionService.js';
 
 type OAuth = NonNullable<ServerConfig['oauth']>;
 export const hasPersonalOAuth = (config?: ServerConfig): boolean =>
@@ -37,7 +38,9 @@ export const withPersonalOAuthLock = <T>(
 
 export const personalAuthorizationRequired = (name: string) =>
   new MissingCredentialError(
-    `Personal authorization required for '${name}'. Connect in Dashboard → Servers.`,
+    isWorkspaceEnabled()
+      ? `Personal authorization required for '${name}'. Connect it from your workspace.`
+      : `Personal authorization required for '${name}'. Connect in Dashboard → Servers.`,
   );
 
 // The declaration, not resolved tokens/client registration, binds a flow to its destination.

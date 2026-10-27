@@ -18,6 +18,7 @@ import {
   credentialSlotId,
   validateCredentialTemplate,
 } from '../utils/credentialTemplate.js';
+import { isWorkspaceEnabled } from './userServerSelectionService.js';
 
 export const credentialBindingEvents = new EventEmitter();
 
@@ -136,8 +137,11 @@ const defaultMissingCredentialMessage = (serverName: string): string =>
   `Personal credentials required for '${serverName}'. Bind all required slots in Dashboard → Credentials.`;
 
 export const missingCredentialError = (serverName: string): CredentialBindingError => {
-  const fallback = defaultMissingCredentialMessage(serverName);
-  const message = getT(requestLanguage())('credentials.missing', {
+  const workspace = isWorkspaceEnabled();
+  const fallback = workspace
+    ? `Personal credentials required for '${serverName}'. Add them from your workspace.`
+    : defaultMissingCredentialMessage(serverName);
+  const message = getT(requestLanguage())(workspace ? 'credentials.missingWorkspace' : 'credentials.missing', {
     serverName,
     defaultValue: fallback,
   });

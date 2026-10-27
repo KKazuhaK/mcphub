@@ -20,6 +20,12 @@ const useCrumbs = (): string[] => {
     const path = location.pathname;
     const root = t('app.title');
     if (path === '/') return [root, t('nav.dashboard')];
+    if (path.startsWith('/workspace')) {
+      const clientsTab = new URLSearchParams(location.search).get('tab') === 'clients';
+      return clientsTab
+        ? [root, t('workspacePage.nav'), t('workspacePage.clients.tab')]
+        : [root, t('workspacePage.nav')];
+    }
     if (path.startsWith('/credentials')) return [root, t('credentials.title')];
     if (path.startsWith('/servers')) return [root, t('nav.servers')];
     if (path.startsWith('/groups')) return [root, t('nav.groups')];
@@ -36,7 +42,7 @@ const useCrumbs = (): string[] => {
     if (path.startsWith('/activity')) return [root, t('nav.activity')];
     if (path.startsWith('/settings')) return [root, t('nav.settings')];
     return [root];
-  }, [location.pathname, params, t]);
+  }, [location.pathname, location.search, params, t]);
 };
 
 const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {

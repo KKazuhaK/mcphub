@@ -316,7 +316,8 @@
       "personalReconnect": "Réautoriser",
       "personalDisconnect": "Déconnecter",
       "personalError": "Échec de l’autorisation personnelle",
-      "personalSuccess": "Autorisation personnelle enregistrée. Retournez au tableau de bord → Serveurs."
+      "personalSuccess": "Autorisation personnelle enregistrée. Retournez au tableau de bord → Serveurs.",
+      "personalSuccessWorkspace": "Autorisation personnelle enregistrée. Retournez à votre espace de travail."
     }
   },
   "status": {
@@ -1484,19 +1485,134 @@
     "failed": "Impossible de gérer les identifiants",
     "showAll": "Afficher tous les serveurs",
     "loading": "Chargement…",
-    "empty": "Aucun serveur partagé ne nécessite d’identifiants personnels."
+    "empty": "Aucun serveur partagé ne nécessite d’identifiants personnels.",
+    "missingWorkspace": "Des identifiants personnels sont requis pour « {{serverName}} ». Ajoutez-les depuis votre espace de travail."
   },
   "workspace": {
     "status": {
       "available": "« {{serverName}} » est disponible.",
-      "not_selected": "« {{serverName}} » ne fait pas partie de votre espace de travail. Sélectionnez-le dans Tableau de bord → Espace de travail pour l'utiliser.",
+      "not_selected": "« {{serverName}} » ne fait pas partie de votre espace de travail. Sélectionnez-le dans votre espace de travail pour l'utiliser.",
       "paused": "« {{serverName}} » a été mis en pause par un administrateur.",
       "maintenance": "'{{serverName}}' est en maintenance. Réessayez plus tard.",
       "maintenanceUntil": "'{{serverName}}' est en maintenance jusqu'à {{until}}. Réessayez plus tard.",
-      "needs_auth": "« {{serverName}} » nécessite vos identifiants ou votre autorisation personnels. Connectez-le dans Tableau de bord → Identifiants ou Serveurs.",
-      "revoked": "Vous avez déconnecté votre autorisation pour « {{serverName}} ». Reconnectez-la dans Tableau de bord → Serveurs.",
-      "credential_invalid": "Vos identifiants pour « {{serverName}} » ont été refusés. Mettez-les à jour dans Tableau de bord → Identifiants ou reconnectez-vous dans Tableau de bord → Serveurs.",
+      "needs_auth": "« {{serverName}} » nécessite vos identifiants ou votre autorisation personnels. Connectez-le depuis votre espace de travail.",
+      "revoked": "Vous avez déconnecté votre autorisation pour « {{serverName}} ». Reconnectez-la depuis votre espace de travail.",
+      "credential_invalid": "Vos identifiants pour « {{serverName}} » ont été refusés. Mettez-les à jour ou reconnectez-vous depuis votre espace de travail.",
       "error": "« {{serverName}} » est actuellement indisponible. Réessayez plus tard."
     }
+  },
+  "workspacePage": {
+    "nav": "Espace de travail",
+    "title": "Mon espace de travail",
+    "subtitle": "Choisissez les services MCP que vos clients peuvent utiliser, vérifiez leur état et copiez votre endpoint personnel.",
+    "loading": "Chargement de votre espace de travail…",
+    "loadFailed": "Impossible de charger votre espace de travail.",
+    "retry": "Réessayer",
+    "toggleFailed": "Impossible de mettre à jour {{name}}. La modification a été annulée.",
+    "connectFailed": "Impossible de démarrer la connexion.",
+    "banner": {
+      "noneSelected": "Sélectionnez des services pour commencer",
+      "normal_one": "Votre service sélectionné est prêt.",
+      "normal_other": "Les {{count}} services sélectionnés sont prêts.",
+      "normal_many": "Les {{count}} services sélectionnés sont prêts.",
+      "partial_one": "{{attention}} service sélectionné sur {{selected}} nécessite votre attention",
+      "partial_other": "{{attention}} services sélectionnés sur {{selected}} nécessitent votre attention",
+      "partial_many": "{{attention}} services sélectionnés sur {{selected}} nécessitent votre attention",
+      "noneUsable_one": "Votre service sélectionné n'est pas disponible pour le moment.",
+      "noneUsable_other": "Aucun de vos {{count}} services sélectionnés n'est disponible pour le moment.",
+      "noneUsable_many": "Aucun de vos {{count}} services sélectionnés n'est disponible pour le moment."
+    },
+    "endpoint": {
+      "title": "Mon endpoint",
+      "description": "Une seule URL pour tous les services sélectionnés. Elle reste la même quand vous modifiez votre sélection.",
+      "direct": "Endpoint direct",
+      "smart": "Endpoint de routage intelligent",
+      "smartHint": "Le routage intelligent expose quelques outils de recherche et d'appel au lieu de tous les outils, ce qui garde le contexte de votre client réduit.",
+      "smartDisabled": "Le routage intelligent n'est pas activé sur ce serveur ; demandez à un administrateur.",
+      "snippets": "Configuration du client",
+      "mode": "Type d'endpoint",
+      "mode_direct": "Direct",
+      "mode_smart": "Routage intelligent",
+      "client": "Client",
+      "clientGeneric": "JSON MCP générique",
+      "clientClaude": "Claude Desktop / Claude Code",
+      "clientCursor": "Cursor",
+      "authNote": "Les extraits contiennent uniquement l'URL. Votre client se connecte via OAuth lors de sa première connexion."
+    },
+    "tools": {
+      "warning": "Votre sélection expose {{count}} outils. Une longue liste d'outils peut saturer le contexte de votre client.",
+      "strongWarning": "Votre sélection expose {{count}} outils, ce qui est trop pour la plupart des clients. Utilisez l'endpoint de routage intelligent ou les endpoints par service.",
+      "label_one": "outil issu de vos services disponibles",
+      "label_other": "outils issus de vos services disponibles",
+      "label_many": "outils issus de vos services disponibles"
+    },
+    "services": {
+      "tab": "Services",
+      "title": "Services disponibles",
+      "description": "Activez ou désactivez des services pour votre endpoint.",
+      "empty": "Aucun service n'est encore disponible pour vous.",
+      "toggleFor": "Inclure {{name}} dans mon espace de travail",
+      "copyEndpoint": "Copier l'endpoint",
+      "copyEndpointFor": "Copier l'endpoint de {{name}}",
+      "endpointConflict": "Pas d'endpoint distinct : un groupe porte le même nom que ce service. Utilisez votre endpoint principal.",
+      "toolCount_one": "{{count}} outil",
+      "toolCount_other": "{{count}} outils",
+      "toolCount_many": "{{count}} outils"
+    },
+    "status": {
+      "available": "Prêt",
+      "not_selected": "Non sélectionné",
+      "paused": "En pause",
+      "maintenance": "Maintenance",
+      "needs_auth": "Connexion requise",
+      "revoked": "Déconnecté",
+      "credential_invalid": "Identifiants refusés",
+      "error": "Problème"
+    },
+    "actions": {
+      "select": "Ajouter à l'espace de travail",
+      "selectFor": "Ajouter {{name}} à mon espace de travail",
+      "connect": "Connecter",
+      "connectFor": "Connecter {{name}}",
+      "contactAdmin": "Contactez un administrateur",
+      "retryLater": "Réessayez plus tard",
+      "retryUntil": "Réessayez après {{until}}",
+      "openAuthorization": "Ouvrir la page de connexion"
+    },
+    "clients": {
+      "tab": "Clients connectés",
+      "title": "Clients connectés",
+      "description": "Applications et clés pouvant utiliser votre endpoint en votre nom.",
+      "empty": "Aucun client connecté.",
+      "loadFailed": "Impossible de charger les clients connectés.",
+      "never": "Jamais",
+      "idle": "Inactif",
+      "idleHint": "Inutilisé depuis longtemps ; refusé jusqu'à une nouvelle connexion.",
+      "kind": {
+        "oauth": "Application OAuth",
+        "key": "Clé d'API"
+      },
+      "columns": {
+        "name": "Nom",
+        "kind": "Type",
+        "created": "Créé",
+        "lastUsed": "Dernière utilisation",
+        "expires": "Expire"
+      },
+      "revoke": "Révoquer",
+      "revokeFor": "Révoquer {{name}}",
+      "revokeTitle": "Révoquer ce client ?",
+      "revokeMessage": "Révoquer {{name}} ? Il perd l'accès immédiatement. Vos autres clients et l'URL de votre endpoint ne sont pas affectés.",
+      "revokeAll": "Tout révoquer",
+      "revokeAllTitle": "Révoquer tous les clients ?",
+      "revokeAllMessage": "Tous les clients connectés perdent l'accès immédiatement. L'URL de votre endpoint reste la même, et chaque client doit être autorisé à nouveau avant de pouvoir se reconnecter.",
+      "revoked": "Client révoqué.",
+      "revokedAll": "Tous les clients ont été révoqués.",
+      "revokeFailed": "Impossible de révoquer."
+    },
+    "disabled": "L'espace de travail n'est plus disponible. Un administrateur l'a peut-être désactivé.",
+    "reload": "Recharger",
+    "settingsFailed": "Impossible de lire les paramètres du serveur ; la navigation standard est affichée.",
+    "popupBlocked": "Votre navigateur a bloqué la fenêtre de connexion. Utilisez le lien affiché sous le service."
   }
 }
