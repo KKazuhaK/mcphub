@@ -274,6 +274,32 @@ export const revokeUserClientTokens = async (
 };
 
 /**
+ * Revoke what one client holds for one user and one external resource: its persisted tokens and
+ * the user's pending authorization codes for that client and resource.
+ */
+export const revokeUserClientResourceTokens = async (
+  username: string,
+  clientId: string,
+  resource: string,
+): Promise<number> => {
+  noteGrantRevocation(username, clientId);
+  for (const [code, authorization] of authorizationCodes) {
+    if (
+      authorization.username === username &&
+      authorization.clientId === clientId &&
+      authorization.resource === resource
+    ) {
+      authorizationCodes.delete(code);
+    }
+  }
+  try {
+    return await getOAuthTokenDao().revokeUserClientResourceTokens(username, clientId, resource);
+  } finally {
+    noteGrantRevocation(username, clientId);
+  }
+};
+
+/**
  * Clean up expired codes and tokens (should be called periodically)
  */
 export const cleanupExpired = async (): Promise<void> => {

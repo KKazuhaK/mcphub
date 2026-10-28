@@ -100,6 +100,14 @@ export class OAuthTokenDaoDbImpl implements OAuthTokenDao {
     return await this.repository.revokeUserClientTokens(username, clientId);
   }
 
+  async revokeUserClientResourceTokens(
+    username: string,
+    clientId: string,
+    resource: string,
+  ): Promise<number> {
+    return await this.repository.revokeUserClientResourceTokens(username, clientId, resource);
+  }
+
   async cleanupExpired(): Promise<number> {
     return await this.repository.cleanupExpired();
   }

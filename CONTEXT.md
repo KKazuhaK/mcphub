@@ -56,6 +56,10 @@ _Avoid_: credential token, connector token, session forwarding
 A protected service outside MCPHub that an administrator lists in `oauthServer.externalResources` (absolute https URL, exact-match, a display name, optional `allowedClients`). A client that requests it with the RFC 8707 `resource` parameter gets a JWT access token (`aud` = the URL, signed by a published MCPHub key) that the service verifies itself against `jwks_uri`; the refresh token stays opaque and bound to it. The token is never valid on MCPHub's own routes.
 _Avoid_: audience, downstream service, connector token
 
+**Self-resource Server**:
+A server with personal OAuth whose `url` is an External Resource of this same MCPHub, so MCPHub is its authorization server. MCPHub uses its own public client `mcphub-personal-oauth`, serves the metadata and token calls in-process and pins the issuer to itself; each user authorizes once from the workspace (ADR 0015).
+_Avoid_: loopback server, self-connection
+
 **Destination Binding**:
 The check that a stored personal credential is only used for the destination it was entered against. Each credential-slot binding carries a keyed fingerprint of the destination-relevant parts of the server declaration; when the declaration no longer matches, the binding is stale and treated as missing until the user enters the values again. Applies whether or not Workspace Mode is on.
 _Avoid_: credential pinning, credential lock

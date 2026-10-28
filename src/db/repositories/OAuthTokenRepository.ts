@@ -198,6 +198,20 @@ export class OAuthTokenRepository {
   }
 
   /**
+   * Revoke the tokens one client holds for one user and one external resource
+   */
+  async revokeUserClientResourceTokens(
+    username: string,
+    clientId: string,
+    resource: string,
+  ): Promise<number> {
+    return this.withRetry(async () => {
+      const result = await this.repository.delete({ username, clientId, resource });
+      return result.affected ?? 0;
+    }, 'revokeUserClientResourceTokens');
+  }
+
+  /**
    * Clean up expired tokens
    */
   async cleanupExpired(): Promise<number> {

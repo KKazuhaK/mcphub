@@ -69,6 +69,7 @@ Administrator only. Lets MCPHub's authorization server issue JWT access tokens (
 - `resource` (string): absolute https URL (http only for `localhost`, `127.0.0.1`, `[::1]`) with no fragment or credentials. A client's RFC 8707 `resource` parameter must equal it exactly.
 - `name` (string): display name shown on the consent screen and in connected clients.
 - `allowedClients` (string[], optional): OAuth client ids that may request it; empty or absent means any registered client.
+- `scopes` (string[], optional): scope tokens granted for this resource (and copied into the JWT `scope` claim). Requested scopes not listed are dropped; absent means none are granted.
 
 A `resource` that is neither MCPHub's own origin nor a listed entry (or that the client may not use) is refused with `invalid_target`. Issued tokens cannot be used on MCPHub's own routes. External tokens live for `min(accessTokenLifetime, oauthServer.externalTokenLifetimeSeconds)` (default 900) and require the public base URL to be configured. A rotated signing key is published at once and signs after `oauthServer.signingKeyActivationDelaySeconds` (default 900). `POST /api/oauth/signing-keys/rotate` (administrator only) starts signing with a new key and keeps the old public key published until its tokens expire. See ADR 0014.
 

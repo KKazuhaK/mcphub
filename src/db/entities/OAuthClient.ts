@@ -19,7 +19,7 @@ export class OAuthClient {
   clientId: string;
 
   @Column({ name: 'client_secret', type: 'varchar', length: 255, nullable: true })
-  clientSecret?: string;
+  clientSecret?: string | null;
 
   @Column({ type: 'varchar', length: 255 })
   name: string;

@@ -89,7 +89,7 @@ export class OAuthClientDaoDbImpl implements OAuthClientDao {
 
   private mapToOAuthClient(client: {
     clientId: string;
-    clientSecret?: string;
+    clientSecret?: string | null;
     name: string;
     redirectUris: string[];
     grants: string[];
@@ -100,7 +100,7 @@ export class OAuthClientDaoDbImpl implements OAuthClientDao {
   }): IOAuthClient {
     return {
       clientId: client.clientId,
-      clientSecret: client.clientSecret,
+      clientSecret: client.clientSecret ?? undefined,
       name: client.name,
       redirectUris: client.redirectUris,
       grants: client.grants,

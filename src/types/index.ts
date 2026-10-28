@@ -344,7 +344,7 @@ export interface UserConfig {
 // OAuth Client for MCPHub's own authorization server
 export interface IOAuthClient {
   clientId: string; // OAuth client ID
-  clientSecret?: string; // OAuth client secret (optional for public clients with PKCE)
+  clientSecret?: string | null; // OAuth client secret (optional for public clients with PKCE; null clears it)
   name: string; // Human-readable client name
   redirectUris: string[]; // Allowed redirect URIs
   grants: string[]; // Allowed grant types (e.g., ['authorization_code', 'refresh_token'])
@@ -403,6 +403,7 @@ export interface ExternalResource {
   resource: string; // Absolute https URL (http only on loopback); matched exactly against the `resource` parameter
   name: string; // Display name, shown on the consent screen and in connected clients
   allowedClients?: string[]; // OAuth client ids allowed to request it; empty or absent = any registered client
+  scopes?: string[]; // Scopes the service needs; only these are granted for it (absent = none), copied into the JWT `scope` claim
 }
 
 // OAuth Server Configuration
@@ -619,6 +620,8 @@ export interface ServerConfig {
     clientId?: string; // OAuth client ID
     clientSecret?: string; // OAuth client secret
     redirectUri?: string; // Preferred redirect URI for authorization requests and registration
+    // Runtime only, stored with a user's personal binding: the `resource` a self-issued grant was made for.
+    grantResource?: string;
     scopes?: string[]; // Required OAuth scopes
     accessToken?: string; // Pre-obtained access token (if available)
     refreshToken?: string; // Refresh token for renewing access

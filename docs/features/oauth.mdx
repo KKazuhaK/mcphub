@@ -200,3 +200,22 @@ MCP protected-resource discovery and the SDK's resource indicator validation sti
 The selected metadata is captured with pending PKCE/state for callback recovery; authorization, code exchange and refresh use the same configured authority. Callback `iss` validation remains enabled, including required `iss` when metadata declares `authorization_response_iss_parameter_supported: true`. HTTP token endpoints still require the separate administrator-controlled `allowInsecureTokenEndpoint` exception. Personal token encryption, refresh and user isolation are unchanged; changing the metadata invalidates personal bindings and requires reconnecting.
 
 This per-server setting is independent of MCPHub's downstream `systemConfig.oauthServer` and the legacy global `systemConfig.oauth` proxy. Neither global setting is required for this flow.
+
+## Connecting to a service that uses MCPHub as its authorization server
+
+An external service can protect its own MCP endpoint with tokens issued by MCPHub (see `oauthServer.externalResources` in the [configuration reference](/api-reference/config)). MCPHub can then be a client of that service for each user: the user authorizes once from the workspace, and MCPHub holds only a standard, audience-bound, refreshable OAuth grant for that user.
+
+Setup has two parts, both administrator-only:
+
+1. Set the public base URL (`install.baseUrl` or `INSTALL_BASE_URL`) and list the service in `systemConfig.oauthServer.externalResources`, with the exact MCP URL as `resource`.
+2. Add the service as a server with personal OAuth and the same URL:
+
+```json
+{
+  "type": "streamable-http",
+  "url": "https://ubc.example/mcp",
+  "oauth": { "identityMode": "personal" }
+}
+```
+
+Nothing else is needed. Because the URL is a configured external resource, MCPHub registers its own public client (`mcphub-personal-oauth`, PKCE S256, redirect URI `<base URL>/oauth/callback` only; a server's own `redirectUri` is ignored and the dashboard cannot edit the client), and sends the RFC 8707 `resource` parameter at authorize, token and refresh. The metadata and token calls to its own authorization server are made in-process, never through the public URL, so they work behind a proxy. The service's protected-resource metadata must name this MCPHub as its authorization server; any other value is refused. If you restrict `allowedClients` on the entry, include `mcphub-personal-oauth` (otherwise connecting fails with a message saying so). List the scopes the service needs in the entry's `scopes`; only those are granted. Disconnecting in the workspace revokes the grant at once, but a JWT already issued stays valid for up to `externalTokenLifetimeSeconds`. A server that sets `oauth.clientId`, `authorizationServerMetadata` or explicit endpoints keeps that explicit configuration instead. See ADR 0015.

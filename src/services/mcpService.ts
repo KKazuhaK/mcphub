@@ -1,3 +1,9 @@
+import {
+  assertSelfClientIdAllowed,
+  closeSelfOAuthDispatch,
+  createSelfIssuerFetch,
+  resolveSelfResource,
+} from './selfOAuthResource.js';
 import { projectGroupToolName, assertValidGroupToolNames } from '../utils/groupToolNames.js';
 import { isSafePassthroughHeader } from '../utils/passthroughHeaders.js';
 import { observeToolCall, setMetricsServer } from './metricsService.js';
@@ -1599,6 +1605,7 @@ export const connected = (): boolean => {
 
 // Global cleanup function to close all connections
 export const cleanupAllServers = (): void => {
+  closeSelfOAuthDispatch();
   stopPackageUpdateSweep();
   if (clientStateSweep) clearInterval(clientStateSweep);
   clientStateSweep = undefined;
@@ -1993,8 +2000,17 @@ export const createTransportFromConfig = async (name: string, conf: ServerConfig
       };
     }
 
+    const personal = personalOAuthContexts.get(conf);
+    const selfResource = await resolveSelfResource(conf);
+    const issuerAwareFetch = selfResource
+      ? createSelfIssuerFetch(
+          selfResource.issuer,
+          requestAwareFetch,
+          personal ? JSON.stringify([personal.serverName, personal.username]) : undefined,
+        )
+      : requestAwareFetch;
     options.fetch =
-      personalOAuthContexts.get(conf)?.wrapFetch(requestAwareFetch) || requestAwareFetch;
+      personalOAuthContexts.get(conf)?.wrapFetch(issuerAwareFetch) || issuerAwareFetch;
 
     transport = new StreamableHTTPClientTransport(new URL(conf.url || ''), options);
   } else if (conf.url) {
@@ -3521,6 +3537,7 @@ export const addServer = async (
 ): Promise<{ success: boolean; message?: string }> => {
   validateMaxBufferSize(config.options?.maxBufferSize);
   validateCredentialTemplate(config);
+  await assertSelfClientIdAllowed(config);
   const server: ServerConfigWithName = { name, ...config };
   // Before the server exists, so a binding saved the moment it does is never swept up.
   // Bindings left under this name belong to an earlier server of that name.
@@ -3567,6 +3584,8 @@ export const addOrUpdateServer = async (
   config: ServerConfig,
   allowOverride: boolean = false,
 ): Promise<{ success: boolean; message?: string }> => {
+  // Outside the try below: a refusal is the caller's 400, not a generic failure.
+  await assertSelfClientIdAllowed(config);
   try {
     validateMaxBufferSize(config.options?.maxBufferSize);
     validateCredentialTemplate(config);

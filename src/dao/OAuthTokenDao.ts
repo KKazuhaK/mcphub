@@ -53,6 +53,12 @@ export interface OAuthTokenDao extends BaseDao<IOAuthToken, string> {
    * same client are left alone)
    */
   revokeUserClientTokens(username: string, clientId: string): Promise<number>;
+  /** Revoke what one client holds for one user and one external resource. */
+  revokeUserClientResourceTokens(
+    username: string,
+    clientId: string,
+    resource: string,
+  ): Promise<number>;
 
   /**
    * Clean up expired tokens
@@ -241,6 +247,25 @@ export class OAuthTokenDaoImpl extends JsonFileBaseDao implements OAuthTokenDao 
     const tokens = await this.getAll();
     const remaining = tokens.filter(
       (token) => !(token.username === username && token.clientId === clientId),
+    );
+    const removed = tokens.length - remaining.length;
+    if (removed > 0) await this.saveAll(remaining);
+    return removed;
+  }
+
+  async revokeUserClientResourceTokens(
+    username: string,
+    clientId: string,
+    resource: string,
+  ): Promise<number> {
+    const tokens = await this.getAll();
+    const remaining = tokens.filter(
+      (token) =>
+        !(
+          token.username === username &&
+          token.clientId === clientId &&
+          token.resource === resource
+        ),
     );
     const removed = tokens.length - remaining.length;
     if (removed > 0) await this.saveAll(remaining);

@@ -510,6 +510,21 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
         : false;
     }
 
+    // A request for an external resource (RFC 8707) gets exactly the scopes that resource's entry
+    // lists, never MCPHub's own `read`/`write`; scopes it does not list are dropped, not refused,
+    // since clients fall back to whatever the service advertises.
+    const resource =
+      typeof (user as { resource?: unknown }).resource === 'string'
+        ? ((user as { resource?: string }).resource as string)
+        : oauthRequestContext.getStore()?.resource;
+    if (resource) {
+      const entry = findExternalResource(systemConfig, resource);
+      if (entry) {
+        const listed = entry.scopes ?? [];
+        return (scope ?? []).filter((s) => listed.includes(s));
+      }
+    }
+
     if (!scope || scope.length === 0) {
       return allowedScopes;
     }
