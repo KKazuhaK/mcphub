@@ -10,7 +10,8 @@ permissions:
 jobs:
   publish-npm:
     runs-on: ubuntu-latest
-    if: endsWith(github.repository, 'mcphub')
+    # The npm package belongs to the upstream project; forks do not publish it.
+    if: github.repository == 'samanhappy/mcphub'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
