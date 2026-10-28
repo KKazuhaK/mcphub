@@ -7,7 +7,14 @@ import { normalizeSmartRoutingGroup } from './smartRoutingPath.js';
  * is asking to access (e.g. the aggregated `/mcp` endpoint or a single server
  * behind `/mcp/{name}`).
  */
-export type ResourceTargetKind = 'all' | 'smart' | 'target' | 'server' | 'group' | 'unknown';
+export type ResourceTargetKind =
+  | 'all'
+  | 'smart'
+  | 'target'
+  | 'server'
+  | 'group'
+  | 'external'
+  | 'unknown';
 
 export interface ResourceTarget {
   /** The raw `resource` URI as sent by the client. */

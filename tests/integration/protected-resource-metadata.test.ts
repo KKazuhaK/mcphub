@@ -76,7 +76,7 @@ it.each([
     .expect(200)
     .expect('Content-Type', /application\/json/);
   expect(metadata.body.resource).toBe(`https://public.example/hub${path}`);
-  expect(metadata.body.authorization_servers).toEqual(['https://public.example/hub/']);
+  expect(metadata.body.authorization_servers).toEqual(['https://public.example/hub']);
 });
 
 it.each([false, 1])(

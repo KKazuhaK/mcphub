@@ -42,6 +42,7 @@ import {
   BatchCreateServersRequest,
   BatchCreateServersResponse,
   BatchServerResult,
+  ExternalResource,
   ServerConfig,
   ServerInfo,
   ToolRiskLevel,
@@ -74,6 +75,10 @@ import {
 import { createSafeJSON } from '../utils/serialization.js';
 import { getNameSeparator } from '../config/index.js';
 import { cloneDefaultOAuthServerConfig } from '../constants/oauthServerDefaults.js';
+import {
+  ExternalResourceValidationError,
+  normalizeExternalResources,
+} from '../utils/externalResources.js';
 import {
   getBearerKeyDao,
   getGroupDao,
@@ -2401,6 +2406,21 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
       });
       return;
     }
+    // Administrator-only (this whole endpoint is): which external resources the authorization
+    // server may issue JWT access tokens for. `null` clears the list.
+    let externalResources: ExternalResource[] | undefined;
+    if (oauthServer && oauthServer.externalResources !== undefined) {
+      try {
+        externalResources =
+          oauthServer.externalResources === null
+            ? []
+            : normalizeExternalResources(oauthServer.externalResources);
+      } catch (error) {
+        if (!(error instanceof ExternalResourceValidationError)) throw error;
+        res.status(400).json({ success: false, message: error.message });
+        return;
+      }
+    }
     const { smartRouting } = migrateLegacySmartRoutingConfig(requestSmartRouting);
 
     const hasRoutingUpdate =
@@ -2538,6 +2558,9 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
         typeof oauthServer.authorizationCodeLifetime === 'number' ||
         typeof oauthServer.requireClientSecret === 'boolean' ||
         typeof oauthServer.requireState === 'boolean' ||
+        externalResources !== undefined ||
+        typeof oauthServer.externalTokenLifetimeSeconds === 'number' ||
+        typeof oauthServer.signingKeyActivationDelaySeconds === 'number' ||
         Array.isArray(oauthServer.allowedScopes) ||
         (oauthServer.dynamicRegistration &&
           (typeof oauthServer.dynamicRegistration.enabled === 'boolean' ||
@@ -3085,6 +3108,25 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
       }
       if (typeof oauthServer.requireState === 'boolean') {
         target.requireState = oauthServer.requireState;
+      }
+      if (externalResources !== undefined) {
+        target.externalResources = externalResources;
+      }
+      if (
+        typeof oauthServer.externalTokenLifetimeSeconds === 'number' &&
+        Number.isFinite(oauthServer.externalTokenLifetimeSeconds) &&
+        oauthServer.externalTokenLifetimeSeconds > 0
+      ) {
+        target.externalTokenLifetimeSeconds = Math.floor(oauthServer.externalTokenLifetimeSeconds);
+      }
+      if (
+        typeof oauthServer.signingKeyActivationDelaySeconds === 'number' &&
+        Number.isFinite(oauthServer.signingKeyActivationDelaySeconds) &&
+        oauthServer.signingKeyActivationDelaySeconds >= 0
+      ) {
+        target.signingKeyActivationDelaySeconds = Math.floor(
+          oauthServer.signingKeyActivationDelaySeconds,
+        );
       }
       if (Array.isArray(oauthServer.allowedScopes)) {
         target.allowedScopes = oauthServer.allowedScopes

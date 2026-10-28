@@ -9,6 +9,7 @@ import SystemConfig from './SystemConfig.js';
 import UserConfig from './UserConfig.js';
 import OAuthClient from './OAuthClient.js';
 import OAuthToken from './OAuthToken.js';
+import OAuthSigningKey from './OAuthSigningKey.js';
 import BearerKey from './BearerKey.js';
 import Activity from './Activity.js';
 import BuiltinPrompt from './BuiltinPrompt.js';
@@ -27,6 +28,7 @@ export default [
   UserConfig,
   OAuthClient,
   OAuthToken,
+  OAuthSigningKey,
   BearerKey,
   Activity,
   BuiltinPrompt,
@@ -46,6 +48,7 @@ export {
   UserConfig,
   OAuthClient,
   OAuthToken,
+  OAuthSigningKey,
   BearerKey,
   Activity,
   BuiltinPrompt,

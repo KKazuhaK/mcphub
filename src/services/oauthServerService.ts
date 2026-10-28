@@ -28,8 +28,36 @@ import {
   soleCredentialWriteServer,
 } from '../utils/credentialWriteScope.js';
 import { evaluateCredentialWriteScopes } from './credentialWriteScopeService.js';
+import { findExternalResource, isClientAllowedForResource } from '../utils/externalResources.js';
+import { oauthRequestContext } from './oauthRequestContext.js';
+import { signExternalAccessToken } from './oauthSigningKeyService.js';
 
 const { Request, Response } = OAuth2Server;
+
+/** RFC 8707 `invalid_target`: the library has no class for it. */
+const invalidTarget = (message: string): Error =>
+  new OAuth2Server.OAuthError(message, { code: 400, name: 'invalid_target' });
+
+const DEFAULT_EXTERNAL_TOKEN_LIFETIME_SECONDS = 900;
+const RESOURCE_NOT_AVAILABLE = 'The requested resource is not available';
+
+/**
+ * The external resource a token request resolves to, given the resource its grant is bound to
+ * (`bound`, set only at authorization, where the consent screen named it). A request may repeat
+ * the bound resource, or name none; it can never name a resource the grant was not authorized for,
+ * so a code or refresh token without a binding can never yield an external token. One of MCPHub's
+ * own routes is accepted for a grant with no external binding. Every refusal is the same
+ * invalid_target as an unknown resource.
+ */
+const effectiveResource = (bound: string | undefined): string | undefined => {
+  const requested = oauthRequestContext.getStore()?.requested;
+  if (!requested || requested.kind === 'none') return bound;
+  if (requested.kind === 'external' && requested.entry.resource === bound) return bound;
+  // MCP SDKs repeat their own MCP URL on code exchange and refresh: fine for a grant that is not
+  // bound to an external resource, and it yields today's opaque token.
+  if (requested.kind === 'own' && bound === undefined) return undefined;
+  throw invalidTarget(RESOURCE_NOT_AVAILABLE);
+};
 
 // OAuth2Server model implementation
 const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshTokenModel = {
@@ -118,6 +146,7 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
         sessionVersion,
         codeChallenge: code.codeChallenge,
         codeChallengeMethod: code.codeChallengeMethod,
+        resource: oauthRequestContext.getStore()?.resource,
       },
       lifetime,
     );
@@ -150,6 +179,16 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
       return false;
     }
 
+    // A request naming the wrong resource, or a resource that is gone or closed to this client,
+    // is refused before the code is spent, with the answer an unknown resource gets.
+    effectiveResource(code.resource);
+    if (code.resource) {
+      const entry = findExternalResource(await getSystemConfigDao().get(), code.resource);
+      if (!entry || !isClientAllowedForResource(entry, code.clientId)) {
+        throw invalidTarget(RESOURCE_NOT_AVAILABLE);
+      }
+    }
+
     const scopeArray = code.scope ? code.scope.split(' ') : undefined;
 
     return {
@@ -168,6 +207,7 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
         username: code.username,
         sessionVersion: code.sessionVersion,
         exchangeSeq: getRevocationSeq(),
+        resource: code.resource,
       },
       codeChallenge: code.codeChallenge,
       codeChallengeMethod: code.codeChallengeMethod,
@@ -210,6 +250,29 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
       refreshTokenLifetime = undefined;
     }
 
+    // A token for an external resource (RFC 8707): bound to one configured resource and client,
+    // re-checked here so removing the resource or the client stops further issuance (refresh).
+    const resource = effectiveResource(
+      typeof user.resource === 'string' ? user.resource : undefined,
+    );
+    if (resource) {
+      const entry = findExternalResource(systemConfig, resource);
+      if (!entry || !isClientAllowedForResource(entry, client.id)) {
+        throw invalidTarget(RESOURCE_NOT_AVAILABLE);
+      }
+      if (includesCredentialWriteScope(scopeString)) {
+        throw new OAuth2Server.InvalidScopeError(
+          'Invalid scope: credentials:write cannot be requested for an external resource',
+        );
+      }
+      // Services verify offline, so these live no longer than the external cap (default 15 min).
+      const cap = oauthConfig?.externalTokenLifetimeSeconds;
+      accessTokenLifetime = Math.min(
+        accessTokenLifetime,
+        typeof cap === 'number' && cap > 0 ? cap : DEFAULT_EXTERNAL_TOKEN_LIFETIME_SECONDS,
+      );
+    }
+
     if (!(await resolveUserSession(user))) {
       throw new OAuth2Server.InvalidGrantError('User session is no longer valid');
     }
@@ -231,7 +294,13 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
         // Only a refresh grant's user carries these (see getRefreshToken): the rotated
         // record keeps the grant's creation and last-use time instead of starting over.
         grantCreatedAt: typeof user.grantCreatedAt === 'string' ? user.grantCreatedAt : undefined,
-        lastUsedAt: typeof user.lastUsedAt === 'string' ? user.lastUsedAt : undefined,
+        // Nothing else will ever "use" an external-resource grant on MCPHub: issuing counts.
+        lastUsedAt: resource
+          ? new Date().toISOString()
+          : typeof user.lastUsedAt === 'string'
+            ? user.lastUsedAt
+            : undefined,
+        resource,
       },
       accessTokenLifetime,
       refreshTokenLifetime,
@@ -245,8 +314,33 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
 
     const scopeArray = savedToken.scope ? savedToken.scope.split(' ') : undefined;
 
+    // The client receives a signed JWT; the stored record keeps an opaque id nobody is given, so
+    // MCPHub's own routes (which look tokens up by value) can never accept it.
+    let accessToken = savedToken.accessToken;
+    if (resource) {
+      const issuer = oauthRequestContext.getStore()?.issuer;
+      try {
+        // Without a configured public URL the issuer is whatever Host the request carried, which
+        // a verifier cannot trust: no external token is issued.
+        if (!issuer) throw new Error('The public base URL is not configured');
+        accessToken = await signExternalAccessToken({
+          issuer,
+          audience: resource,
+          subject: user.username,
+          clientId: client.id,
+          scope: savedToken.scope ?? '',
+          jti: crypto.randomUUID(),
+          expiresAt: savedToken.accessTokenExpiresAt,
+        });
+      } catch (error) {
+        await revokeToken(savedToken.accessToken);
+        logger.error('Failed to sign an external-resource access token:', error);
+        throw new OAuth2Server.ServerError('Unable to issue the access token');
+      }
+    }
+
     return {
-      accessToken: savedToken.accessToken,
+      accessToken,
       accessTokenExpiresAt: savedToken.accessTokenExpiresAt,
       refreshToken: savedToken.refreshToken,
       refreshTokenExpiresAt: savedToken.refreshTokenExpiresAt,
@@ -273,6 +367,12 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
 
     const client = await findOAuthClientById(token.clientId);
     if (!client) {
+      return false;
+    }
+
+    // An external-resource record is only an anchor for its refresh token: its internal id is
+    // never a bearer here (the client holds a JWT for another audience).
+    if (token.resource) {
       return false;
     }
 
@@ -321,6 +421,16 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
       return false;
     }
 
+    effectiveResource(token.resource);
+
+    // A grant for an external resource ends with the resource's configuration or its client list.
+    if (token.resource) {
+      const entry = findExternalResource(await getSystemConfigDao().get(), token.resource);
+      if (!entry || !isClientAllowedForResource(entry, token.clientId)) {
+        return false;
+      }
+    }
+
     const client = await findOAuthClientById(token.clientId);
     if (!client) {
       return false;
@@ -348,6 +458,7 @@ const oauthModel: OAuth2Server.AuthorizationCodeModel & OAuth2Server.RefreshToke
           new Date(oauthGrantCreatedAt(token, getCachedSystemConfig())).toISOString(),
         lastUsedAt: token.lastUsedAt,
         exchangeSeq: getRevocationSeq(),
+        resource: token.resource,
       },
     };
   },

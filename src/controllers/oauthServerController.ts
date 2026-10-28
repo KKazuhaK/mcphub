@@ -5,6 +5,19 @@ import {
   handleTokenRequest,
   handleAuthenticateRequest,
 } from '../services/oauthServerService.js';
+import { runWithOAuthRequestContext } from '../services/oauthRequestContext.js';
+import {
+  ensureSigningKeyExists,
+  getPublicJwks,
+  rotateSigningKey,
+} from '../services/oauthSigningKeyService.js';
+import {
+  classifyResource,
+  getExternalResources,
+  type OwnResourceScope,
+  type ResourceClassification,
+} from '../utils/externalResources.js';
+import type { ExternalResource, SystemConfig } from '../types/index.js';
 import { findOAuthClientIncludingCimd, isCimdClientId } from '../services/cimdClientService.js';
 import { getSystemConfigDao, getGroupDao, getServerDao } from '../dao/index.js';
 import {
@@ -20,6 +33,7 @@ import {
   getProtectedResourceUrlFromMetadataRequest,
 } from '../utils/protectedResource.js';
 import { logger } from '../utils/logger.js';
+import { getInstallBaseUrlFromEnv } from '../utils/installBaseUrl.js';
 import {
   injectOAuthConsentShell,
   type OAuthConsentContext,
@@ -160,6 +174,16 @@ async function validateClientRedirectUri(
   return redirectUri;
 }
 
+/** One spelling of the issuer everywhere: metadata `issuer`, `iss` claims and `jwks_uri`. */
+function normalizeIssuer(value: string | undefined): string | undefined {
+  return value?.replace(/\/+$/, '');
+}
+
+/** Whether the public URL is configured, which external-resource tokens require for a trustworthy `iss`. */
+function isPublicUrlConfigured(systemConfig: SystemConfig | null | undefined): boolean {
+  return Boolean(systemConfig?.install?.baseUrl?.trim() || getInstallBaseUrlFromEnv());
+}
+
 /**
  * Resolve this install's issuer identifier (RFC 9207). Uses the same
  * resolution chain as the RFC 8414 metadata endpoint (`issuer` field) so
@@ -168,7 +192,7 @@ async function validateClientRedirectUri(
 async function resolveIssuer(req: Request): Promise<string | undefined> {
   try {
     const systemConfig = await getSystemConfigDao().get();
-    return getPublicInstallBaseUrl(req, systemConfig);
+    return normalizeIssuer(getPublicInstallBaseUrl(req, systemConfig));
   } catch {
     return undefined;
   }
@@ -183,6 +207,39 @@ function setIssuerParam(redirectUrl: URL, issuer: string | undefined): void {
   if (issuer) {
     redirectUrl.searchParams.set('iss', issuer);
   }
+}
+
+/** Where MCPHub's own routes live: the issuer and the host this request arrived on. */
+function ownResourceScope(
+  req: Request,
+  systemConfig: SystemConfig | null | undefined,
+): OwnResourceScope {
+  const origins: string[] = [];
+  const issuer = normalizeIssuer(getPublicInstallBaseUrl(req, systemConfig));
+  if (issuer) origins.push(issuer);
+  const host = req.headers?.host;
+  if (host) origins.push(`${req.protocol || 'http'}://${host}`);
+  return {
+    origins,
+    strict: isPublicUrlConfigured(systemConfig),
+  };
+}
+
+/** Redirect to the client with an authorization error (RFC 6749 section 4.1.2.1). */
+function redirectAuthorizationError(
+  redirect: (target: string) => void,
+  redirectUri: string,
+  error: string,
+  description: string,
+  state: string | undefined,
+  issuer: string | undefined,
+): void {
+  const errorUrl = new URL(redirectUri);
+  errorUrl.searchParams.set('error', error);
+  errorUrl.searchParams.set('error_description', description);
+  setIssuerParam(errorUrl, issuer);
+  if (state) errorUrl.searchParams.set('state', state);
+  redirect(errorUrl.toString());
 }
 
 /**
@@ -202,6 +259,8 @@ const generateAuthorizeHtml = (
     formFields: string;
     // Replaces the scope list for a credential-write request: that one sentence, nothing else.
     credentialNotice?: string;
+    // An external resource the token is for: its configured name and exact URL.
+    resourceNotice?: string;
   },
 ): string => {
   const backgroundColor = '#eef5ff';
@@ -251,6 +310,11 @@ const generateAuthorizeHtml = (
             <span class="client-box-name">${escapeHtml(options.clientName || '')}</span>
           </div>
           ${
+            options.resourceNotice
+              ? `<div class="client-box"><span class="client-box-label">Service</span><span class="client-box-name">${escapeHtml(options.resourceNotice)}</span></div>`
+              : ''
+          }
+          ${
             options.credentialNotice
               ? `<div class="scopes"><div class="scope-item"><span class="scope-name">${escapeHtml(options.credentialNotice)}</span></div></div>`
               : `<div class="scopes">
@@ -297,9 +361,17 @@ const generateAuthorizeHtml = (
  * Best-effort: unknown or unresolvable targets are surfaced as-is, never
  * blocking the authorization request.
  */
-async function resolveResourceTarget(raw: string | undefined): Promise<ResourceTarget | undefined> {
+async function resolveResourceTarget(
+  raw: string | undefined,
+  external?: ExternalResource,
+): Promise<ResourceTarget | undefined> {
   if (!raw) {
     return undefined;
+  }
+
+  // An external resource is shown by the name its administrator gave it.
+  if (external) {
+    return { raw, path: raw, kind: 'external', name: external.name };
   }
 
   const parsed = parseResourceTarget(raw);
@@ -382,9 +454,9 @@ export const getAuthorize = async (req: Request, res: Response): Promise<void> =
     // RFC 8707: the resource URI the client wants to access (e.g. which MCP
     // server). Optional here for compatibility with clients that omit it, but
     // surfaced on the consent screen when present.
-    const resource = req.query.resource
-      ? validateQueryParam(req.query.resource, 'resource')
-      : undefined;
+    // Anything but one string is judged below (invalid_target), not rejected as a malformed query.
+    const rawResource: unknown = req.query.resource;
+    const resource = typeof rawResource === 'string' && rawResource ? rawResource : undefined;
 
     // Validate required parameters
     if (!client_id || !redirect_uri || !response_type) {
@@ -417,6 +489,38 @@ export const getAuthorize = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    // RFC 8707: a resource that is neither one of MCPHub's own routes nor a configured external
+    // resource this client may use is refused before any consent page.
+    const resourceClass = classifyResource(
+      rawResource,
+      systemConfig,
+      ownResourceScope(req, systemConfig),
+      client_id,
+    );
+    if (resourceClass.kind === 'invalid') {
+      redirectAuthorizationError(
+        (target) => res.redirect(target),
+        redirect_uri,
+        'invalid_target',
+        resourceClass.reason,
+        state,
+        await resolveIssuer(req),
+      );
+      return;
+    }
+    const externalResource = resourceClass.kind === 'external' ? resourceClass.entry : undefined;
+    if (externalResource && !isPublicUrlConfigured(systemConfig)) {
+      redirectAuthorizationError(
+        (target) => res.redirect(target),
+        redirect_uri,
+        'server_error',
+        'External-resource tokens require the public base URL to be configured',
+        state,
+        await resolveIssuer(req),
+      );
+      return;
+    }
+
     // `credentials:write:<server>` is only ever granted on its own, to a client the server
     // lists. Anything else is refused here, before a consent page that could not be honoured.
     const requestedScopes = splitScopes(scope);
@@ -434,6 +538,17 @@ export const getAuthorize = async (req: Request, res: Response): Promise<void> =
         return;
       }
       credentialWriteServer = evaluation.serverName;
+      if (externalResource) {
+        redirectAuthorizationError(
+          (target) => res.redirect(target),
+          redirect_uri,
+          'invalid_request',
+          'credentials:write cannot be requested for an external resource',
+          state,
+          await resolveIssuer(req),
+        );
+        return;
+      }
     }
 
     // Check if user is authenticated (including via JWT token)
@@ -465,7 +580,7 @@ export const getAuthorize = async (req: Request, res: Response): Promise<void> =
       res.json({
         resource: credentialWriteServer
           ? undefined
-          : await resolveResourceTarget(resource as string | undefined),
+          : await resolveResourceTarget(resource, externalResource),
       });
       return;
     }
@@ -532,7 +647,7 @@ export const getAuthorize = async (req: Request, res: Response): Promise<void> =
           ? resource
             ? parseResourceTarget(resource)
             : undefined
-          : await resolveResourceTarget(resource),
+          : await resolveResourceTarget(resource, externalResource),
       client: consentClientInfo,
     };
 
@@ -567,6 +682,9 @@ export const getAuthorize = async (req: Request, res: Response): Promise<void> =
         {
           clientName: client.name,
           scopes,
+          resourceNotice: externalResource
+            ? `${externalResource.name} (${externalResource.resource})`
+            : undefined,
           credentialNotice: credentialWriteServer
             ? t('oauthServer.credentialWrite', {
                 client: client.name,
@@ -654,16 +772,70 @@ export const postAuthorize = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    // RFC 8707: the resource is validated again here, where the code is actually issued, and
+    // bound to it. Exactly the configured external resources (for an allowed client) or one of
+    // MCPHub's own routes pass; anything else is invalid_target.
+    const systemConfig = await getSystemConfigDao().get();
+    const resourceClass: ResourceClassification = classifyResource(
+      req.body.resource,
+      systemConfig,
+      ownResourceScope(req, systemConfig),
+      client_id,
+    );
+    if (resourceClass.kind === 'invalid') {
+      redirectAuthorizationError(
+        redirectTo,
+        validatedRedirectUri,
+        'invalid_target',
+        resourceClass.reason,
+        state,
+        issuer,
+      );
+      return;
+    }
+    if (resourceClass.kind === 'external' && !isPublicUrlConfigured(systemConfig)) {
+      redirectAuthorizationError(
+        redirectTo,
+        validatedRedirectUri,
+        'server_error',
+        'External-resource tokens require the public base URL to be configured',
+        state,
+        issuer,
+      );
+      return;
+    }
+    if (
+      resourceClass.kind === 'external' &&
+      includesCredentialWriteScope(splitScopes(req.body.scope))
+    ) {
+      redirectAuthorizationError(
+        redirectTo,
+        validatedRedirectUri,
+        'invalid_request',
+        'credentials:write cannot be requested for an external resource',
+        state,
+        issuer,
+      );
+      return;
+    }
+
     // Create OAuth request/response
     const request = new OAuth2Request(req);
     const response = new OAuth2Response(res);
 
     // Authorize the request
-    const code = await oauth.authorize(request, response, {
-      authenticateHandler: {
-        handle: async () => user,
+    const code = await runWithOAuthRequestContext(
+      {
+        issuer,
+        resource: resourceClass.kind === 'external' ? resourceClass.entry.resource : undefined,
       },
-    });
+      () =>
+        oauth.authorize(request, response, {
+          authenticateHandler: {
+            handle: async () => user,
+          },
+        }),
+    );
 
     // Build redirect URL with authorization code
     const redirectUrl = new URL(validatedRedirectUri);
@@ -711,7 +883,21 @@ export const postAuthorize = async (req: Request, res: Response): Promise<void> 
  */
 export const postToken = async (req: Request, res: Response): Promise<void> => {
   try {
-    const token = await handleTokenRequest(req, res);
+    const systemConfig = await getSystemConfigDao().get();
+    // The token model reads what the library does not pass on: the issuer for `iss`, and the
+    // resource the request named (RFC 8707), checked there against the grant and the client.
+    const token = await runWithOAuthRequestContext(
+      {
+        issuer: isPublicUrlConfigured(systemConfig) ? await resolveIssuer(req) : undefined,
+        requested: classifyResource(
+          req.body?.resource,
+          systemConfig,
+          ownResourceScope(req, systemConfig),
+        ),
+        grantType: typeof req.body?.grant_type === 'string' ? req.body.grant_type : undefined,
+      },
+      () => handleTokenRequest(req, res),
+    );
     res.json({
       access_token: token.accessToken,
       token_type: 'Bearer',
@@ -775,7 +961,7 @@ export const getMetadata = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const baseUrl = getPublicInstallBaseUrl(req, systemConfig);
+    const baseUrl = normalizeIssuer(getPublicInstallBaseUrl(req, systemConfig));
     const allowedScopes = oauthConfig.allowedScopes || ['read', 'write'];
 
     const metadata: any = {
@@ -783,6 +969,8 @@ export const getMetadata = async (req: Request, res: Response): Promise<void> =>
       authorization_endpoint: `${baseUrl}/oauth/authorize`,
       token_endpoint: `${baseUrl}/oauth/token`,
       userinfo_endpoint: `${baseUrl}/oauth/userinfo`,
+      // Public keys for the JWT access tokens issued for external resources (RFC 8707, RFC 9068).
+      jwks_uri: `${baseUrl}/.well-known/jwks.json`,
       scopes_supported: allowedScopes,
       response_types_supported: ['code'],
       grant_types_supported: ['authorization_code', 'refresh_token'],
@@ -807,6 +995,54 @@ export const getMetadata = async (req: Request, res: Response): Promise<void> =>
 };
 
 /**
+ * GET /.well-known/jwks.json
+ * Public keys that verify the JWT access tokens issued for external resources. Public keys only.
+ */
+export const getJwks = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const systemConfig = await getSystemConfigDao().get();
+    const oauthConfig = { ...cloneDefaultOAuthServerConfig(), ...systemConfig?.oauthServer };
+    if (!oauthConfig.enabled) {
+      res.status(404).json({ error: 'OAuth server not configured' });
+      return;
+    }
+    // With external resources configured, the key that will sign must be in the very first JWKS a
+    // verifier fetches, or its first token would arrive ahead of its key.
+    if (getExternalResources(systemConfig).length > 0) {
+      // Only ever the very first key, once; a failure is logged and the keys that exist are served.
+      await ensureSigningKeyExists().catch((error) =>
+        logger.error('Unable to ensure an OAuth signing key exists:', error),
+      );
+    }
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(await getPublicJwks());
+  } catch (error) {
+    logger.error('JWKS error:', error);
+    res.status(500).json({ error: 'server_error' });
+  }
+};
+
+/**
+ * POST /api/oauth/signing-keys/rotate (administrators only)
+ * Start signing with a new key; the previous key stays published until its tokens have expired.
+ * Answers with key ids only.
+ */
+export const rotateOAuthSigningKey = async (req: Request, res: Response): Promise<void> => {
+  const user = (req as any).user;
+  if (!user?.isAdmin || user.credentialWriteGrant) {
+    res.status(403).json({ success: false, message: 'Admin privileges required' });
+    return;
+  }
+  try {
+    const result = await rotateSigningKey();
+    res.json({ success: true, data: result });
+  } catch (error) {
+    logger.error('Failed to rotate the OAuth signing key:', error);
+    res.status(500).json({ success: false, message: 'Failed to rotate the signing key' });
+  }
+};
+
+/**
  * GET /.well-known/oauth-protected-resource
  * OAuth 2.0 Protected Resource Metadata (RFC 9728)
  * Provides information about authorization servers that protect this resource
@@ -823,7 +1059,7 @@ export const getProtectedResourceMetadata = async (req: Request, res: Response):
       return;
     }
 
-    const baseUrl = getPublicInstallBaseUrl(req, systemConfig);
+    const baseUrl = normalizeIssuer(getPublicInstallBaseUrl(req, systemConfig));
     const resource = getProtectedResourceUrlFromMetadataRequest(req, systemConfig);
     if (!resource) {
       res.status(404).json({ error: 'Protected resource not found' });
