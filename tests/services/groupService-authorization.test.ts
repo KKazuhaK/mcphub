@@ -6,6 +6,7 @@ const mockGroupDao = {
   findById: jest.fn(),
   findByName: jest.fn(),
   update: jest.fn(),
+  updateWithKeyScopes: jest.fn(),
   delete: jest.fn(),
 };
 
@@ -85,6 +86,10 @@ describe('groupService authorization', () => {
     mockGroupDao.findById.mockResolvedValue(adminOwnedGroup);
     mockGroupDao.findByName.mockResolvedValue(null);
     mockGroupDao.update.mockImplementation(async (_id: string, updates: any) => ({
+      ...adminOwnedGroup,
+      ...updates,
+    }));
+    mockGroupDao.updateWithKeyScopes.mockImplementation(async (_id: string, updates: any) => ({
       ...adminOwnedGroup,
       ...updates,
     }));
@@ -190,7 +195,33 @@ describe('groupService authorization', () => {
         name: 'admin-approved',
       }),
     );
-    expect(mockGroupDao.update).toHaveBeenCalledWith('group-1', { name: 'admin-approved' });
+    expect(mockGroupDao.updateWithKeyScopes).toHaveBeenCalledWith('group-1', {
+      name: 'admin-approved',
+    });
+  });
+
+  it('moves bearer key scopes only when the group is renamed', async () => {
+    mockUserContextService.getCurrentUser.mockReturnValue({
+      username: 'superadmin',
+      isAdmin: true,
+    });
+
+    await updateGroup('group-1', { description: 'same name' });
+    await updateGroup('group-1', { name: 'admin-group', description: 'still same name' });
+    expect(mockGroupDao.updateWithKeyScopes).not.toHaveBeenCalled();
+    expect(mockGroupDao.update).toHaveBeenCalledTimes(2);
+  });
+
+  it('fails the rename when the atomic group and key update fails', async () => {
+    mockUserContextService.getCurrentUser.mockReturnValue({
+      username: 'superadmin',
+      isAdmin: true,
+    });
+    mockGroupDao.updateWithKeyScopes.mockRejectedValueOnce(new Error('write failed'));
+
+    await expect(updateGroup('group-1', { name: 'renamed-group' })).resolves.toBeNull();
+    expect(mockGroupDao.update).not.toHaveBeenCalled();
+    expect(notifyToolChanged).not.toHaveBeenCalled();
   });
 
   it('allows non-admin owners to mutate their own groups', async () => {
