@@ -180,6 +180,7 @@ export async function syncSettingsToDatabase(): Promise<void> {
       // Tokens and pending authorization are runtime state, never declarations.
       if (oauth) {
         delete oauth.accessToken;
+        delete oauth.accessTokenExpiresAt;
         delete oauth.refreshToken;
         delete oauth.pendingAuthorization;
       }

@@ -624,6 +624,7 @@ export interface ServerConfig {
     grantResource?: string;
     scopes?: string[]; // Required OAuth scopes
     accessToken?: string; // Pre-obtained access token (if available)
+    accessTokenExpiresAt?: number; // Absolute access token expiry in milliseconds
     refreshToken?: string; // Refresh token for renewing access
 
     // Dynamic client registration (RFC7591)
