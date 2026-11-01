@@ -125,6 +125,9 @@ jest.mock('@modelcontextprotocol/node', () => ({
 }));
 
 jest.mock('@modelcontextprotocol/server', () => ({
+  ...jest.requireActual<typeof import('@modelcontextprotocol/server')>(
+    '@modelcontextprotocol/server',
+  ),
   isInitializeRequest: jest.fn(() => true),
   isLegacyRequest: jest.fn(async () => true),
   createMcpHandler: jest.fn(() => ({

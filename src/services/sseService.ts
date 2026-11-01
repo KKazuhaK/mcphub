@@ -14,6 +14,7 @@ import {
   isLegacyRequest,
 } from '@modelcontextprotocol/server';
 import { deleteMcpServer, getMcpServer } from './mcpService.js';
+import { mcpEventBus } from './mcpEventBus.js';
 import config from '../config/index.js';
 import {
   getBearerKeyDao,
@@ -106,6 +107,7 @@ const getModernMcpNodeHandler = (): ReturnType<typeof toNodeHandler> => {
     },
     {
       legacy: 'reject',
+      bus: mcpEventBus,
       onerror: (error) => {
         logger.error('[MCP 2026] Modern handler error:', error);
       },

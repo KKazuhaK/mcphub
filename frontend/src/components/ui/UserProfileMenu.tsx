@@ -123,7 +123,7 @@ const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ collapsed, version })
             {t('sponsor.label')}
           </button>
 
-          {i18n.language === 'zh' ? (
+          {i18n.resolvedLanguage === 'zh' ? (
             <button
               onClick={handleWeChatClick}
               className="hub-menu-item"

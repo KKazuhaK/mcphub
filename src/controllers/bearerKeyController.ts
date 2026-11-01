@@ -174,6 +174,44 @@ export const updateBearerKey = async (req: Request, res: Response): Promise<void
   }
 };
 
+// Rotate only the secret; keep ownership, enabled state and resource scope intact.
+export const resetBearerKey = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      res.status(400).json({ success: false, message: 'Key id is required' });
+      return;
+    }
+    const dao = getBearerKeyDao();
+    const existing = await dao.findById(id);
+    if (!existing) {
+      res.status(404).json({ success: false, message: 'Bearer key not found' });
+      return;
+    }
+    if (!canManageKey(getAuthenticatedUser(req), existing)) {
+      res.status(403).json({ success: false, message: 'Forbidden' });
+      return;
+    }
+    // The DAO hashes the plaintext it is given and keeps only the hash and prefix.
+    const token = generateBearerToken();
+    const updated = await dao.update(id, { token });
+    if (!updated) {
+      res.status(404).json({ success: false, message: 'Bearer key not found' });
+      return;
+    }
+    // The only other response that carries a plaintext token, like create.
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      success: true,
+      data: { ...sanitizeKey(updated), token },
+      message: 'Bearer key reset. The token is only shown once.',
+    } satisfies ApiResponse);
+  } catch (error) {
+    logger.error('Failed to reset bearer key:', error);
+    res.status(500).json({ success: false, message: 'Failed to reset bearer key' });
+  }
+};
+
 export const deleteBearerKey = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;

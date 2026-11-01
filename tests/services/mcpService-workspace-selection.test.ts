@@ -104,6 +104,11 @@ jest.mock('../../src/services/sseService.js', () => ({
 
 const mockHandleSearchToolsRequest = jest.fn<(...args: any[]) => Promise<any>>();
 const mockInitSmartRoutingService = jest.fn();
+const mockBusPublish = jest.fn();
+jest.mock('../../src/services/mcpEventBus.js', () => ({
+  mcpEventBus: { publish: (...args: unknown[]) => mockBusPublish(...args) },
+}));
+
 jest.mock('../../src/services/smartRoutingService.js', () => ({
   initSmartRoutingService: mockInitSmartRoutingService,
   getSmartRoutingTools: jest.fn(),
@@ -165,6 +170,7 @@ import {
   initUpstreamServers,
   removeServer,
   notifyUserListsChanged,
+  broadcastToolListChanged,
   setServerInfosForTest,
 } from '../../src/services/mcpService.js';
 import { UserContextService } from '../../src/services/userContextService.js';
@@ -462,5 +468,16 @@ describe('mcpService workspace selection', () => {
       'alice-session:sendResourceListChanged',
       'alice-session:sendToolListChanged',
     ]);
+  });
+
+  it('publishes catalog-wide changes to the modern event bus but never a user-scoped one', () => {
+    mockBusPublish.mockClear();
+
+    notifyUserListsChanged('alice');
+    expect(mockBusPublish).not.toHaveBeenCalled();
+
+    broadcastToolListChanged();
+    expect(mockBusPublish).toHaveBeenCalledTimes(1);
+    expect(mockBusPublish).toHaveBeenCalledWith({ kind: 'tools_list_changed' });
   });
 });

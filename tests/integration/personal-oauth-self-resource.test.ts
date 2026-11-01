@@ -435,7 +435,8 @@ describe('a server that is an external resource of this hub', () => {
     const after = seen.filter((e) => e.sub === 'alice').at(-1)!;
     expect(after.token).not.toBe(before.token);
     expect(after.aud).toBe(before.aud);
-    expect(rejected).toBeGreaterThan(rejectedBefore);
+    // The stored expiry makes the refresh happen before the call, not after a 401.
+    expect(rejected).toBe(rejectedBefore);
     const refreshes = tokenRequests.slice(requestsBefore);
     expect(refreshes.length).toBeGreaterThanOrEqual(1);
     for (const request of refreshes) {

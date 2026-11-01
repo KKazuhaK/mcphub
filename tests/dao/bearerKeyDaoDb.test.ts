@@ -68,6 +68,28 @@ describe('BearerKeyDaoDbImpl hashing', () => {
     expect(await dao.findByToken(`${token}x`)).toBeUndefined();
   });
 
+  it('stores only the hash and prefix of a replacement token and clears any plaintext', async () => {
+    const token = generateBearerToken();
+    repository.update.mockImplementation(async (id: string, data: any) => ({
+      id,
+      name: 'one',
+      enabled: true,
+      kind: 'user',
+      owner: 'alice',
+      accessType: 'all',
+      // Like the repository, ignore the fields the caller did not set.
+      ...Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined)),
+    }));
+
+    const updated = await new BearerKeyDaoDbImpl().update('key-1', { token });
+
+    const written = repository.update.mock.calls[0][1];
+    expect(written).toMatchObject({ token: null, tokenHash: sha256(token) });
+    expect(JSON.stringify(written)).not.toContain(token);
+    expect(updated).toMatchObject({ tokenHash: sha256(token), owner: 'alice', enabled: true });
+    expect(updated?.token).toBeUndefined();
+  });
+
   it('hashes rows left in plaintext by an older version, idempotently and conditionally', async () => {
     rows.push({
       id: 'legacy',

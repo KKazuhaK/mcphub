@@ -242,6 +242,20 @@ describe('BearerKeyDaoImpl migration + settings caching behavior', () => {
       expect((await dao.findByToken('plain-token-a-0123456789'))?.id).toBe('a');
     });
 
+    it('replaces the secret of a key on update, keeping its scope, and revokes the old token', async () => {
+      writeSettings(settingsPath, settingsWith([legacyKey('k1', 'plain-token-k1-0123456789')]));
+      const dao = new BearerKeyDaoImpl();
+      await dao.migrateLegacyTokens();
+
+      const updated = await dao.update('k1', { token: 'plain-token-new-0123456789' });
+
+      expect(updated).toMatchObject({ id: 'k1', enabled: true });
+      expect(updated?.token).toBeUndefined();
+      expect(await dao.findByToken('plain-token-k1-0123456789')).toBeUndefined();
+      expect((await dao.findByToken('plain-token-new-0123456789'))?.id).toBe('k1');
+      expect(fs.readFileSync(settingsPath, 'utf8')).not.toContain('plain-token-new-0123456789');
+    });
+
     it('keeps key ids, updates and revocation working on hashed keys', async () => {
       writeSettings(settingsPath, settingsWith([legacyKey('k1', 'plain-token-k1-0123456789')]));
       const dao = new BearerKeyDaoImpl();
