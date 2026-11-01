@@ -26,6 +26,7 @@ import {
   createBearerKey,
   deleteBearerKey,
   getBearerKeys,
+  resetBearerKey,
   updateBearerKey,
 } from '../../src/controllers/bearerKeyController.js';
 
@@ -41,6 +42,7 @@ const makeRes = () => {
   const res = {
     json: jest.fn().mockReturnThis(),
     status: jest.fn().mockReturnThis(),
+    setHeader: jest.fn(),
   };
   return res as unknown as Response;
 };
@@ -191,5 +193,77 @@ describe('bearerKeyController', () => {
 
     expect(mockDelete).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(403);
+  });
+
+  describe('resetBearerKey', () => {
+    const existing = {
+      id: 'key-5',
+      name: 'cursor',
+      tokenHash: 'd'.repeat(64),
+      tokenPrefix: 'mcphub_d',
+      enabled: false,
+      kind: 'user',
+      owner: 'alice',
+      accessType: 'all',
+    };
+
+    it('rotates only the secret and returns the new token once, without the hash', async () => {
+      mockFindById.mockResolvedValue(existing);
+      mockUpdate.mockImplementation(async (_id, data) => ({
+        ...existing,
+        tokenHash: 'e'.repeat(64),
+        tokenPrefix: data.token.slice(0, 8),
+      }));
+      const res = makeRes();
+
+      await resetBearerKey(makeReq({ params: { id: 'key-5' } }), res);
+
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+      const [id, changes] = mockUpdate.mock.calls[0];
+      expect(id).toBe('key-5');
+      expect(Object.keys(changes)).toEqual(['token']);
+      expect(changes.token).toMatch(/^mcphub_[0-9a-f]{64}$/);
+      expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store');
+      const body = (res.json as jest.Mock).mock.calls[0][0];
+      expect(body.data).toMatchObject({
+        id: 'key-5',
+        enabled: false,
+        kind: 'user',
+        owner: 'alice',
+        token: changes.token,
+      });
+      expect(body.data).not.toHaveProperty('tokenHash');
+    });
+
+    it('does not let a user reset another user key or a system key', async () => {
+      for (const key of [
+        { ...existing, owner: 'bob' },
+        { ...existing, kind: 'system', owner: undefined },
+      ]) {
+        mockFindById.mockResolvedValue(key);
+        const res = makeRes();
+        await resetBearerKey(makeReq({ params: { id: 'key-5' } }), res);
+        expect(res.status).toHaveBeenCalledWith(403);
+      }
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
+
+    it('lets an administrator reset any key and reports an unknown key as missing', async () => {
+      mockFindById.mockResolvedValueOnce({ ...existing, owner: 'bob' });
+      mockUpdate.mockResolvedValue({ ...existing, owner: 'bob' });
+      const adminReq = makeReq({
+        params: { id: 'key-5' },
+        user: { username: 'root', isAdmin: true },
+      });
+      const ok = makeRes();
+      await resetBearerKey(adminReq, ok);
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+
+      mockFindById.mockResolvedValueOnce(undefined);
+      const missing = makeRes();
+      await resetBearerKey(adminReq, missing);
+      expect(missing.status).toHaveBeenCalledWith(404);
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+    });
   });
 });

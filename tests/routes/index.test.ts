@@ -193,6 +193,7 @@ jest.mock('../../src/controllers/bearerKeyController.js', () => ({
   getBearerKeys: routeHandler,
   createBearerKey: routeHandler,
   updateBearerKey: routeHandler,
+  resetBearerKey: routeHandler,
   deleteBearerKey: routeHandler,
 }));
 
