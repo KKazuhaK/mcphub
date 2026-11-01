@@ -101,6 +101,54 @@ describe('the tool risk control on a workspace service row', () => {
     expect(radios(html)).toHaveLength(3);
   });
 
+  it('does not say to connect when the user is connected but their tools are not listed yet', () => {
+    const html = render(
+      server({
+        toolCount: null,
+        riskCounts: null,
+        requiresPersonalCredential: true,
+        credentialConfigured: true,
+      }),
+    );
+    expect(html).toContain('workspacePage.risk.pendingTools');
+    expect(html).toContain('workspacePage.risk.connectedPending');
+    expect(html).not.toContain('workspacePage.risk.unknownTools');
+    expect(html).not.toContain('workspacePage.risk.connectToSee');
+  });
+
+  it.each([
+    ['disabled', { enabled: false }],
+    ['paused', { status: { code: 'paused', message: 'paused', action: null } }],
+    ['failing', { status: { code: 'error', message: 'down', action: 'retry_later' } }],
+  ] as Array<[string, Partial<WorkspaceServer>]>)(
+    'keeps the status-driven text for a %s connected service',
+    (_label, extra) => {
+      const html = render(
+        server({
+          toolCount: null,
+          riskCounts: null,
+          requiresPersonalCredential: true,
+          credentialConfigured: true,
+          ...extra,
+        }),
+      );
+      expect(html).not.toContain('workspacePage.risk.pendingTools');
+    },
+  );
+
+  it('still says to connect when the personal credential is missing', () => {
+    const html = render(
+      server({
+        toolCount: null,
+        riskCounts: null,
+        requiresPersonalCredential: true,
+        credentialConfigured: false,
+      }),
+    );
+    expect(html).toContain('workspacePage.risk.connectToSee');
+    expect(html).not.toContain('workspacePage.risk.pendingTools');
+  });
+
   it('tells the user when a level is only the administrator’s default', () => {
     expect(render(server({ riskCeilingIsDefault: true }))).toContain(
       'workspacePage.risk.defaultNote',

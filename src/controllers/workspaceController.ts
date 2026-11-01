@@ -90,14 +90,23 @@ const summarizeTools = async (
   server: ServerRecord,
   user: RequestPrincipal,
   ceiling: ToolRiskLevel,
+  personalAuth: PersonalAuthState,
 ): Promise<ToolSummary> => {
-  const { getServerByName } = await import('../services/mcpService.js');
+  const mcpService = await import('../services/mcpService.js');
   const prefix = `${server.name}${getNameSeparator()}`;
-  const live = getServerByName(server.name)?.tools ?? [];
-  // A server needing personal credentials has no shared tool list: what the user would get
-  // is unknown until they connect, which is not the same as having no tools.
-  if (live.length === 0 && hasPersonalAuthentication(server)) {
-    return { toolCount: null, riskCounts: null };
+  let live: Array<{ name: string; annotations?: Record<string, unknown> }>;
+  if (hasPersonalAuthentication(server)) {
+    // A server needing personal credentials has no shared tool list. Only the requesting
+    // user's own last tool list can say what they get; until it has listed
+    // tools, the count is unknown, which is not the same as having no tools.
+    const own =
+      personalAuth === 'configured'
+        ? await mcpService.peekServerToolsForPrincipal(server.name, user)
+        : undefined;
+    if (!own) return { toolCount: null, riskCounts: null };
+    live = own;
+  } else {
+    live = mcpService.getServerByName(server.name)?.tools ?? [];
   }
   const trusted = areAnnotationsTrusted(server.owner);
   const runtimeNames = live.map((tool) => tool.name);
@@ -178,7 +187,7 @@ export const listWorkspaceServers = async (req: Request, res: Response): Promise
     const data = await Promise.all(
       (await buildServerViews(req, user)).map(
         async ({ server, selected, riskCeiling, riskCeilingIsDefault, personalAuth, status }) => {
-          const tools = await summarizeTools(server, user, riskCeiling);
+          const tools = await summarizeTools(server, user, riskCeiling, personalAuth);
           return {
             name: server.name,
             description: server.description,

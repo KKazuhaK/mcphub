@@ -51,7 +51,7 @@ import {
   flushCapabilitySnapshot,
   type CapabilityScope,
 } from './capabilitySnapshotService.js';
-import { PrincipalRuntimeService } from './principalRuntimeService.js';
+import { PrincipalRuntimeService, type KnownTool } from './principalRuntimeService.js';
 import { UserContextService } from './userContextService.js';
 import {
   credentialBindingEvents,
@@ -6017,6 +6017,21 @@ export const getServerToolsForPrincipal = async (
     return lease.info.tools ?? [];
   } finally {
     lease.release();
+  }
+};
+
+/**
+ * The tools the given principal's own runtime has already listed for a personal-credential
+ * server, read without connecting anything. Undefined when nothing is known yet.
+ */
+export const peekServerToolsForPrincipal = async (
+  serverName: string,
+  principal: RequestPrincipal,
+): Promise<KnownTool[] | undefined> => {
+  try {
+    return await principalRuntimes.peekTools(serverName, principal);
+  } catch {
+    return undefined;
   }
 };
 

@@ -91,6 +91,15 @@ const WorkspaceServiceRow: React.FC<WorkspaceServiceRowProps> = ({
     }
   };
 
+  // Connected and usable, but the user's own tool list has not been fetched yet. A paused,
+  // disabled or failing service keeps the text its status gives.
+  const toolsPending =
+    server.toolCount === null &&
+    server.requiresPersonalCredential &&
+    server.credentialConfigured &&
+    server.enabled &&
+    (server.status.code === 'available' || server.status.code === 'not_selected');
+
   // How far the tools of this service may reach. Options above the administrator's cap stay
   // visible but cannot be chosen.
   const renderRisk = () => {
@@ -139,7 +148,9 @@ const WorkspaceServiceRow: React.FC<WorkspaceServiceRowProps> = ({
         </div>
         {!server.riskCounts && (
           <div className="mt-1 text-[12px]" style={{ color: 'var(--hub-ink-3)' }}>
-            {t('workspacePage.risk.connectToSee')}
+            {toolsPending
+              ? t('workspacePage.risk.connectedPending')
+              : t('workspacePage.risk.connectToSee')}
           </div>
         )}
         {server.riskCeilingIsDefault && server.riskCounts && (
@@ -233,7 +244,9 @@ const WorkspaceServiceRow: React.FC<WorkspaceServiceRowProps> = ({
       </div>
       <span className="hub-mono hub-num text-[12px]" style={{ color: 'var(--hub-ink-3)' }}>
         {server.toolCount === null
-          ? t('workspacePage.risk.unknownTools')
+          ? toolsPending
+            ? t('workspacePage.risk.pendingTools')
+            : t('workspacePage.risk.unknownTools')
           : t('workspacePage.services.toolCount', { count: server.toolCount })}
       </span>
       <div className="flex min-w-[96px] justify-end">{renderAction()}</div>

@@ -1733,6 +1733,8 @@
       "banner_other": "{{count}} tools in your selected services are hidden: tools that change data or act for you stay off until you allow them. Open a service below to allow more.",
       "connectToSee": "Connect this service to see its tools and choose what they may do.",
       "unknownTools": "Connect to see tools",
+      "pendingTools": "Connected — tools appear after first use",
+      "connectedPending": "Connected. This service's tools appear here after you first use it.",
       "defaultNote": "Set by your administrator until you choose.",
       "untrustedHint": "This service is not run by an administrator, so its tools are not verified: all of them count as actions others can see."
     }

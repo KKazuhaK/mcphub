@@ -1738,6 +1738,8 @@
       "banner_many": "{{count}} outils de vos services sélectionnés sont masqués : les outils qui modifient des données ou agissent pour vous restent désactivés tant que vous ne les autorisez pas. Ouvrez un service ci-dessous pour en autoriser davantage.",
       "connectToSee": "Connectez ce service pour voir ses outils et choisir ce qu'ils peuvent faire.",
       "unknownTools": "Connectez-vous pour voir les outils",
+      "pendingTools": "Connecté — les outils apparaissent après la première utilisation",
+      "connectedPending": "Connecté. Les outils de ce service apparaissent ici après sa première utilisation.",
       "defaultNote": "Défini par votre administrateur tant que vous n'avez pas choisi.",
       "untrustedHint": "Ce service n'est pas géré par un administrateur : ses outils ne sont pas vérifiés et comptent tous comme des actions visibles par d'autres."
     }

@@ -1729,6 +1729,8 @@
       "banner_other": "Seçtiğiniz hizmetlerde {{count}} araç gizli: veri değiştiren veya sizin adınıza işlem yapan araçlar siz izin verene kadar kapalı kalır. Daha fazlasına izin vermek için aşağıdan bir hizmeti açın.",
       "connectToSee": "Araçlarını görmek ve neler yapabileceklerini seçmek için bu hizmeti bağlayın.",
       "unknownTools": "Araçları görmek için bağlanın",
+      "pendingTools": "Bağlandı — araçlar ilk kullanımdan sonra görünür",
+      "connectedPending": "Bağlandı. Bu hizmetin araçları ilk kullanımdan sonra burada görünür.",
       "defaultNote": "Siz seçene kadar yöneticiniz tarafından belirlenir.",
       "untrustedHint": "Bu hizmeti bir yönetici işletmiyor; araçları doğrulanmadı ve hepsi başkalarının görebileceği işlemler sayılır."
     }
