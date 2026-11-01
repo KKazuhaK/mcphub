@@ -40,7 +40,7 @@ export const EndpointCopy: React.FC<EndpointCopyProps> = ({
   };
 
   return (
-    <div className={cn('hub-endpoint', className)} role="group" aria-label={ariaLabel || url}>
+    <div className={cn('hub-endpoint hub-endpoint-stack', className)} role="group" aria-label={ariaLabel || url}>
       {label && <div className="hub-endpoint-label">{label}</div>}
       <div className="hub-endpoint-url" title={url}>
         {prefix && <span style={{ color: 'var(--hub-ink-3)' }}>{prefix}</span>}

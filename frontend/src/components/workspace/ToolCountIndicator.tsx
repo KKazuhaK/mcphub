@@ -20,17 +20,17 @@ const ToolCountIndicator: React.FC<ToolCountIndicatorProps> = ({ total }) => {
   return (
     <div className="hub-card px-4 py-3" data-level={level}>
       <div className="flex items-baseline gap-2">
-        <span className="hub-num text-[22px] font-medium" style={{ color: 'var(--hub-ink)' }}>
+        <span className="hub-num text-[20px] font-semibold" style={{ color: 'var(--hub-ink)' }}>
           {total}
         </span>
-        <span className="text-[13px]" style={{ color: 'var(--hub-ink-2)' }}>
+        <span className="text-[14px]" style={{ color: 'var(--hub-ink-2)' }}>
           {t('workspacePage.tools.label', { count: total })}
         </span>
       </div>
       {level !== 'ok' && (
         <p
           role="status"
-          className="mt-2 flex items-start gap-2 text-[12.5px]"
+          className="mt-2 flex items-start gap-2 text-[12px] leading-[1.625]"
           style={{ color: 'var(--hub-ink-2)' }}
         >
           <AlertTriangle size={14} className="mt-0.5 flex-shrink-0" style={{ color }} aria-hidden />

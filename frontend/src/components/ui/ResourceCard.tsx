@@ -178,7 +178,7 @@ const ResourceCard = ({ resource, readOnly = false, onToggle, onDescriptionUpdat
       </div>
 
       {isExpanded && (
-        <div style={{ borderTop: '1px solid var(--hub-line-2)', padding: '8px 12px' }}>
+        <div className="hub-reveal" style={{ borderTop: '1px solid var(--hub-line-2)', padding: '8px 12px' }}>
           <span className="hub-sect">{t('builtinResources.mimeType')}:</span>{' '}
           <span style={{ fontSize: 12, color: 'var(--hub-ink-2)' }}>{resource.mimeType || 'text/plain'}</span>
         </div>

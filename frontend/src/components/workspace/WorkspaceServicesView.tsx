@@ -37,8 +37,6 @@ const SummaryBannerView: React.FC<{ summary: WorkspaceSummary }> = ({ summary })
   const banner = resolveSummaryBanner(summary);
   const tone = banner.kind === 'normal' ? 'ok' : banner.kind === 'none_selected' ? 'info' : 'warn';
   const Icon = tone === 'ok' ? CheckCircle2 : tone === 'info' ? Info : AlertTriangle;
-  const color =
-    tone === 'ok' ? 'var(--hub-ok)' : tone === 'warn' ? 'var(--hub-warn)' : 'var(--hub-ink-3)';
   const text = {
     normal: t('workspacePage.banner.normal', { count: banner.selected }),
     partial: t('workspacePage.banner.partial', {
@@ -51,12 +49,8 @@ const SummaryBannerView: React.FC<{ summary: WorkspaceSummary }> = ({ summary })
   }[banner.kind];
 
   return (
-    <div
-      className="hub-card flex items-center gap-3 px-4 py-3 text-[13.5px]"
-      role="status"
-      data-banner={banner.kind}
-    >
-      <Icon size={18} style={{ color }} aria-hidden />
+    <div className={`hub-callout ${tone}`} role="status" data-banner={banner.kind}>
+      <Icon size={16} aria-hidden />
       <span>{text}</span>
     </div>
   );
@@ -222,20 +216,30 @@ const WorkspaceServicesView: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="hub-card p-10 text-center text-sm" style={{ color: 'var(--hub-ink-3)' }}>
-        {t('workspacePage.loading')}
+      <div className="space-y-4" role="status" aria-busy="true">
+        <span className="sr-only">{t('workspacePage.loading')}</span>
+        <span className="hub-skeleton h-11 w-full" aria-hidden />
+        <div className="hub-card divide-y divide-[var(--hub-line-2)]" aria-hidden>
+          {[0, 1, 2].map((row) => (
+            <div key={row} className="flex items-center gap-4 px-4 py-4">
+              <span className="hub-skeleton h-[18px] w-[30px] rounded-full" />
+              <div className="flex-1 space-y-2">
+                <span className="hub-skeleton h-3.5 w-40" />
+                <span className="hub-skeleton h-3 w-64 max-w-full" />
+              </div>
+              <span className="hub-skeleton h-8 w-20" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   if (error && !summary) {
     return (
-      <div
-        className="hub-card flex items-center justify-between gap-3 px-4 py-3 text-sm"
-        role="alert"
-      >
+      <div className="hub-callout err items-center justify-between" role="alert">
         <div>
-          <div style={{ color: 'var(--hub-err)' }}>
+          <div className="font-medium">
             {t(error.disabled ? 'workspacePage.disabled' : 'workspacePage.loadFailed')}
           </div>
           {error.detail && !error.disabled && (
@@ -274,20 +278,16 @@ const WorkspaceServicesView: React.FC = () => {
       </div>
 
       {hiddenTools > 0 && (
-        <div
-          className="hub-card flex items-center gap-3 px-4 py-3 text-[13.5px]"
-          role="status"
-          data-banner="risk"
-        >
-          <Info size={18} style={{ color: 'var(--hub-warn)' }} aria-hidden />
+        <div className="hub-callout warn" role="status" data-banner="risk">
+          <Info size={16} aria-hidden />
           <span>{t('workspacePage.risk.banner', { count: hiddenTools })}</span>
         </div>
       )}
 
       <section className="hub-card overflow-hidden" aria-labelledby="workspace-services-title">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4">
           <div>
-            <h2 id="workspace-services-title" className="font-semibold">
+            <h2 id="workspace-services-title" className="hub-card-title">
               {t('workspacePage.services.title')}
             </h2>
             <p className="hub-sub">{t('workspacePage.services.description')}</p>
@@ -301,7 +301,10 @@ const WorkspaceServicesView: React.FC = () => {
           </button>
         </div>
         {servers.length === 0 ? (
-          <p className="px-4 pb-6 text-center text-sm" style={{ color: 'var(--hub-ink-3)' }}>
+          <p
+            className="px-4 py-10 text-center text-sm"
+            style={{ color: 'var(--hub-ink-3)', borderTop: '1px solid var(--hub-line-2)' }}
+          >
             {t('workspacePage.services.empty')}
           </p>
         ) : (

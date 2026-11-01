@@ -29,6 +29,27 @@
   --hub-err: oklch(0.62 0.18 25);
   --hub-mono:
     'Geist Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Scale from GitHub Primer primitives (src/tokens, commit ec3eee6). */
+  --hub-radius-sm: 3px; /* borderRadius.small */
+  --hub-radius: 6px; /* borderRadius.medium */
+  --hub-radius-lg: 12px; /* borderRadius.large */
+  --hub-dur-hover: 100ms; /* transition.hover */
+  --hub-dur-state: 200ms; /* transition.stateChange */
+  --hub-dur-enter: 300ms; /* transition.enter */
+  --hub-dur-exit: 200ms; /* transition.exit */
+  --hub-ease-hover: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --hub-ease-move: cubic-bezier(0.6, 0, 0.2, 1);
+  --hub-ease-enter: cubic-bezier(0.3, 0.8, 0.6, 1);
+  --hub-ease-exit: cubic-bezier(0.7, 0.1, 0.75, 0.9);
+  /* shadow.resting.* and shadow.floating.*; the 1px ring uses our own line color. */
+  --hub-shadow-resting: 0 1px 1px 0 #1f23280f;
+  --hub-shadow-resting-sm: 0 1px 1px 0 #1f23280f, 0 1px 3px 0 #1f23280f;
+  --hub-shadow-floating-sm:
+    0 0 0 1px var(--hub-line), 0 6px 12px -3px #25292e0a, 0 6px 18px 0 #25292e1f;
+  --hub-shadow-floating-md:
+    0 0 0 1px var(--hub-line), 0 8px 16px -4px #25292e14, 0 4px 32px -4px #25292e14,
+    0 24px 48px -12px #25292e14, 0 48px 96px -24px #25292e14;
 }
 
 .dark {
@@ -44,13 +65,21 @@
   --hub-line: oklch(0.3 0.005 250);
   --hub-line-2: oklch(0.26 0.005 250);
   --hub-accent-soft: oklch(0.32 0.06 250);
+  --hub-shadow-resting: 0 1px 1px 0 #010409cc;
+  --hub-shadow-resting-sm: 0 1px 1px 0 #01040999, 0 1px 3px 0 #01040999;
+  --hub-shadow-floating-sm:
+    0 0 0 1px var(--hub-line), 0 6px 12px -3px #01040966, 0 6px 18px 0 #01040966;
+  --hub-shadow-floating-md:
+    0 0 0 1px var(--hub-line), 0 8px 16px -4px #01040966, 0 4px 32px -4px #01040966,
+    0 24px 48px -12px #01040966, 0 48px 96px -24px #01040966;
 }
 
 /* Hairline border + crisp surfaces */
 .hub-card {
   background: var(--hub-surface);
   border: 1px solid var(--hub-line);
-  border-radius: 10px;
+  border-radius: var(--hub-radius);
+  box-shadow: var(--hub-shadow-resting);
 }
 .hub-card-pad { padding: 16px; }
 .hub-surface { background: var(--hub-surface); }
@@ -63,16 +92,20 @@
 /* Typography */
 .hub-mono { font-family: var(--hub-mono); font-feature-settings: 'ss01'; letter-spacing: -0.01em; }
 .hub-num { font-variant-numeric: tabular-nums; }
-.hub-h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.018em; margin: 0; color: var(--hub-ink); }
-.hub-sub { color: var(--hub-ink-3); margin: 4px 0 0; font-size: 13px; }
+/* text.title.medium / text.body.medium */
+.hub-h1 { font-size: 20px; line-height: 1.625; font-weight: 600; letter-spacing: -0.01em; margin: 0; color: var(--hub-ink); }
+.hub-sub { color: var(--hub-ink-3); margin: 4px 0 0; font-size: 14px; line-height: 1.5; }
+/* text.caption, kept uppercase */
 .hub-sect {
-  font-size: 11px;
+  font-size: 12px;
+  line-height: 1.25;
   font-weight: 500;
   color: var(--hub-ink-3);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
 }
-.hub-card-title { font-size: 13px; font-weight: 500; margin: 0; color: var(--hub-ink); }
+/* text.title.small */
+.hub-card-title { font-size: 16px; line-height: 1.5; font-weight: 600; margin: 0; color: var(--hub-ink); }
 
 /* Status dot + text (replaces pills) */
 .hub-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--hub-ink-2); }
@@ -101,7 +134,7 @@
   display: inline-flex;
   align-items: center;
   padding: 1px 7px;
-  border-radius: 5px;
+  border-radius: var(--hub-radius-sm);
   font-size: 11px;
   color: var(--hub-ink-2);
   background: var(--hub-bg-2);
@@ -149,16 +182,22 @@
 .hub-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 30px;
+  gap: 8px;
+  height: 32px;
   padding: 0 12px;
-  border-radius: 7px;
+  border-radius: var(--hub-radius);
   border: 1px solid var(--hub-line);
   background: var(--hub-surface);
   color: var(--hub-ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+  transition:
+    background-color var(--hub-dur-hover) var(--hub-ease-hover),
+    border-color var(--hub-dur-hover) var(--hub-ease-hover),
+    color var(--hub-dur-hover) var(--hub-ease-hover),
+    box-shadow var(--hub-dur-hover) var(--hub-ease-hover),
+    transform var(--hub-dur-hover) var(--hub-ease-hover);
 }
 .hub-btn:hover { background: var(--hub-surface-hover); }
 .hub-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -171,37 +210,46 @@
 .hub-btn.danger { color: var(--hub-err); }
 .hub-btn.danger:hover { background: oklch(0.96 0.04 25); border-color: oklch(0.85 0.1 25); }
 .dark .hub-btn.danger:hover { background: oklch(0.3 0.08 25); }
-.hub-btn.sm { height: 26px; padding: 0 9px; font-size: 12px; }
+.hub-btn.sm { height: 28px; padding: 0 8px; gap: 4px; font-size: 12px; }
 
 /* Icon button */
 .hub-icon-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 7px;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--hub-radius);
   display: inline-grid;
   place-items: center;
   color: var(--hub-ink-2);
   border: 1px solid transparent;
   background: transparent;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition:
+    background-color var(--hub-dur-hover) var(--hub-ease-hover),
+    border-color var(--hub-dur-hover) var(--hub-ease-hover),
+    color var(--hub-dur-hover) var(--hub-ease-hover),
+    transform var(--hub-dur-hover) var(--hub-ease-hover);
 }
-.hub-icon-btn:hover { background: var(--hub-surface-hover); border-color: var(--hub-line); }
-.hub-icon-btn.sm { width: 26px; height: 26px; border-radius: 6px; }
+.hub-icon-btn:hover { background: var(--hub-surface-hover); border-color: var(--hub-line); color: var(--hub-ink); }
+.hub-icon-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.hub-icon-btn:disabled:hover { background: transparent; border-color: transparent; color: var(--hub-ink-2); }
+.hub-icon-btn.sm { width: 28px; height: 28px; }
 
 /* Inputs */
 .hub-input {
   height: 32px;
   padding: 0 10px;
-  border-radius: 7px;
+  border-radius: var(--hub-radius);
   border: 1px solid var(--hub-line);
   background: var(--hub-surface);
   color: var(--hub-ink);
-  font-size: 13px;
+  font-size: 14px;
   outline: 0;
   width: 100%;
+  transition:
+    border-color var(--hub-dur-hover) var(--hub-ease-hover),
+    box-shadow var(--hub-dur-hover) var(--hub-ease-hover);
 }
-.hub-input:focus { border-color: var(--hub-ink-2); }
+.hub-input:focus { border-color: var(--hub-accent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--hub-accent) 18%, transparent); }
 .hub-input::placeholder { color: var(--hub-ink-3); }
 .hub-input.mono { font-family: var(--hub-mono); font-size: 12.5px; }
 
@@ -218,7 +266,9 @@
   border-radius: 999px;
   background: var(--hub-surface);
   box-shadow: inset 0 0 0 1px var(--hub-line);
-  transition: background 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    background-color var(--hub-dur-state) var(--hub-ease-move),
+    box-shadow var(--hub-dur-state) var(--hub-ease-move);
   flex: 0 0 var(--hub-switch-width);
   cursor: pointer;
   border: 0;
@@ -251,7 +301,10 @@
   border-radius: 50%;
   background: white;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
-  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform var(--hub-dur-state) var(--hub-ease-move),
+    background-color var(--hub-dur-state) var(--hub-ease-move),
+    box-shadow var(--hub-dur-state) var(--hub-ease-move);
 }
 .hub-switch.on {
   background: var(--hub-switch-track-on);
@@ -353,13 +406,13 @@
 .hub-server-card-select {
   padding: 0 26px 0 9px !important;
   font-size: 11px !important;
-  border-radius: 7px;
+  border-radius: var(--hub-radius);
 }
 
 .hub-server-card-visibility-badge {
   padding: 0 9px;
   font-size: 11px;
-  border-radius: 7px;
+  border-radius: var(--hub-radius);
 }
 
 .hub-server-capability-stat {
@@ -433,7 +486,7 @@
   align-items: center;
   gap: 0;
   border: 1px solid var(--hub-line);
-  border-radius: 8px;
+  border-radius: var(--hub-radius);
   background: var(--hub-bg-2);
   overflow: hidden;
   min-width: 0;
@@ -477,10 +530,25 @@
   border-right: 0;
   border-bottom: 0;
   cursor: pointer;
-  transition: background 0.15s;
+  transition:
+    background-color var(--hub-dur-hover) var(--hub-ease-hover),
+    color var(--hub-dur-hover) var(--hub-ease-hover);
 }
-.hub-endpoint .hub-endpoint-copy:hover { background: var(--hub-surface-hover); }
+.hub-endpoint .hub-endpoint-copy:hover { background: var(--hub-surface-hover); color: var(--hub-ink); }
 .hub-endpoint .hub-endpoint-copy.copied { color: var(--hub-ok); }
+
+/* On phones the label sits above the URL so the URL and copy button keep their room. */
+@media (max-width: 479px) {
+  .hub-endpoint.hub-endpoint-stack { flex-wrap: wrap; height: auto; }
+  .hub-endpoint.hub-endpoint-stack .hub-endpoint-label {
+    flex-basis: 100%;
+    height: 28px;
+    border-right: 0;
+    border-bottom: 1px solid var(--hub-line);
+  }
+  .hub-endpoint.hub-endpoint-stack .hub-endpoint-url { align-self: center; }
+  .hub-endpoint.hub-endpoint-stack .hub-endpoint-copy { height: 32px; }
+}
 
 /* Generic Settings page field rows — flatten heavy gray bg to hair-line */
 /* Only inside the settings page body, scoped via .page-card descendants */
@@ -493,7 +561,7 @@
 .hub-sr-fields > div {
   padding: 12px 14px !important;
   border: 1px solid var(--hub-line) !important;
-  border-radius: 8px !important;
+  border-radius: var(--hub-radius) !important;
   background: var(--hub-bg-2) !important;
   box-shadow: none !important;
 }
@@ -512,7 +580,7 @@
 .hub-sr-fields select {
   height: 32px !important;
   padding: 0 10px !important;
-  border-radius: 7px !important;
+  border-radius: var(--hub-radius) !important;
   border: 1px solid var(--hub-line) !important;
   background: var(--hub-surface) !important;
   color: var(--hub-ink) !important;
@@ -538,20 +606,21 @@
 .dashboard-card {
   background: var(--hub-surface) !important;
   border: 1px solid var(--hub-line) !important;
-  border-radius: 10px !important;
-  box-shadow: none !important;
-  transition: background 0.15s ease, border-color 0.15s ease !important;
+  border-radius: var(--hub-radius) !important;
+  box-shadow: var(--hub-shadow-resting) !important;
+  transition:
+    background-color var(--hub-dur-hover) var(--hub-ease-hover),
+    border-color var(--hub-dur-hover) var(--hub-ease-hover) !important;
 }
 .page-card:hover,
 .dashboard-card:hover {
   transform: none !important;
-  box-shadow: none !important;
+  box-shadow: var(--hub-shadow-resting) !important;
 }
 .dark .page-card,
 .dark .dashboard-card {
   background: var(--hub-surface) !important;
   border-color: var(--hub-line) !important;
-  box-shadow: none !important;
 }
 
 /* Legacy surfaces share the same neutral palette as hub cards. */
@@ -564,13 +633,13 @@
 .loading-container {
   background: var(--hub-surface) !important;
   border: 1px solid var(--hub-line) !important;
-  border-radius: 10px !important;
+  border-radius: var(--hub-radius) !important;
   box-shadow: none !important;
 }
 .empty-state {
   background: var(--hub-surface) !important;
   border: 1px solid var(--hub-line) !important;
-  border-radius: 10px !important;
+  border-radius: var(--hub-radius) !important;
   text-align: center !important;
   padding: 2.5rem 1.5rem !important;
 }
@@ -581,7 +650,7 @@
   background: oklch(0.97 0.03 25) !important;
   border: 1px solid oklch(0.85 0.1 25) !important;
   border-left: 1px solid oklch(0.85 0.1 25) !important;
-  border-radius: 8px !important;
+  border-radius: var(--hub-radius) !important;
   color: oklch(0.4 0.18 25) !important;
   box-shadow: none !important;
 }
@@ -596,7 +665,7 @@
   background: var(--hub-ink) !important;
   color: var(--hub-bg) !important;
   border: 1px solid transparent !important;
-  border-radius: 7px !important;
+  border-radius: var(--hub-radius) !important;
   box-shadow: none !important;
   transition: background 0.15s ease !important;
   font-weight: 500 !important;
@@ -624,7 +693,7 @@
   background: var(--hub-surface) !important;
   color: var(--hub-ink) !important;
   border: 1px solid var(--hub-line) !important;
-  border-radius: 7px !important;
+  border-radius: var(--hub-radius) !important;
   font-weight: 500 !important;
 }
 .btn-secondary:hover {
@@ -646,7 +715,7 @@
   background: oklch(0.96 0.06 80) !important;
   color: oklch(0.45 0.13 80) !important;
   border: 1px solid oklch(0.85 0.12 80) !important;
-  border-radius: 7px !important;
+  border-radius: var(--hub-radius) !important;
 }
 .btn-warning:hover {
   background: oklch(0.93 0.08 80) !important;
@@ -662,7 +731,7 @@
   background: var(--hub-surface) !important;
   color: var(--hub-err) !important;
   border: 1px solid var(--hub-line) !important;
-  border-radius: 7px !important;
+  border-radius: var(--hub-radius) !important;
 }
 .btn-danger:hover {
   background: oklch(0.97 0.03 25) !important;
@@ -688,7 +757,7 @@ select.form-input,
 textarea.form-input {
   background: var(--hub-surface) !important;
   border: 1px solid var(--hub-line) !important;
-  border-radius: 7px !important;
+  border-radius: var(--hub-radius) !important;
   color: var(--hub-ink) !important;
   box-shadow: none !important;
   transition: border-color 0.15s ease !important;
@@ -812,7 +881,7 @@ textarea.form-input:focus {
 
 /* Table container — flatten */
 .table-container {
-  border-radius: 10px !important;
+  border-radius: var(--hub-radius) !important;
   box-shadow: none !important;
   border: 1px solid var(--hub-line) !important;
   overflow: hidden;
@@ -835,13 +904,13 @@ textarea.form-input:focus {
 .hub-topbar {
   height: 48px;
   border-bottom: 1px solid var(--hub-line);
-  padding: 0 22px;
+  padding: 0 16px;
   display: flex;
   align-items: center;
   gap: 14px;
   background: var(--hub-bg);
 }
-.hub-crumb { color: var(--hub-ink-3); font-size: 13px; }
+.hub-crumb { color: var(--hub-ink-3); font-size: 14px; }
 .hub-crumb b { color: var(--hub-ink); font-weight: 500; }
 .hub-crumb .sep { margin: 0 6px; color: var(--hub-ink-3); opacity: 0.5; }
 
@@ -864,6 +933,8 @@ body {
     'Droid Sans',
     'Helvetica Neue',
     sans-serif;
+  font-size: 14px; /* text.body.medium */
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -1084,13 +1155,18 @@ tbody tr:hover {
   border-radius: 12px;
 }
 
-/* --- Unified Button Click & Loading Feedback --- */
-button {
-  transition: transform 0.15s ease, opacity 0.15s ease;
-}
+/* --- Unified Button Click & Loading Feedback ---
+   Kept in the base layer so a component's own transition-* utilities still apply. */
+@layer base {
+  button {
+    transition:
+      transform var(--hub-dur-hover) var(--hub-ease-hover),
+      opacity var(--hub-dur-hover) var(--hub-ease-hover);
+  }
 
-button:not(:disabled):active {
-  transform: scale(0.96);
+  button:not(:disabled):active {
+    transform: scale(0.98);
+  }
 }
 
 button.is-loading,
@@ -1175,4 +1251,261 @@ button.hub-btn.primary.is-loading::after {
   font-size: 10.5px;
   line-height: 1.4;
   white-space: nowrap;
+}
+
+/* ----- Shared components and motion (Primer scale; layered so utilities can override) ----- */
+@layer components {
+  /* Underline tabs: page-level navigation between views. */
+  .hub-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 20px;
+    border-bottom: 1px solid var(--hub-line);
+  }
+  .hub-tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0;
+    margin-bottom: -1px;
+    border: 0;
+    background: transparent;
+    color: var(--hub-ink-2);
+    font-size: 14px;
+    white-space: nowrap;
+    transition: color var(--hub-dur-hover) var(--hub-ease-hover);
+  }
+  .hub-tab::before {
+    content: '';
+    position: absolute;
+    inset: 6px -8px;
+    border-radius: var(--hub-radius);
+    background: var(--hub-surface-hover);
+    opacity: 0;
+    transition: opacity var(--hub-dur-hover) var(--hub-ease-hover);
+    z-index: -1;
+  }
+  .hub-tab { isolation: isolate; }
+  .hub-tab:hover { color: var(--hub-ink); }
+  .hub-tab:hover::before { opacity: 1; }
+  .hub-tab::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--hub-ink);
+    transform: scaleX(0);
+    transition: transform var(--hub-dur-state) var(--hub-ease-move);
+  }
+  .hub-tab[aria-selected='true'] { color: var(--hub-ink); font-weight: 500; }
+  .hub-tab[aria-selected='true']::after { transform: scaleX(1); }
+  .hub-tab:not(:disabled):active { transform: none; }
+
+  /* Segmented control: switching between options of one setting. */
+  .hub-seg {
+    display: inline-flex;
+    flex-wrap: wrap;
+    max-width: 100%;
+    gap: 2px;
+    padding: 2px;
+    border-radius: var(--hub-radius);
+    background: var(--hub-bg-2);
+    box-shadow: inset 0 0 0 1px var(--hub-line);
+  }
+  .hub-seg > button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    min-height: 28px;
+    padding: 4px 12px;
+    line-height: 1.25;
+    text-align: left;
+    border: 0;
+    border-radius: calc(var(--hub-radius) - 2px);
+    background: transparent;
+    color: var(--hub-ink-2);
+    font-size: 14px;
+    transition:
+      background-color var(--hub-dur-state) var(--hub-ease-move),
+      color var(--hub-dur-hover) var(--hub-ease-hover),
+      box-shadow var(--hub-dur-state) var(--hub-ease-move);
+  }
+  .hub-seg.sm > button { min-height: 24px; padding: 3px 8px; font-size: 12px; }
+  .hub-seg > button:hover:not(:disabled) { color: var(--hub-ink); }
+  .hub-seg > button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .hub-seg > button:is([aria-selected='true'], [aria-pressed='true'], [aria-checked='true']) {
+    background: var(--hub-surface);
+    color: var(--hub-ink);
+    font-weight: 500;
+    box-shadow: var(--hub-shadow-resting-sm), 0 0 0 1px var(--hub-line);
+  }
+
+  /* Callout: status and guidance, set apart from content cards. */
+  .hub-callout {
+    --hub-callout-tone: var(--hub-ink-3);
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: var(--hub-radius);
+    border: 1px solid color-mix(in oklab, var(--hub-callout-tone) 28%, var(--hub-line));
+    background: color-mix(in oklab, var(--hub-callout-tone) 7%, var(--hub-surface));
+    color: var(--hub-ink);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .hub-callout > svg { flex-shrink: 0; margin-top: 2px; color: var(--hub-callout-tone); }
+  .hub-callout.ok { --hub-callout-tone: var(--hub-ok); }
+  .hub-callout.warn { --hub-callout-tone: var(--hub-warn); }
+  .hub-callout.err { --hub-callout-tone: var(--hub-err); }
+  .hub-callout.info { --hub-callout-tone: var(--hub-accent); }
+
+  /* Popover menus (profile, language). */
+  .hub-menu {
+    padding: 4px;
+    border-radius: var(--hub-radius-lg);
+    background: var(--hub-surface);
+    box-shadow: var(--hub-shadow-floating-md);
+    animation: hub-pop-in var(--hub-dur-enter) var(--hub-ease-enter) backwards;
+  }
+  .hub-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 32px;
+    padding: 0 8px;
+    border-radius: calc(var(--hub-radius-lg) - 4px);
+    color: var(--hub-ink-2);
+    font-size: 14px;
+    text-align: left;
+    white-space: nowrap;
+    transition:
+      background-color var(--hub-dur-hover) var(--hub-ease-hover),
+      color var(--hub-dur-hover) var(--hub-ease-hover);
+  }
+  .hub-menu-item:hover { background: var(--hub-surface-hover); color: var(--hub-ink); }
+  .hub-menu-item[aria-current='true'] { color: var(--hub-ink); font-weight: 500; background: var(--hub-bg-2); }
+  .hub-menu-item:not(:disabled):active { transform: none; }
+
+  /* Sidebar text eases in once the sidebar has widened. */
+  .hub-sidebar-label {
+    animation: hub-fade-in var(--hub-dur-state) var(--hub-ease-move) 80ms backwards;
+  }
+
+  /* Disclosure header: rounds with its card, but only on the open side once content follows. */
+  .hub-disclosure {
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+  }
+  .hub-disclosure:last-child { border-radius: inherit; }
+
+  /* Disclosure chevron and revealed content. */
+  .hub-chevron { transition: transform var(--hub-dur-state) var(--hub-ease-move); }
+  .hub-chevron.open { transform: rotate(180deg); }
+  .hub-reveal { animation: hub-reveal var(--hub-dur-state) var(--hub-ease-move) backwards; }
+
+  /* Skeleton placeholders for loading content. */
+  .hub-skeleton {
+    display: block;
+    border-radius: var(--hub-radius-sm);
+    background: linear-gradient(
+      90deg,
+      var(--hub-bg-2) 0%,
+      var(--hub-surface-hover) 40%,
+      var(--hub-bg-2) 80%
+    );
+    background-size: 200% 100%;
+    animation: hub-shimmer 1.4s linear infinite;
+  }
+
+  /* Toast: a floating surface that enters from above and leaves faster than it came. */
+  .hub-toast {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 110;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    width: max-content;
+    max-width: min(384px, calc(100vw - 32px));
+    padding: 12px 12px 12px 16px;
+    border-radius: var(--hub-radius-lg);
+    background: var(--hub-surface);
+    color: var(--hub-ink);
+    box-shadow: var(--hub-shadow-floating-sm);
+    font-size: 14px;
+    line-height: 1.5;
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+      opacity var(--hub-dur-exit) var(--hub-ease-exit),
+      transform var(--hub-dur-exit) var(--hub-ease-exit),
+      visibility 0s linear var(--hub-dur-exit);
+  }
+  .hub-toast.visible {
+    opacity: 1;
+    transform: none;
+    visibility: visible;
+    pointer-events: auto;
+    transition:
+      opacity var(--hub-dur-enter) var(--hub-ease-enter),
+      transform var(--hub-dur-enter) var(--hub-ease-enter),
+      visibility 0s;
+  }
+}
+
+/* Modal overlays share one markup pattern (fixed inset-0 bg-black/50 wrapping the panel). */
+.fixed.inset-0.bg-black\/50 {
+  animation: hub-fade-in var(--hub-dur-enter) var(--hub-ease-enter) backwards;
+}
+.fixed.inset-0.bg-black\/50 > * {
+  animation: hub-pop-in var(--hub-dur-enter) var(--hub-ease-enter) backwards;
+}
+
+@keyframes hub-fade-in {
+  from { opacity: 0; }
+}
+@keyframes hub-pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+}
+@keyframes hub-reveal {
+  from { opacity: 0; transform: translateY(-4px); }
+}
+@keyframes hub-shimmer {
+  to { background-position: -200% 0; }
+}
+
+/* Primer: motion MUST respect prefers-reduced-motion. */
+@media (prefers-reduced-motion: reduce) {
+  /* :not(#hub-none) matches everything with id-level weight, so it also beats the
+     unlayered !important transitions on the legacy classes above. */
+  :not(#hub-none),
+  :not(#hub-none)::before,
+  :not(#hub-none)::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* Spinners carry meaning (work in progress), so they keep turning. */
+  .animate-spin:not(#hub-none) {
+    animation-duration: 1s !important;
+    animation-iteration-count: infinite !important;
+  }
+  button.is-loading:not(#hub-none)::after {
+    animation-duration: 0.6s !important;
+    animation-iteration-count: infinite !important;
+  }
 }

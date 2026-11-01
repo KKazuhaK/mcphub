@@ -498,11 +498,11 @@ const ServerCard = ({
     <>
       <div
         className="hub-card overflow-visible"
-        style={{ marginBottom: 10 }}
+        style={{ marginBottom: 8 }}
       >
         {/* Main row */}
         <div
-          className="hub-server-card-row cursor-pointer px-4 py-3 transition-colors hover:bg-[var(--hub-surface-hover)]"
+          className="hub-server-card-row cursor-pointer hub-disclosure px-4 py-3 transition-colors duration-100 hover:bg-[var(--hub-surface-hover)]"
           onClick={() => setExpanded(!expanded)}
         >
           {/* Name + description */}
@@ -512,7 +512,7 @@ const ServerCard = ({
               style={{
                 color: 'var(--hub-ink-3)',
                 transform: expanded ? 'rotate(90deg)' : 'none',
-                transition: 'transform 0.15s',
+                transition: 'transform var(--hub-dur-state) var(--hub-ease-move)',
                 flexShrink: 0,
               }}
             />
@@ -907,6 +907,7 @@ const ServerCard = ({
         {/* Expanded detail */}
         {expanded && (
           <div
+            className="hub-reveal rounded-b-[inherit]"
             style={{
               borderTop: '1px solid var(--hub-line-2)',
               background: 'var(--hub-bg-2)',

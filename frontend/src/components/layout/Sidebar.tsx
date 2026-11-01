@@ -122,10 +122,11 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       end={item.end}
       className={({ isActive }) =>
         [
-          'group flex items-center gap-2.5 rounded-md text-[13.5px] transition-colors',
-          collapsed ? 'justify-center px-2 py-2' : 'px-2.5 py-1.5',
+          // Icons sit 20px from the edge in both states, so collapsing never shifts them.
+          'group relative flex h-8 items-center gap-2.5 rounded-md text-[14px] transition-colors duration-100',
+          collapsed ? 'justify-center' : 'px-3',
           isActive
-            ? 'bg-[var(--hub-surface)] text-[var(--hub-ink)] ring-1 ring-inset ring-[var(--hub-line)]'
+            ? 'bg-[var(--hub-surface)] font-medium text-[var(--hub-ink)] shadow-[var(--hub-shadow-resting)] ring-1 ring-inset ring-[var(--hub-line)]'
             : 'text-[var(--hub-ink-2)] hover:bg-[var(--hub-surface-hover)] hover:text-[var(--hub-ink)]',
         ].join(' ')
       }
@@ -136,16 +137,16 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
             className={
               isActive
                 ? 'text-[var(--hub-ink)] flex-shrink-0'
-                : 'text-[var(--hub-ink-3)] group-hover:text-[var(--hub-ink-2)] flex-shrink-0'
+                : 'text-[var(--hub-ink-3)] transition-colors duration-100 group-hover:text-[var(--hub-ink-2)] flex-shrink-0'
             }
           >
             {item.icon}
           </span>
           {!collapsed && (
             <>
-              <span className="truncate">{item.label}</span>
+              <span className="hub-sidebar-label truncate">{item.label}</span>
               {item.badge != null && (
-                <span className="ml-auto hub-mono hub-num text-[11px] text-[var(--hub-ink-3)]">
+                <span className="hub-sidebar-label ml-auto hub-mono hub-num text-[12px] font-normal text-[var(--hub-ink-3)]">
                   {item.badge}
                 </span>
               )}
@@ -159,15 +160,22 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
   return (
     <aside
       className={
-        'flex flex-col h-full relative shrink-0 transition-[width] duration-200 ease-out ' +
+        'flex flex-col h-full relative shrink-0 ' +
+        'transition-[width] duration-200 ease-[cubic-bezier(0.6,0,0.2,1)] ' +
         'bg-[var(--hub-bg-2)] border-r border-[var(--hub-line)] ' +
         (collapsed ? 'w-14' : 'w-[232px]')
       }
     >
       {/* Brand */}
-      <div className={'flex items-center gap-2.5 ' + (collapsed ? 'px-2 py-3 justify-center' : 'px-4 py-3')}>
+      {/* Same height as the top bar, so their bottom borders form one line. */}
+      <div
+        className={
+          'flex h-12 shrink-0 items-center gap-2.5 overflow-hidden border-b border-[var(--hub-line)] ' +
+          (collapsed ? 'justify-center' : 'px-3.5')
+        }
+      >
         <div
-          className="relative grid h-7 w-7 place-items-center rounded-md text-white hub-mono text-[12px] font-semibold"
+          className="relative grid h-7 w-7 shrink-0 place-items-center rounded-md text-white hub-mono text-[12px] font-semibold"
           style={{
             background:
               'linear-gradient(135deg, var(--hub-accent), oklch(0.62 0.18 285))',
@@ -184,12 +192,12 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
           />
         </div>
         {!collapsed && (
-          <div className="flex items-baseline gap-1.5 min-w-0">
-            <span className="font-semibold tracking-tight text-[var(--hub-ink)] truncate">
+          <div className="hub-sidebar-label flex min-w-0 flex-col leading-tight">
+            <span className="truncate text-[14px] font-semibold tracking-tight text-[var(--hub-ink)]">
               {t('app.title')}
             </span>
             {appVersion && (
-              <span className="hub-mono text-[10.5px] text-[var(--hub-ink-3)] flex-shrink-0">
+              <span className="hub-mono truncate text-[11px] text-[var(--hub-ink-3)]">
                 {appVersion === 'dev' ? appVersion : `v${appVersion}`}
               </span>
             )}
@@ -197,14 +205,20 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-2">
-        {!collapsed && <div className="hub-sect px-3 pt-2 pb-1.5">{t('nav.workspace')}</div>}
-        <nav className={'flex flex-col gap-px ' + (collapsed ? 'px-1.5' : 'px-2')}>
+      <div className="flex-1 overflow-y-auto overflow-x-hidden py-2">
+        {!collapsed && (
+          <div className="hub-sect hub-sidebar-label px-5 pt-2 pb-2">{t('nav.workspace')}</div>
+        )}
+        <nav className={'flex flex-col gap-0.5 ' + (collapsed ? 'px-1.5' : 'px-2')}>
           {workspaceItems.map(renderItem)}
         </nav>
 
-        {!collapsed && <div className="hub-sect px-3 pt-3 pb-1.5">{t('nav.system')}</div>}
-        <nav className={'flex flex-col gap-px ' + (collapsed ? 'px-1.5 mt-1' : 'px-2')}>
+        {collapsed ? (
+          <div className="mx-3 my-3 border-t border-[var(--hub-line)]" />
+        ) : (
+          <div className="hub-sect hub-sidebar-label px-5 pt-5 pb-2">{t('nav.system')}</div>
+        )}
+        <nav className={'flex flex-col gap-0.5 ' + (collapsed ? 'px-1.5' : 'px-2')}>
           {systemItems.map(renderItem)}
         </nav>
       </div>

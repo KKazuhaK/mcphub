@@ -462,7 +462,7 @@ const ToolCard = ({ tool, server, readOnly = false, onToggle, onDescriptionUpdat
       </div>
 
       {isExpanded && (
-        <div style={{ borderTop: '1px solid var(--hub-line-2)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="hub-reveal" style={{ borderTop: '1px solid var(--hub-line-2)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {descriptionInfo.hasDescriptionOverride && descriptionInfo.defaultDescription && (
             <div
               style={{
