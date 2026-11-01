@@ -116,6 +116,26 @@ describe('the tool risk control on a workspace service row', () => {
     expect(html).not.toContain('workspacePage.risk.connectToSee');
   });
 
+  it.each([
+    ['disabled', { enabled: false }],
+    ['paused', { status: { code: 'paused', message: 'paused', action: null } }],
+    ['failing', { status: { code: 'error', message: 'down', action: 'retry_later' } }],
+  ] as Array<[string, Partial<WorkspaceServer>]>)(
+    'keeps the status-driven text for a %s connected service',
+    (_label, extra) => {
+      const html = render(
+        server({
+          toolCount: null,
+          riskCounts: null,
+          requiresPersonalCredential: true,
+          credentialConfigured: true,
+          ...extra,
+        }),
+      );
+      expect(html).not.toContain('workspacePage.risk.pendingTools');
+    },
+  );
+
   it('still says to connect when the personal credential is missing', () => {
     const html = render(
       server({

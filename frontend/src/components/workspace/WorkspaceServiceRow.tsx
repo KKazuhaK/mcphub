@@ -91,12 +91,17 @@ const WorkspaceServiceRow: React.FC<WorkspaceServiceRowProps> = ({
     }
   };
 
+  // Connected and usable, but the user's own tool list has not been fetched yet. A paused,
+  // disabled or failing service keeps the text its status gives.
+  const toolsPending =
+    server.toolCount === null &&
+    server.requiresPersonalCredential &&
+    server.credentialConfigured &&
+    server.enabled &&
+    (server.status.code === 'available' || server.status.code === 'not_selected');
+
   // How far the tools of this service may reach. Options above the administrator's cap stay
   // visible but cannot be chosen.
-  // Connected, but the user's own tool list has not been fetched yet.
-  const toolsPending =
-    server.toolCount === null && server.requiresPersonalCredential && server.credentialConfigured;
-
   const renderRisk = () => {
     if (!server.selected) return null;
     const hidden = countHiddenByCeiling(server.riskCounts, server.riskCeiling);

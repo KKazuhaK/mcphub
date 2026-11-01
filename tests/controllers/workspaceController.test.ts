@@ -302,21 +302,25 @@ describe('workspace API', () => {
         });
       });
 
-      it('never uses another user’s runtime', async () => {
+      it('gives each user the counts of their own tools, never another user’s', async () => {
         mockGetCredentialBindingStatus.mockResolvedValue({ configured: true });
         userTools.alice = {
-          'needs-key': [{ name: 'needs-key::get', annotations: { readOnlyHint: true } }],
+          'needs-key': [
+            { name: 'needs-key::a', annotations: { readOnlyHint: true } },
+            { name: 'needs-key::b', annotations: { readOnlyHint: true } },
+            { name: 'needs-key::c', annotations: { readOnlyHint: true } },
+            { name: 'needs-key::d', annotations: { readOnlyHint: true } },
+          ],
+        };
+        userTools.bob = {
+          'needs-key': [{ name: 'needs-key::a', annotations: { readOnlyHint: true } }],
         };
 
-        expect(await needsKey('bob')).toMatchObject({ toolCount: null, riskCounts: null });
-        expect(mockPeekServerTools).toHaveBeenCalledWith(
-          'needs-key',
-          expect.objectContaining({ username: 'bob' }),
-        );
-        expect(mockPeekServerTools).not.toHaveBeenCalledWith(
-          'needs-key',
-          expect.objectContaining({ username: 'alice' }),
-        );
+        expect(await needsKey('alice')).toMatchObject({ toolCount: 4 });
+        expect(await needsKey('bob')).toMatchObject({ toolCount: 1 });
+        expect(await needsKey('carol')).toMatchObject({ toolCount: null, riskCounts: null });
+        for (const [, principal] of mockPeekServerTools.mock.calls)
+          expect(['alice', 'bob', 'carol']).toContain(principal.username);
       });
 
       it('does not look at tools until the user has connected', async () => {

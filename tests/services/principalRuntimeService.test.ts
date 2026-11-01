@@ -175,38 +175,68 @@ test('tools-only restoration rejects a binding rotation during cache lookup', as
 
 describe('peekTools', () => {
   const tool = { name: 'shared::get', inputSchema: { type: 'object' as const } };
+  const listing = () => jest.fn(async () => ({ ...info(), tools: [tool] }));
 
-  test('returns the caller’s own live tools without connecting, and nobody else’s', async () => {
-    const connect = jest.fn(async () => ({ ...info(), tools: [tool] }));
-    const pool = new PrincipalRuntimeService(connect, jest.fn());
+  afterEach(() => {
+    jest.useRealTimers();
+    delete mockDefinition.idleTimeoutMs;
+  });
+
+  test('returns the caller’s own last list without connecting, and nobody else’s', async () => {
+    const connect = listing();
+    const restore = jest.fn();
+    const pool = new PrincipalRuntimeService(connect, jest.fn(), restore);
     (await pool.acquire('shared', alice)).release();
     connect.mockClear();
 
     expect(await pool.peekTools('shared', alice)).toEqual([tool]);
     expect(await pool.peekTools('shared', { username: 'bob' })).toBeUndefined();
     expect(connect).not.toHaveBeenCalled();
+    // Reading never goes through the snapshot restore path, which has side effects.
+    expect(restore).not.toHaveBeenCalled();
   });
 
-  test('falls back to the saved snapshot and is undefined when there is none', async () => {
-    const connect = jest.fn(async () => info());
-    const restore = jest.fn(async () => undefined as ServerInfo | undefined);
-    const pool = new PrincipalRuntimeService(connect, jest.fn(), restore);
+  test('is undefined for a principal that has not listed anything', async () => {
+    const pool = new PrincipalRuntimeService(listing(), jest.fn());
+    expect(await pool.peekTools('shared', alice)).toBeUndefined();
+  });
+
+  test('keeps the list after the idle runtime is shut down', async () => {
+    jest.useFakeTimers();
+    mockDefinition.idleTimeoutMs = 1000;
+    const close = jest.fn();
+    const pool = new PrincipalRuntimeService(listing(), close);
+    (await pool.acquire('shared', alice)).release();
+    jest.advanceTimersByTime(1500);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(close).toHaveBeenCalledTimes(1);
+
+    expect(await pool.peekTools('shared', alice)).toEqual([tool]);
+  });
+
+  test('forgets the list when the credentials are rebound', async () => {
+    const pool = new PrincipalRuntimeService(listing(), jest.fn());
+    (await pool.acquire('shared', alice)).release();
+    mockRevision = 'rebound';
 
     expect(await pool.peekTools('shared', alice)).toBeUndefined();
-    restore.mockResolvedValueOnce({ ...info(), tools: [tool] });
-    expect(await pool.peekTools('shared', alice)).toEqual([tool]);
-    expect(restore).toHaveBeenCalledWith(
-      'shared',
-      mockDefinition,
-      expect.objectContaining({ username: alice.username }),
-    );
-    expect(connect).not.toHaveBeenCalled();
+    mockRevision = 'first';
+    expect(await pool.peekTools('shared', alice)).toBeUndefined();
   });
 
-  test('ignores a runtime built for a revision that has since changed', async () => {
-    const pool = new PrincipalRuntimeService(async () => ({ ...info(), tools: [tool] }), jest.fn());
+  test('forgets the list when the server definition changes', async () => {
+    const pool = new PrincipalRuntimeService(listing(), jest.fn());
     (await pool.acquire('shared', alice)).release();
-    mockRevision = 'rotated';
+    mockDefinition.args = ['--other'];
+
+    expect(await pool.peekTools('shared', alice)).toBeUndefined();
+  });
+
+  test('forgets the list when its binding is invalidated', async () => {
+    const pool = new PrincipalRuntimeService(listing(), jest.fn());
+    (await pool.acquire('shared', alice)).release();
+    credentialBindingEvents.emit('invalidate', { serverName: 'shared', username: alice.username });
 
     expect(await pool.peekTools('shared', alice)).toBeUndefined();
   });
