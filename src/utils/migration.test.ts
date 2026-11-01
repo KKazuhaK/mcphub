@@ -24,6 +24,8 @@ jest.mock('../dao/DatabaseDaoFactory.js', () => ({
 const loadOriginalSettingsMock = jest.fn(() => ({ users: [] }));
 jest.mock('../config/index.js', () => ({
   loadOriginalSettings: loadOriginalSettingsMock,
+  // No credentials file next to it, so there is no personal credential import to run.
+  getSettingsPath: () => '/nonexistent/mcp_settings.json',
 }));
 
 const userRepoCountMock = jest.fn<() => Promise<number>>();
