@@ -97,7 +97,7 @@ const summarizeTools = async (
   let live: Array<{ name: string; annotations?: Record<string, unknown> }>;
   if (hasPersonalAuthentication(server)) {
     // A server needing personal credentials has no shared tool list. Only the requesting
-    // user's own runtime (or its saved snapshot) can say what they get; until it has listed
+    // user's own last tool list can say what they get; until it has listed
     // tools, the count is unknown, which is not the same as having no tools.
     const own =
       personalAuth === 'configured'

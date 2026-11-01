@@ -15,7 +15,11 @@ import {
 import type { CapabilityScope } from './capabilitySnapshotService.js';
 import type { ServerConfig, ServerInfo } from '../types/index.js';
 
-const MAX_KNOWN_TOOL_ENTRIES = 2000;
+export const MAX_KNOWN_TOOL_ENTRIES = 2000;
+
+// The only parts of a tool the workspace summary reads (its name and the risk annotations);
+// schemas and descriptions are not kept.
+export type KnownTool = Pick<NonNullable<ServerInfo['tools']>[number], 'name' | 'annotations'>;
 
 interface RuntimeEntry {
   serverName: string;
@@ -33,7 +37,7 @@ export class PrincipalRuntimeService {
   private readonly entries = new Map<string, RuntimeEntry>();
   // The last tool list each principal saw, kept past idle shutdown. Entries carry the
   // revision they were listed under and are dropped when credentials or the server change.
-  private readonly knownTools = new Map<string, { revision: string; tools: ServerInfo['tools'] }>();
+  private readonly knownTools = new Map<string, { revision: string; tools: KnownTool[] }>();
 
   constructor(
     private readonly connect: (
@@ -82,7 +86,7 @@ export class PrincipalRuntimeService {
   async peekTools(
     serverName: string,
     principal: RequestPrincipal,
-  ): Promise<ServerInfo['tools'] | undefined> {
+  ): Promise<KnownTool[] | undefined> {
     if (principal.credentialEligible === false) return undefined;
     const key = JSON.stringify([serverName, principal.username]);
     const known = this.knownTools.get(key);
@@ -116,7 +120,12 @@ export class PrincipalRuntimeService {
   private remember(key: string, revision: string, tools: ServerInfo['tools']): void {
     // Re-inserting moves the entry to the end, so the oldest one is evicted first.
     this.knownTools.delete(key);
-    this.knownTools.set(key, { revision, tools: [...(tools ?? [])] });
+    this.knownTools.set(key, {
+      revision,
+      tools: (tools ?? []).map(({ name, annotations }) =>
+        annotations ? { name, annotations: { ...annotations } } : { name },
+      ),
+    });
     while (this.knownTools.size > MAX_KNOWN_TOOL_ENTRIES) {
       const oldest = this.knownTools.keys().next().value;
       if (oldest === undefined) break;

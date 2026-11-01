@@ -1,4 +1,7 @@
-import { PrincipalRuntimeService } from '../../src/services/principalRuntimeService.js';
+import {
+  MAX_KNOWN_TOOL_ENTRIES,
+  PrincipalRuntimeService,
+} from '../../src/services/principalRuntimeService.js';
 import { credentialBindingEvents } from '../../src/services/credentialBindingService.js';
 import type { ServerInfo, ServerConfigWithName } from '../../src/types/index.js';
 
@@ -189,7 +192,7 @@ describe('peekTools', () => {
     (await pool.acquire('shared', alice)).release();
     connect.mockClear();
 
-    expect(await pool.peekTools('shared', alice)).toEqual([tool]);
+    expect(await pool.peekTools('shared', alice)).toEqual([{ name: tool.name }]);
     expect(await pool.peekTools('shared', { username: 'bob' })).toBeUndefined();
     expect(connect).not.toHaveBeenCalled();
     // Reading never goes through the snapshot restore path, which has side effects.
@@ -212,7 +215,7 @@ describe('peekTools', () => {
     await Promise.resolve();
     expect(close).toHaveBeenCalledTimes(1);
 
-    expect(await pool.peekTools('shared', alice)).toEqual([tool]);
+    expect(await pool.peekTools('shared', alice)).toEqual([{ name: tool.name }]);
   });
 
   test('forgets the list when the credentials are rebound', async () => {
@@ -239,5 +242,34 @@ describe('peekTools', () => {
     credentialBindingEvents.emit('invalidate', { serverName: 'shared', username: alice.username });
 
     expect(await pool.peekTools('shared', alice)).toBeUndefined();
+  });
+
+  test('keeps only the name and annotations of each tool', async () => {
+    const full = {
+      name: 'shared::get',
+      description: 'long text',
+      inputSchema: { type: 'object' as const, properties: { a: { type: 'string' } } },
+      annotations: { readOnlyHint: true },
+    };
+    const pool = new PrincipalRuntimeService(async () => ({ ...info(), tools: [full] }), jest.fn());
+    (await pool.acquire('shared', alice)).release();
+
+    expect(await pool.peekTools('shared', alice)).toEqual([
+      { name: 'shared::get', annotations: { readOnlyHint: true } },
+    ]);
+  });
+
+  test('evicts the least recently written list once the cap is exceeded', async () => {
+    const pool = new PrincipalRuntimeService(listing(), jest.fn());
+    const first = { username: 'user-0' };
+    (await pool.acquire('shared', first)).release();
+    for (let i = 1; i <= MAX_KNOWN_TOOL_ENTRIES; i++)
+      (await pool.acquire('shared', { username: `user-${i}` })).release();
+
+    expect(await pool.peekTools('shared', first)).toBeUndefined();
+    expect(await pool.peekTools('shared', { username: 'user-1' })).toBeDefined();
+    expect(
+      await pool.peekTools('shared', { username: `user-${MAX_KNOWN_TOOL_ENTRIES}` }),
+    ).toBeDefined();
   });
 });

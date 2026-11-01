@@ -51,7 +51,7 @@ import {
   flushCapabilitySnapshot,
   type CapabilityScope,
 } from './capabilitySnapshotService.js';
-import { PrincipalRuntimeService } from './principalRuntimeService.js';
+import { PrincipalRuntimeService, type KnownTool } from './principalRuntimeService.js';
 import { UserContextService } from './userContextService.js';
 import {
   credentialBindingEvents,
@@ -6027,7 +6027,7 @@ export const getServerToolsForPrincipal = async (
 export const peekServerToolsForPrincipal = async (
   serverName: string,
   principal: RequestPrincipal,
-): Promise<Tool[] | undefined> => {
+): Promise<KnownTool[] | undefined> => {
   try {
     return await principalRuntimes.peekTools(serverName, principal);
   } catch {
