@@ -146,10 +146,10 @@ const ActivityPanel: React.FC = () => {
           role="group"
           aria-label={t('workspacePage.activity.filters.label')}
         >
-          <label className="flex flex-col gap-1 text-[12px]">
+          <label className="flex min-w-0 flex-col gap-1 text-[12px]">
             {t('workspacePage.activity.filters.service')}
             <select
-              className="hub-input"
+              className="hub-input max-w-full"
               value={filters.server ?? ''}
               onChange={(event) => setFilter({ server: event.target.value || undefined })}
             >
@@ -161,10 +161,10 @@ const ActivityPanel: React.FC = () => {
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[12px]">
+          <label className="flex min-w-0 flex-col gap-1 text-[12px]">
             {t('workspacePage.activity.filters.result')}
             <select
-              className="hub-input"
+              className="hub-input max-w-full"
               value={filters.status ?? ''}
               onChange={(event) =>
                 setFilter({ status: (event.target.value || undefined) as WorkspaceActivityStatus })
@@ -178,10 +178,10 @@ const ActivityPanel: React.FC = () => {
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[12px]">
+          <label className="flex min-w-0 flex-col gap-1 text-[12px]">
             {t('workspacePage.activity.filters.client')}
             <select
-              className="hub-input"
+              className="hub-input max-w-full"
               value={filters.client ?? ''}
               onChange={(event) => setFilter({ client: event.target.value || undefined })}
             >

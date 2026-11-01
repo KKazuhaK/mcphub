@@ -263,7 +263,7 @@ const WorkspaceServicesView: React.FC = () => {
     <div className="space-y-4">
       {summary && <SummaryBannerView summary={summary} />}
 
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,280px)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,280px)]">
         {endpoints && (
           <MyEndpointCard
             aggregate={endpoints.aggregate}
@@ -285,7 +285,7 @@ const WorkspaceServicesView: React.FC = () => {
       )}
 
       <section className="hub-card overflow-hidden" aria-labelledby="workspace-services-title">
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div>
             <h2 id="workspace-services-title" className="font-semibold">
               {t('workspacePage.services.title')}
