@@ -106,14 +106,17 @@ const WorkspaceServiceRow: React.FC<WorkspaceServiceRowProps> = ({
     if (!server.selected) return null;
     const hidden = countHiddenByCeiling(server.riskCounts, server.riskCeiling);
     return (
-      <div className="basis-full" data-testid={`workspace-risk-${server.name}`}>
-        <div className="mb-1 text-[12px]" style={{ color: 'var(--hub-ink-3)' }}>
+      <div
+        className="hub-reveal basis-full pl-[46px] max-sm:pl-0"
+        data-testid={`workspace-risk-${server.name}`}
+      >
+        <div className="mb-2 text-[12px]" style={{ color: 'var(--hub-ink-3)' }}>
           {t('workspacePage.risk.explanation')}
         </div>
         <div
           role="radiogroup"
           aria-label={t('workspacePage.risk.groupLabel', { name: server.name })}
-          className="flex flex-wrap gap-2"
+          className="hub-seg sm"
         >
           {TOOL_RISK_LEVELS.map((level) => {
             const allowed = isRiskChoiceAllowed(level, server.maxAllowedRisk);
@@ -130,12 +133,11 @@ const WorkspaceServiceRow: React.FC<WorkspaceServiceRowProps> = ({
                     ? t(`workspacePage.risk.level.${level}.hint`)
                     : t('workspacePage.risk.aboveCap')
                 }
-                className={'hub-btn' + (checked ? ' primary' : '')}
                 data-risk-level={level}
                 onClick={() => !checked && onRiskChange(server.name, level)}
               >
                 {t(`workspacePage.risk.level.${level}.label`)}
-                <span className="hub-mono hub-num ml-1.5 text-[11.5px] opacity-80">
+                <span className="hub-mono hub-num text-[11px] opacity-70">
                   {server.riskCounts
                     ? t('workspacePage.services.toolCount', {
                         count: server.riskCounts[level] || 0,
@@ -203,8 +205,8 @@ const WorkspaceServiceRow: React.FC<WorkspaceServiceRowProps> = ({
 
   return (
     <li
-      className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3"
-      style={{ borderTop: '1px solid var(--hub-line)' }}
+      className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3"
+      style={{ borderTop: '1px solid var(--hub-line-2)' }}
       data-testid={`workspace-service-${server.name}`}
     >
       <button
@@ -222,12 +224,12 @@ const WorkspaceServiceRow: React.FC<WorkspaceServiceRowProps> = ({
           <StatusDot kind={statusTone(code)} label={t(`workspacePage.status.${code}`)} />
         </div>
         {server.description && (
-          <div className="text-[12.5px]" style={{ color: 'var(--hub-ink-3)' }}>
+          <div className="text-[12px] leading-[1.625]" style={{ color: 'var(--hub-ink-3)' }}>
             {server.description}
           </div>
         )}
         {code !== 'available' && code !== 'not_selected' && (
-          <div className="mt-0.5 text-[12.5px]" style={{ color: 'var(--hub-ink-2)' }}>
+          <div className="mt-0.5 text-[12px]" style={{ color: 'var(--hub-ink-2)' }}>
             {localizeStatusMessage(server.status, formatUntil)}
           </div>
         )}
@@ -236,7 +238,7 @@ const WorkspaceServiceRow: React.FC<WorkspaceServiceRowProps> = ({
             href={authorizationUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-0.5 block text-[12.5px] underline"
+            className="mt-0.5 block text-[12px] underline"
           >
             {t('workspacePage.actions.openAuthorization')}
           </a>

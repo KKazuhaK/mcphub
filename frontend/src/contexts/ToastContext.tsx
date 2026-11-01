@@ -25,20 +25,23 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
     type: ToastType;
     visible: boolean;
     duration: number;
+    id: number;
   }>({
     message: '',
     type: 'info',
     visible: false,
     duration: 3000,
+    id: 0,
   });
 
   const showToast = useCallback((message: string, type: ToastType = 'info', duration: number = 3000) => {
-    setToast({
+    setToast((prev) => ({
       message,
       type,
       visible: true,
       duration,
-    });
+      id: prev.id + 1,
+    }));
   }, []);
 
   const hideToast = useCallback(() => {
@@ -54,6 +57,7 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
         duration={toast.duration}
         onClose={hideToast}
         visible={toast.visible}
+        announceId={toast.id}
       />
     </ToastContext.Provider>
   );

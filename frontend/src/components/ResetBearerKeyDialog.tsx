@@ -51,7 +51,7 @@ export default function ResetBearerKeyDialog({ keyData, onClose, onReset }: Prop
         aria-describedby="reset-key-description"
         className="hub-card p-6 max-w-xl w-full"
       >
-        <h2 id="reset-key-title" className="hub-h2 mb-4">
+        <h2 id="reset-key-title" className="hub-card-title mb-2">
           {t('settings.resetBearerKey')} — {keyData.name}
         </h2>
         <p id="reset-key-description" className="hub-sub mb-4">

@@ -93,20 +93,20 @@ const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ collapsed, version })
     <div ref={menuRef} className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex ${collapsed ? 'justify-center' : 'items-center'} w-full p-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-md ${isOpen ? 'bg-gray-100 dark:bg-gray-700' : ''
-          }`}
+        aria-expanded={isOpen}
+        className={`flex h-9 w-full items-center rounded-md px-2 text-[var(--hub-ink-2)] transition-colors duration-100 hover:bg-[var(--hub-surface-hover)] hover:text-[var(--hub-ink)] ${collapsed ? 'justify-center' : ''} ${isOpen ? 'bg-[var(--hub-surface-hover)] text-[var(--hub-ink)]' : ''}`}
       >
         <div className="flex-shrink-0 relative">
-          <div className="w-5 h-5 flex items-center justify-center rounded-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
-            <User className="h-4 w-4 text-gray-700 dark:text-gray-300" />
+          <div className="w-6 h-6 flex items-center justify-center rounded-full border border-[var(--hub-line)] bg-[var(--hub-surface)]">
+            <User className="h-3.5 w-3.5" />
           </div>
           {showNewVersionInfo && (
             <span className="absolute -top-1 -right-1 block w-2 h-2 bg-red-500 rounded-full"></span>
           )}
         </div>
         {!collapsed && (
-          <div className="ml-3 flex flex-col items-start">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <div className="hub-sidebar-label ml-2.5 flex min-w-0 flex-col items-start">
+            <span className="truncate text-[14px] font-medium">
               {auth.user?.username || t('auth.user')}
             </span>
           </div>
@@ -114,21 +114,21 @@ const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ collapsed, version })
       </button>
 
       {isOpen && (
-        <div className="absolute top-0 transform -translate-y-full left-0 w-full min-w-max bg-white border border-gray-200 dark:border-gray-700 dark:bg-gray-800 z-50">
+        <div className="hub-menu absolute bottom-full left-0 z-50 mb-1 w-full min-w-max">
           <button
             onClick={handleSponsorClick}
-            className="flex items-center w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700"
+            className="hub-menu-item"
           >
-            <SponsorIcon className="h-4 w-4 mr-2" />
+            <SponsorIcon className="h-4 w-4" />
             {t('sponsor.label')}
           </button>
 
           {i18n.resolvedLanguage === 'zh' ? (
             <button
               onClick={handleWeChatClick}
-              className="flex items-center w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700"
+              className="hub-menu-item"
             >
-              <WeChatIcon className="h-4 w-4 mr-2" />
+              <WeChatIcon className="h-4 w-4" />
               {t('wechat.label')}
             </button>
           ) : (
@@ -136,38 +136,38 @@ const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ collapsed, version })
               href="https://discord.gg/2BJehJZVH5"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700"
+              className="hub-menu-item"
             >
-              <DiscordIcon className="h-4 w-4 mr-2" />
+              <DiscordIcon className="h-4 w-4" />
               {t('discord.label')}
             </a>
           )}
 
           <button
             onClick={handleSettingsClick}
-            className="flex items-center w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700"
+            className="hub-menu-item"
           >
-            <Settings className="h-4 w-4 mr-2" />
+            <Settings className="h-4 w-4" />
             {t('nav.settings')}
           </button>
           <button
             onClick={handleAboutClick}
-            className="flex items-center w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 relative"
+            className="hub-menu-item relative"
           >
-            <Info className="h-4 w-4 mr-2" />
+            <Info className="h-4 w-4" />
             {t('about.title')}
             {showNewVersionInfo && (
-              <span className="absolute top-2 right-4 block w-2 h-2 bg-red-500 rounded-full"></span>
+              <span className="absolute top-3 right-3 block w-2 h-2 bg-red-500 rounded-full"></span>
             )}
           </button>
 
-          <div className="border-t border-gray-200 dark:border-gray-600"></div>
+          <div className="my-1 border-t border-[var(--hub-line)]"></div>
 
           <button
             onClick={handleLogoutClick}
-            className="flex items-center w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700"
+            className="hub-menu-item"
           >
-            <LogOut className="h-4 w-4 mr-2" />
+            <LogOut className="h-4 w-4" />
             {t('app.logout')}
           </button>
         </div>

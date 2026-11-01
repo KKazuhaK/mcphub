@@ -20,8 +20,10 @@ const WorkspacePage: React.FC = () => {
     <button
       type="button"
       role="tab"
+      id={`workspace-tab-${value}`}
+      aria-controls="workspace-tabpanel"
       aria-selected={tab === value}
-      className={'hub-btn' + (tab === value ? ' primary' : '')}
+      className="hub-tab"
       onClick={() => setSearch(value === 'services' ? {} : { tab: value })}
     >
       {label}
@@ -29,25 +31,33 @@ const WorkspacePage: React.FC = () => {
   );
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5">
+    <div className="space-y-6">
       <div>
         <h1 className="hub-h1">{t('workspacePage.title')}</h1>
         <p className="hub-sub">{t('workspacePage.subtitle')}</p>
       </div>
 
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label={t('workspacePage.title')}>
+      <div className="hub-tabs" role="tablist" aria-label={t('workspacePage.title')}>
         {tabButton('services', t('workspacePage.services.tab'))}
         {tabButton('clients', t('workspacePage.clients.tab'))}
         {tabButton('activity', t('workspacePage.activity.tab'))}
       </div>
 
-      {tab === 'clients' ? (
-        <ConnectedClientsPanel />
-      ) : tab === 'activity' ? (
-        <ActivityPanel />
-      ) : (
-        <WorkspaceServicesView />
-      )}
+      <div
+        key={tab}
+        id="workspace-tabpanel"
+        className="hub-reveal"
+        role="tabpanel"
+        aria-labelledby={`workspace-tab-${tab}`}
+      >
+        {tab === 'clients' ? (
+          <ConnectedClientsPanel />
+        ) : tab === 'activity' ? (
+          <ActivityPanel />
+        ) : (
+          <WorkspaceServicesView />
+        )}
+      </div>
     </div>
   );
 };

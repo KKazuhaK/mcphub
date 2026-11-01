@@ -322,7 +322,7 @@ const PromptCard = ({ prompt, server, readOnly = false, onToggle, onDescriptionU
       </div>
 
       {isExpanded && (
-        <div style={{ borderTop: '1px solid var(--hub-line-2)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="hub-reveal" style={{ borderTop: '1px solid var(--hub-line-2)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {/* Run Form */}
           {showRunForm && (
             <div style={{ border: '1px solid var(--hub-line)', borderRadius: 8, padding: 14 }}>

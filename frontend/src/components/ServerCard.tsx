@@ -498,31 +498,39 @@ const ServerCard = ({
     <>
       <div
         className="hub-card overflow-visible"
-        style={{ marginBottom: 10 }}
+        style={{ marginBottom: 8 }}
       >
         {/* Main row */}
         <div
-          className="hub-server-card-row cursor-pointer px-4 py-3 transition-colors hover:bg-[var(--hub-surface-hover)]"
+          className="hub-server-card-row cursor-pointer hub-disclosure px-4 py-3 transition-colors duration-100 hover:bg-[var(--hub-surface-hover)]"
           onClick={() => setExpanded(!expanded)}
         >
           {/* Name + description */}
           <div className="flex items-center gap-2.5 min-w-0">
-            <ChevronRight
-              size={12}
-              style={{
-                color: 'var(--hub-ink-3)',
-                transform: expanded ? 'rotate(90deg)' : 'none',
-                transition: 'transform 0.15s',
-                flexShrink: 0,
-              }}
-            />
+            {/* A real button for keyboard and screen readers; its click bubbles to the row. */}
+            <button
+              type="button"
+              className="-m-1.5 flex-shrink-0 rounded p-1.5"
+              aria-expanded={expanded}
+              aria-label={server.name}
+            >
+              <ChevronRight
+                size={12}
+                style={{
+                  color: 'var(--hub-ink-3)',
+                  transform: expanded ? 'rotate(90deg)' : 'none',
+                  transition: 'transform var(--hub-dur-state) var(--hub-ease-move)',
+                }}
+              />
+            </button>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span
                   className="hub-mono min-w-0 max-w-full truncate"
                   title={server.name}
                   style={{
-                    fontSize: 13.5,
+                    fontSize: 14,
+                    fontWeight: 500,
                     color: enabled ? 'var(--hub-ink)' : 'var(--hub-ink-3)',
                   }}
                 >
@@ -565,14 +573,11 @@ const ServerCard = ({
                     </button>
                     {showErrorPopover && (
                       <div
-                        className="absolute z-20 mt-1.5 hub-card"
+                        className="hub-card absolute left-0 top-full z-20 mt-1.5 w-[460px] max-sm:fixed max-sm:inset-x-4 max-sm:top-24 max-sm:mt-0 max-sm:w-auto max-w-[calc(100vw-48px)] max-sm:max-w-none"
                         style={{
-                          left: 0,
-                          top: '100%',
-                          width: 460,
                           maxHeight: 320,
                           overflow: 'hidden',
-                          boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
+                          boxShadow: 'var(--hub-shadow-floating-md)',
                         }}
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -621,12 +626,12 @@ const ServerCard = ({
                 )}
               </div>
               {!!server.config?.credentialTemplate?.length && (
-                <Link className="hub-tag text-xs" to={`/credentials?server=${encodeURIComponent(server.name)}`} onClick={(event) => event.stopPropagation()}>{t('credentials.personalBadge')} · {t('credentials.manage')}</Link>
+                <Link className="hub-tag mt-1 text-xs" to={`/credentials?server=${encodeURIComponent(server.name)}`} onClick={(event) => event.stopPropagation()}>{t('credentials.personalBadge')} · {t('credentials.manage')}</Link>
               )}
               {server.config?.description && (
                 <div
-                  className="text-[11.5px] truncate"
-                  style={{ color: 'var(--hub-ink-3)', marginTop: 1 }}
+                  className="text-[12px] leading-[1.625] truncate"
+                  style={{ color: 'var(--hub-ink-3)', marginTop: 2 }}
                   title={server.config.description}
                 >
                   {server.config.description}
@@ -669,101 +674,11 @@ const ServerCard = ({
             )}
           </div>
 
-          {/* Transport */}
-          <div className="hub-server-card-transport-cell min-w-0">
-            {server.config?.type ? (
-              <span
-                className="hub-tag hub-server-card-transport-tag"
-                title={transportLabel(t, server.config.type) ?? undefined}
-              >
-                {transportLabel(t, server.config.type)}
-              </span>
-            ) : (
-              <span style={{ color: 'var(--hub-ink-3)', fontSize: 12 }}>—</span>
-            )}
-            {server.config?.type !== 'openapi' && (
-              <span className="hub-server-card-protocol" title={t('server.protocolVersion')}>
-                MCP{' '}
-                {enabled && server.status === 'connected' && server.protocolVersion ? (
-                  <span className="whitespace-nowrap">{server.protocolVersion}</span>
-                ) : (
-                  t('server.protocolVersionUnknown')
-                )}
-              </span>
-            )}
-          </div>
-
-          <div className="hub-server-card-visibility min-w-0" onClick={(e) => e.stopPropagation()}>
-            {canManage && onVisibilityChange ? (
-              <LoadingControl
-                isLoading={isUpdatingVisibility}
-                className="w-full"
-                overlayStyle={{ borderRadius: 6 }}
-              >
-                <select
-                  value={visibility.value}
-                  onChange={handleVisibilityChange}
-                  disabled={isUpdatingVisibility}
-                  className="hub-server-card-select w-full rounded-md border px-2 py-1 text-[11.5px] bg-[var(--hub-surface)] text-[var(--hub-ink)]"
-                  style={{ borderColor: 'var(--hub-line-2)' }}
-                  aria-label={t('server.visibility', 'Visibility')}
-                  title={visibility.longLabel}
-                >
-                  {visibilityOptions.map((option) => (
-                    <option key={option.value} value={option.value} disabled={option.disabled}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </LoadingControl>
-            ) : (
-              <span
-                className={`hub-server-card-visibility-badge inline-flex items-center rounded-md border px-2 py-0.5 text-[11.5px] ${visibility.className}`}
-                title={visibility.longLabel}
-              >
-                {visibility.shortLabel}
-              </span>
-            )}
-          </div>
-
-          {/* Tools / Prompts / Resources counts */}
-          {capabilitySummaries.map(({ key, icon: Icon, total, enabled: enabledCount, label }) => {
-            const isEmpty = total === 0;
-            return (
-              <span
-                key={key}
-                className={`hub-server-capability-stat hub-mono hub-num ${isEmpty ? 'is-empty' : ''}`}
-                title={`${label}: ${enabledCount}/${total}`}
-              >
-                <span className="text-[var(--hub-ink-3)]">
-                  <CapabilityIcon icon={Icon} />
-                </span>
-                <span className="hub-server-capability-value">
-                  {isEmpty ? '0' : `${enabledCount}/${total}`}
-                </span>
-              </span>
-            );
-          })}
-
-          {/* Context Footprint stat */}
-          {cost && cost.connected ? (
-            <span
-              className="hub-server-capability-stat hub-mono hub-num"
-              title={`${t('cost.exposed')} ${cost.exposed} / ${t('cost.gross')} ${cost.gross} · ${t('cost.estimate')}`}
-            >
-              <span className="text-[var(--hub-ink-3)]">Σ</span>
-              <span className="hub-server-capability-value">
-                {formatTokens(cost.exposed)}/{formatTokens(cost.gross)}
-              </span>
-            </span>
-          ) : cost ? (
-            <span className="hub-server-capability-stat hub-mono is-empty" title={t('cost.notConnected')}>
-              <span className="hub-server-capability-value">—</span>
-            </span>
-          ) : null}
-
           {/* Toggle switch */}
-          <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="hub-server-card-toggle flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
             <LoadingControl
               isLoading={isToggling}
               className="h-[18px] w-[30px]"
@@ -784,7 +699,7 @@ const ServerCard = ({
           </div>
 
           {/* Menu */}
-          <div className="relative" ref={menuRef}>
+          <div className="hub-server-card-menu relative" ref={menuRef}>
             {canManage && (
               <button
                 className="hub-icon-btn"
@@ -793,6 +708,7 @@ const ServerCard = ({
                   setShowMenu((v) => !v);
                 }}
                 aria-label="More"
+                aria-expanded={showMenu}
                 aria-busy={isDuplicating}
               >
                 {isDuplicating ? (
@@ -804,8 +720,8 @@ const ServerCard = ({
             )}
             {canManage && showMenu && (
               <div
-                className="absolute right-0 top-full mt-1 z-20 hub-card"
-                style={{ minWidth: 160, padding: 4 }}
+                className="hub-menu absolute right-0 top-full mt-1 z-20"
+                style={{ minWidth: 176 }}
                 onClick={(e) => e.stopPropagation()}
               >
                 <button
@@ -814,10 +730,9 @@ const ServerCard = ({
                     setShowMenu(false);
                     onEdit(server);
                   }}
-                  className="flex items-center gap-2 w-full px-2.5 py-1.5 text-[13px] rounded-md hover:bg-[var(--hub-surface-hover)] text-left"
-                  style={{ color: 'var(--hub-ink)' }}
+                  className="hub-menu-item"
                 >
-                  <Edit3 size={13} /> {t('server.edit')}
+                  <Edit3 size={14} /> {t('server.edit')}
                 </button>
                 {onDuplicate && (
                   <button
@@ -829,32 +744,29 @@ const ServerCard = ({
                     }}
                     disabled={isDuplicating}
                     aria-busy={isDuplicating}
-                    className="flex items-center gap-2 w-full px-2.5 py-1.5 text-[13px] rounded-md hover:bg-[var(--hub-surface-hover)] text-left disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{ color: 'var(--hub-ink)' }}
-                  >
+                      className="hub-menu-item disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
                     {isDuplicating ? (
-                      <RefreshCw size={13} className="animate-spin" />
+                      <RefreshCw size={14} className="animate-spin" />
                     ) : (
-                      <CopyPlus size={13} />
+                      <CopyPlus size={14} />
                     )}{' '}
                     {t('server.duplicate')}
                   </button>
                 )}
                 <button
                   onClick={handleCopyConfig}
-                  className="flex items-center gap-2 w-full px-2.5 py-1.5 text-[13px] rounded-md hover:bg-[var(--hub-surface-hover)] text-left"
-                  style={{ color: 'var(--hub-ink)' }}
+                  className="hub-menu-item"
                 >
-                  <Copy size={13} /> {t('server.copy')}
+                  <Copy size={14} /> {t('server.copy')}
                 </button>
                 {onReload && (
                   <button
                     onClick={handleReload}
                     disabled={isReloading || isToggling || !enabled}
-                    className="flex items-center gap-2 w-full px-2.5 py-1.5 text-[13px] rounded-md hover:bg-[var(--hub-surface-hover)] text-left disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{ color: 'var(--hub-ink)' }}
-                  >
-                    <RefreshCw size={13} /> {t('server.reload')}
+                      className="hub-menu-item disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                    <RefreshCw size={14} /> {t('server.reload')}
                   </button>
                 )}
                 {onReinstall && supportsReinstall && (
@@ -866,10 +778,9 @@ const ServerCard = ({
                       setShowReinstallDialog(true);
                     }}
                     disabled={isReinstalling || isToggling || !enabled}
-                    className="flex items-center gap-2 w-full px-2.5 py-1.5 text-[13px] rounded-md hover:bg-[var(--hub-surface-hover)] text-left disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{ color: 'var(--hub-ink)' }}
-                  >
-                    <DownloadCloud size={13} /> {t('server.reinstall')}
+                      className="hub-menu-item disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                    <DownloadCloud size={14} /> {t('server.reinstall')}
                   </button>
                 )}
                 {supportsOAuthDisconnect && (
@@ -881,23 +792,22 @@ const ServerCard = ({
                       setShowOAuthDisconnectDialog(true);
                     }}
                     disabled={isDisconnectingOAuth}
-                    className="flex items-center gap-2 w-full px-2.5 py-1.5 text-[13px] rounded-md hover:bg-[var(--hub-surface-hover)] text-left disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{ color: 'var(--hub-ink)' }}
-                  >
-                    <LogOut size={13} /> {t('server.disconnectOAuth')}
+                      className="hub-menu-item disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                    <LogOut size={14} /> {t('server.disconnectOAuth')}
                   </button>
                 )}
-                <div style={{ height: 1, background: 'var(--hub-line-2)', margin: '4px 0' }} />
+                <div className="my-1 border-t border-[var(--hub-line)]" />
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowMenu(false);
                     setShowDeleteDialog(true);
                   }}
-                  className="flex items-center gap-2 w-full px-2.5 py-1.5 text-[13px] rounded-md hover:bg-[var(--hub-surface-hover)] text-left"
+                  className="hub-menu-item"
                   style={{ color: 'var(--hub-err)' }}
                 >
-                  <Trash2 size={13} /> {t('server.delete')}
+                  <Trash2 size={14} /> {t('server.delete')}
                 </button>
               </div>
             )}
@@ -907,11 +817,7 @@ const ServerCard = ({
         {/* Expanded detail */}
         {expanded && (
           <div
-            style={{
-              borderTop: '1px solid var(--hub-line-2)',
-              background: 'var(--hub-bg-2)',
-              padding: '14px 16px 16px 38px',
-            }}
+            className="hub-reveal hub-server-card-detail rounded-b-[inherit]"
           >
             {server.config?.description && (
               <section
@@ -933,57 +839,124 @@ const ServerCard = ({
                 </p>
               </section>
             )}
+            {/* Secondary facts that used to crowd the main row */}
+            <dl className="hub-server-meta">
+              <div>
+                <dt>{t('server.type')}</dt>
+                <dd>
+                  {server.config?.type ? (
+                    <span
+                      className="hub-tag"
+                      title={transportLabel(t, server.config.type) ?? undefined}
+                    >
+                      {transportLabel(t, server.config.type)}
+                    </span>
+                  ) : (
+                    <span style={{ color: 'var(--hub-ink-3)' }}>—</span>
+                  )}
+                </dd>
+              </div>
+              {server.config?.type !== 'openapi' && (
+                <div>
+                  <dt>{t('server.protocolVersion')}</dt>
+                  <dd className="hub-mono">
+                    {enabled && server.status === 'connected' && server.protocolVersion
+                      ? server.protocolVersion
+                      : t('server.protocolVersionUnknown')}
+                  </dd>
+                </div>
+              )}
+              <div>
+                <dt>{t('server.visibility', 'Visibility')}</dt>
+                <dd>
+                  {canManage && onVisibilityChange ? (
+                    <LoadingControl
+                      isLoading={isUpdatingVisibility}
+                      className="w-full max-w-[220px]"
+                      overlayStyle={{ borderRadius: 6 }}
+                    >
+                      <select
+                        value={visibility.value}
+                        onChange={handleVisibilityChange}
+                        disabled={isUpdatingVisibility}
+                        className="hub-server-card-select w-full rounded-md border bg-[var(--hub-surface)] text-[var(--hub-ink)]"
+                        style={{ borderColor: 'var(--hub-line)' }}
+                        aria-label={t('server.visibility', 'Visibility')}
+                        title={visibility.longLabel}
+                      >
+                        {visibilityOptions.map((option) => (
+                          <option key={option.value} value={option.value} disabled={option.disabled}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </LoadingControl>
+                  ) : (
+                    <span
+                      className={`hub-server-card-visibility-badge inline-flex items-center rounded-md border ${visibility.className}`}
+                      title={visibility.longLabel}
+                    >
+                      {visibility.shortLabel}
+                    </span>
+                  )}
+                </dd>
+              </div>
+              {/* When connected, the footprint shows on its own button below instead. */}
+              {cost && !cost.connected && (
+                <div>
+                  <dt>{t('cost.totalFootprint')}</dt>
+                  <dd className="hub-mono" title={t('cost.notConnected')}>
+                    —
+                  </dd>
+                </div>
+              )}
+            </dl>
+
             {/* Capability tabs + endpoint on same row */}
-            <div className="flex items-center gap-1 mb-2 flex-wrap">
-              {capabilitySummaries.map((tab) => {
-                const active = expandedTab === tab.key;
-                const Icon = tab.icon;
-                return (
+            <div className="flex items-center gap-3 mb-2 flex-wrap">
+              <div className="hub-seg sm">
+                {capabilitySummaries.map((tab) => {
+                  const active = expandedTab === tab.key;
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setExpandedTab(active ? null : tab.key)}
+                    >
+                      <CapabilityIcon icon={Icon} />
+                      <span>{tab.label}</span>
+                      <span className="hub-mono hub-num" style={{ color: 'var(--hub-ink-3)', fontSize: 11 }}>
+                        {tab.total === 0 ? '0' : `${tab.enabled}/${tab.total}`}
+                      </span>
+                    </button>
+                  );
+                })}
+
+                {/* Context cost tab */}
+                {cost && cost.connected && (
                   <button
-                    key={tab.key}
-                    onClick={() => setExpandedTab(active ? null : tab.key)}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] transition-colors hover:bg-[var(--hub-surface-hover)]"
-                    style={{
-                      background: active ? 'var(--hub-surface)' : 'transparent',
-                      border: '1px solid ' + (active ? 'var(--hub-line)' : 'transparent'),
-                      color: active ? 'var(--hub-ink)' : 'var(--hub-ink-2)',
-                    }}
+                    type="button"
+                    aria-pressed={expandedTab === 'cost'}
+                    onClick={() => setExpandedTab(expandedTab === 'cost' ? null : 'cost')}
+                    title={t('cost.estimate')}
                   >
-                    <CapabilityIcon icon={Icon} />
-                    <span>{tab.label}</span>
-                    <span className="hub-mono hub-num" style={{ color: 'var(--hub-ink-3)', fontSize: 11 }}>
-                      {tab.total === 0 ? '0' : `${tab.enabled}/${tab.total}`}
+                    <span style={{ color: 'var(--hub-ink-3)' }}>Σ</span>
+                    <span>{t('cost.totalFootprint')}</span>
+                    <span
+                      className="hub-mono hub-num"
+                      style={{ color: 'var(--hub-ink-3)', fontSize: 11 }}
+                    >
+                      {formatTokens(cost.exposed)}/{formatTokens(cost.gross)}
                     </span>
                   </button>
-                );
-              })}
-
-              {/* Context cost tab */}
-              {cost && cost.connected && (
-                <button
-                  onClick={() => setExpandedTab(expandedTab === 'cost' ? null : 'cost')}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] transition-colors hover:bg-[var(--hub-surface-hover)]"
-                  style={{
-                    background: expandedTab === 'cost' ? 'var(--hub-surface)' : 'transparent',
-                    border: '1px solid ' + (expandedTab === 'cost' ? 'var(--hub-line)' : 'transparent'),
-                    color: expandedTab === 'cost' ? 'var(--hub-ink)' : 'var(--hub-ink-2)',
-                  }}
-                  title={t('cost.estimate')}
-                >
-                  <span style={{ color: 'var(--hub-ink-3)' }}>Σ</span>
-                  <span>{t('cost.totalFootprint')}</span>
-                  <span
-                    className="hub-mono hub-num"
-                    style={{ color: 'var(--hub-ink-3)', fontSize: 11 }}
-                  >
-                    {formatTokens(cost.exposed)}/{formatTokens(cost.gross)}
-                  </span>
-                </button>
-              )}
+                )}
+              </div>
 
               {/* Endpoint inline, pushed to the right */}
               <div className="ml-auto max-w-full flex-shrink-0 flex items-center justify-end gap-1.5 flex-wrap">
-                <div className="hub-endpoint" style={{ height: 26 }}>
+                <div className="hub-endpoint" style={{ height: 28 }}>
                   <div className="hub-endpoint-label">/mcp/</div>
                   <div className="hub-endpoint-url" title={serverEndpoint} style={{ maxWidth: 200 }}>
                     {server.name}
@@ -1000,7 +973,7 @@ const ServerCard = ({
                     <Copy size={12} />
                   </button>
                 </div>
-                <div className="hub-endpoint" style={{ height: 26 }}>
+                <div className="hub-endpoint" style={{ height: 28 }}>
                   <div className="hub-endpoint-label">/api/</div>
                   <div
                     className="hub-endpoint-url"

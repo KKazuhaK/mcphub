@@ -55,24 +55,23 @@ const LanguageSwitch: React.FC = () => {
     <div className="relative language-dropdown">
       <button
         onClick={handleLanguageToggle}
-        className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 focus:outline-none"
+        className="hub-icon-btn"
+        aria-expanded={languageDropdownOpen}
         aria-label="Language Switcher"
       >
-        <LanguageIcon className="h-5 w-5" />
+        <LanguageIcon className="h-4 w-4" />
       </button>
 
       {/* Show dropdown when opened */}
       {languageDropdownOpen && (
-        <div className="absolute right-0 mt-2 w-24 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+        <div className="hub-menu absolute right-0 top-full z-50 mt-1 min-w-32">
           <div>
             {availableLanguages.map((lang) => (
               <button
                 key={lang.code}
                 onClick={() => handleLanguageChange(lang.code)}
-                className={`flex items-center w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${currentLanguage.startsWith(lang.code)
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-100'
-                  }`}
+                aria-current={currentLanguage.startsWith(lang.code) ? 'true' : undefined}
+                className="hub-menu-item"
               >
                 {lang.label}
               </button>
