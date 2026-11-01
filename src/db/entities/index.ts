@@ -1,4 +1,5 @@
 import { CapabilitySnapshot } from './CapabilitySnapshot.js';
+import { CredentialBindingImport } from './CredentialBindingImport.js';
 import { CredentialBinding } from './CredentialBinding.js';
 import { UserServerSelectionRecord } from './UserServerSelectionRecord.js';
 import { VectorEmbedding } from './VectorEmbedding.js';
@@ -19,6 +20,7 @@ import BuiltinResource from './BuiltinResource.js';
 export default [
   CapabilitySnapshot,
   CredentialBinding,
+  CredentialBindingImport,
   UserServerSelectionRecord,
   VectorEmbedding,
   User,
@@ -39,6 +41,7 @@ export default [
 export {
   CapabilitySnapshot,
   CredentialBinding,
+  CredentialBindingImport,
   UserServerSelectionRecord,
   VectorEmbedding,
   User,

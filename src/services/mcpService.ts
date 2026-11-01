@@ -149,6 +149,7 @@ import config from '../config/index.js';
 import { validateMaxBufferSize } from '../utils/stdioOptions.js';
 import { validateServerName } from '../utils/serverNameValidation.js';
 import { getGroup, getSessionUsername } from './sseService.js';
+import { mcpEventBus } from './mcpEventBus.js';
 import { getServerConfigInGroup, normalizeGroupServers } from './groupService.js';
 import {
   removeServerToolEmbeddings,
@@ -713,6 +714,9 @@ const broadcastListChanged = (
   sendNotification: (server: Server) => Promise<void>,
   shouldNotify?: (sessionId: string) => boolean,
 ): void => {
+  // The bus reaches every modern subscriber, so only catalog-wide changes go through it; a
+  // user-scoped change must not tell other users' subscriptions to refetch.
+  if (!shouldNotify) mcpEventBus.publish({ kind: `${listType}s_list_changed` });
   Object.entries(servers).forEach(([sessionId, server]) => {
     if (shouldNotify && !shouldNotify(sessionId)) return;
     sendNotification(server)

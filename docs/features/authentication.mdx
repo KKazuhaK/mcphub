@@ -76,6 +76,11 @@ contain the prefix, never the token or the hash. Keys written by older versions 
 hashed in place at startup, and their existing tokens keep working. A settings export contains
 neither the token nor the hash.
 
+Administrators and owners of user-level keys can select **Reset Bearer key** in Settings. After
+confirmation, `POST /api/auth/keys/:id/reset` generates a new token and returns it once, like the
+create response. The previous token stops working immediately; the key ID, name, kind, owner,
+enabled status and resource scope stay unchanged.
+
 <Warning>
 Hashing is one-way. A version older than this change cannot authenticate a hashed key, so rolling
 back needs a backup taken before the upgrade (or new keys). In database mode, upgrade every

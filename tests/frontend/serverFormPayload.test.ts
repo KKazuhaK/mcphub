@@ -688,3 +688,16 @@ describe('maximum tool risk in the server payload', () => {
     });
   });
 });
+
+test('preserves shared OAuth expiry when saving the form', () => {
+  const payload = buildServerPayload({
+    formData: {
+      name: 'remote', url: 'https://example.com/mcp', command: '', arguments: '',
+      env: [], headers: [], oauth: { accessToken: 'opaque', accessTokenExpiresAt: 12345 },
+    },
+    serverType: 'streamable-http',
+    envVars: [],
+    headerVars: [],
+  });
+  expect(payload.config.oauth?.accessTokenExpiresAt).toBe(12345);
+});

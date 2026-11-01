@@ -15,7 +15,7 @@ export const warnAboutPlaintextBearerKeysInSettingsFile = (): number => {
   try {
     const path = getSettingsPath();
     if (!fs.existsSync(path)) return 0;
-    const settings = JSON.parse(fs.readFileSync(path, 'utf8')) as {
+    const settings = JSON.parse(fs.readFileSync(path, 'utf8').replace(/^\uFEFF/, '')) as {
       bearerKeys?: { token?: unknown }[];
       systemConfig?: { routing?: { bearerAuthKey?: unknown } };
     };

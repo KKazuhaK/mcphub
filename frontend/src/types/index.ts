@@ -269,6 +269,7 @@ export interface ServerConfig {
     clientSecret?: string; // OAuth client secret
     redirectUri?: string; // Preferred redirect URI for authorization requests and registration
     scopes?: string[]; // Required OAuth scopes
+    accessTokenExpiresAt?: number;
     accessToken?: string; // Pre-obtained access token (if available)
     refreshToken?: string; // Refresh token for renewing access
     dynamicRegistration?: {
@@ -469,6 +470,7 @@ export interface ServerFormData {
     allowInsecureTokenEndpoint?: boolean;
     clientSecret?: string;
     scopes?: string;
+    accessTokenExpiresAt?: number;
     accessToken?: string;
     refreshToken?: string;
     authorizationServerMetadata?: NonNullable<ServerConfig['oauth']>['authorizationServerMetadata'];

@@ -1,7 +1,6 @@
 import { assertSmartRoutingSettingsAvailable } from './smartRoutingPath.js';
 import { syncSettingsToDatabase } from './settingsSync.js';
-import { CredentialBindingDaoImpl } from '../dao/CredentialBindingDao.js';
-import { CredentialBindingDaoDbImpl } from '../dao/CredentialBindingDaoDbImpl.js';
+import { migrateCredentialBindings } from './credentialBindingMigration.js';
 import { UserServerSelectionDaoImpl } from '../dao/UserServerSelectionDao.js';
 import { UserServerSelectionDaoDbImpl } from '../dao/UserServerSelectionDaoDbImpl.js';
 import { loadOriginalSettings } from '../config/index.js';
@@ -31,6 +30,9 @@ export async function migrateToDatabase(seedServersAndGroups = true): Promise<bo
     // Initialize database connection
     await initializeDatabase();
     logger.log('Database connection established');
+
+    // Validate/import credentials before any configuration writes.
+    await migrateCredentialBindings();
 
     // Load current settings from file
     const settings = loadOriginalSettings(
@@ -128,13 +130,6 @@ export async function migrateToDatabase(seedServersAndGroups = true): Promise<bo
           logger.log(`  - Server already exists: ${name}`);
         }
       }
-    }
-
-    // Ciphertext is portable between persistence backends; the encryption key stays external.
-    const credentialDao = new CredentialBindingDaoDbImpl();
-    for (const binding of new CredentialBindingDaoImpl().readAll()) {
-      if (!(await credentialDao.get(binding.serverName, binding.username)))
-        await credentialDao.save(binding);
     }
 
     const selectionDao = new UserServerSelectionDaoDbImpl();
@@ -395,7 +390,8 @@ export async function initializeDatabaseMode(): Promise<boolean> {
         throw new Error('Migration failed');
       }
     } else {
-      logger.log(`Database already contains ${userCount} users, skipping migration`);
+      logger.log(`Database already contains ${userCount} users, skipping configuration migration`);
+      await migrateCredentialBindings();
 
       // One-time migration for legacy bearer auth config stored inside DB routing settings.
       // If bearerKeys table already has data, do nothing.

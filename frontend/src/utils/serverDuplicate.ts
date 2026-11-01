@@ -44,7 +44,13 @@ export const buildDuplicateSource = (server: Server): Server => {
     credentialWriteClients: _credentialWriteClients,
     ...config
   } = server.config ?? {};
-  const { accessToken, refreshToken, pendingAuthorization, ...oauthConfig } = oauth ?? {};
+  const {
+    accessToken,
+    accessTokenExpiresAt,
+    refreshToken,
+    pendingAuthorization,
+    ...oauthConfig
+  } = oauth ?? {};
 
   return {
     name: buildDuplicateServerName(server.name),
