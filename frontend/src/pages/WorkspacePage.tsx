@@ -20,6 +20,8 @@ const WorkspacePage: React.FC = () => {
     <button
       type="button"
       role="tab"
+      id={`workspace-tab-${value}`}
+      aria-controls="workspace-tabpanel"
       aria-selected={tab === value}
       className="hub-tab"
       onClick={() => setSearch(value === 'services' ? {} : { tab: value })}
@@ -41,7 +43,13 @@ const WorkspacePage: React.FC = () => {
         {tabButton('activity', t('workspacePage.activity.tab'))}
       </div>
 
-      <div key={tab} className="hub-reveal" role="tabpanel">
+      <div
+        key={tab}
+        id="workspace-tabpanel"
+        className="hub-reveal"
+        role="tabpanel"
+        aria-labelledby={`workspace-tab-${tab}`}
+      >
         {tab === 'clients' ? (
           <ConnectedClientsPanel />
         ) : tab === 'activity' ? (

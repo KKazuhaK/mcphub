@@ -119,7 +119,7 @@ const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ collapsed, version })
             onClick={handleSponsorClick}
             className="hub-menu-item"
           >
-            <SponsorIcon className="h-4 w-4 mr-2" />
+            <SponsorIcon className="h-4 w-4" />
             {t('sponsor.label')}
           </button>
 
@@ -128,7 +128,7 @@ const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ collapsed, version })
               onClick={handleWeChatClick}
               className="hub-menu-item"
             >
-              <WeChatIcon className="h-4 w-4 mr-2" />
+              <WeChatIcon className="h-4 w-4" />
               {t('wechat.label')}
             </button>
           ) : (
@@ -138,7 +138,7 @@ const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ collapsed, version })
               rel="noopener noreferrer"
               className="hub-menu-item"
             >
-              <DiscordIcon className="h-4 w-4 mr-2" />
+              <DiscordIcon className="h-4 w-4" />
               {t('discord.label')}
             </a>
           )}
@@ -147,14 +147,14 @@ const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ collapsed, version })
             onClick={handleSettingsClick}
             className="hub-menu-item"
           >
-            <Settings className="h-4 w-4 mr-2" />
+            <Settings className="h-4 w-4" />
             {t('nav.settings')}
           </button>
           <button
             onClick={handleAboutClick}
             className="hub-menu-item relative"
           >
-            <Info className="h-4 w-4 mr-2" />
+            <Info className="h-4 w-4" />
             {t('about.title')}
             {showNewVersionInfo && (
               <span className="absolute top-3 right-3 block w-2 h-2 bg-red-500 rounded-full"></span>
@@ -167,7 +167,7 @@ const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ collapsed, version })
             onClick={handleLogoutClick}
             className="hub-menu-item"
           >
-            <LogOut className="h-4 w-4 mr-2" />
+            <LogOut className="h-4 w-4" />
             {t('app.logout')}
           </button>
         </div>

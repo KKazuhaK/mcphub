@@ -7,6 +7,12 @@
   [role='button']:not(:disabled) {
     cursor: pointer;
   }
+
+  /* One keyboard focus ring for controls that do not draw their own. */
+  :is(a, button, [role='button'], [role='tab'], [role='switch']):focus-visible {
+    outline: 2px solid var(--hub-accent);
+    outline-offset: 2px;
+  }
 }
 
 /* ----- redesign tokens (hairline borders, Linear-style density) ----- */
@@ -326,20 +332,64 @@
   background: oklch(0.18 0.005 250);
 }
 
-/* Servers page card row layout */
+/* Servers page card row: identity, status, then the two controls. Everything else lives in
+   the expanded detail. */
 .hub-server-card-row {
   display: grid;
   align-items: center;
-  gap: 10px;
-  grid-template-columns:
-    minmax(180px, 1.6fr)
-    minmax(96px, 0.4fr)
-    minmax(max-content, 0.45fr)
-    minmax(100px, 0.5fr)
-    repeat(3, minmax(76px, 0.36fr))
-    minmax(112px, 0.5fr)
-    44px
-    28px;
+  column-gap: 16px;
+  row-gap: 6px;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 200px) 32px 32px;
+  grid-template-areas: 'main status toggle menu';
+}
+.hub-server-card-row > :first-child { grid-area: main; }
+.hub-server-card-row > .hub-server-card-status-cell { grid-area: status; }
+.hub-server-card-row > .hub-server-card-toggle { grid-area: toggle; }
+.hub-server-card-row > .hub-server-card-menu { grid-area: menu; }
+
+@media (max-width: 639px) {
+  .hub-server-card-row {
+    column-gap: 8px;
+    padding-inline: 12px;
+    grid-template-columns: minmax(0, 1fr) 32px 32px;
+    grid-template-areas:
+      'main toggle menu'
+      'status status status';
+  }
+  /* Line the status up with the name, past the chevron. */
+  .hub-server-card-row > .hub-server-card-status-cell { padding-left: 22px; }
+}
+
+.hub-server-card-detail {
+  border-top: 1px solid var(--hub-line-2);
+  background: var(--hub-bg-2);
+  padding: 16px 16px 16px 38px;
+}
+@media (max-width: 639px) {
+  .hub-server-card-detail { padding: 16px; }
+}
+
+/* Facts in the expanded detail: label above value, as many per row as fit. */
+.hub-server-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px 24px;
+  margin: 0 0 16px;
+}
+.hub-server-meta > div { min-width: 0; }
+.hub-server-meta dt {
+  margin-bottom: 4px;
+  font-size: 12px;
+  line-height: 1.25;
+  color: var(--hub-ink-3);
+}
+.hub-server-meta dd {
+  margin: 0;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: var(--hub-ink-2);
 }
 
 .hub-server-card-row > * {
@@ -400,18 +450,18 @@
 
 .hub-server-card-select,
 .hub-server-card-visibility-badge {
-  height: 30px;
+  height: 28px;
 }
 
 .hub-server-card-select {
-  padding: 0 26px 0 9px !important;
-  font-size: 11px !important;
+  padding: 0 26px 0 8px !important;
+  font-size: 12px !important;
   border-radius: var(--hub-radius);
 }
 
 .hub-server-card-visibility-badge {
-  padding: 0 9px;
-  font-size: 11px;
+  padding: 0 8px;
+  font-size: 12px;
   border-radius: var(--hub-radius);
 }
 
@@ -461,19 +511,6 @@
 }
 
 @media (max-width: 1440px) {
-  .hub-server-card-row {
-    gap: 9px;
-    grid-template-columns:
-      minmax(150px, 1.5fr)
-      minmax(84px, 0.4fr)
-      minmax(max-content, 0.42fr)
-      minmax(88px, 0.5fr)
-      repeat(3, minmax(66px, 0.34fr))
-      minmax(100px, 0.46fr)
-      44px
-      28px;
-  }
-
   .hub-server-capability-stat {
     padding: 0 6px;
     gap: 5px;
@@ -1218,19 +1255,6 @@ button.hub-btn.primary.is-loading::after {
 }
 
 @media (max-width: 1200px) {
-  .hub-server-card-row {
-    gap: 8px;
-    grid-template-columns:
-      minmax(120px, 1.4fr)
-      minmax(72px, 0.4fr)
-      minmax(max-content, 0.4fr)
-      minmax(80px, 0.45fr)
-      repeat(3, minmax(58px, 0.3fr))
-      minmax(92px, 0.42fr)
-      40px
-      24px;
-  }
-
   .hub-server-capability-stat {
     padding: 0 5px;
     gap: 4px;
@@ -1256,20 +1280,29 @@ button.hub-btn.primary.is-loading::after {
 /* ----- Shared components and motion (Primer scale; layered so utilities can override) ----- */
 @layer components {
   /* Underline tabs: page-level navigation between views. */
+  /* One row that scrolls sideways on narrow screens. The 6px side padding gives the hover
+     background room; the bottom rule is painted on the content box so it lines up with the page. */
   .hub-tabs {
     display: flex;
-    flex-wrap: wrap;
     column-gap: 20px;
-    border-bottom: 1px solid var(--hub-line);
+    margin-inline: -6px;
+    padding-inline: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    background: linear-gradient(var(--hub-line), var(--hub-line)) bottom / 100% 1px no-repeat;
+    background-origin: content-box;
+    background-clip: content-box;
   }
+  .hub-tabs::-webkit-scrollbar { display: none; }
   .hub-tab {
     position: relative;
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    flex-shrink: 0;
     height: 40px;
     padding: 0;
-    margin-bottom: -1px;
     border: 0;
     background: transparent;
     color: var(--hub-ink-2);
@@ -1280,7 +1313,7 @@ button.hub-btn.primary.is-loading::after {
   .hub-tab::before {
     content: '';
     position: absolute;
-    inset: 6px -8px;
+    inset: 6px -6px;
     border-radius: var(--hub-radius);
     background: var(--hub-surface-hover);
     opacity: 0;
@@ -1305,6 +1338,8 @@ button.hub-btn.primary.is-loading::after {
   .hub-tab[aria-selected='true'] { color: var(--hub-ink); font-weight: 500; }
   .hub-tab[aria-selected='true']::after { transform: scaleX(1); }
   .hub-tab:not(:disabled):active { transform: none; }
+  .hub-tab:focus-visible { outline: none; }
+  .hub-tab:focus-visible::before { opacity: 1; box-shadow: inset 0 0 0 2px var(--hub-accent); }
 
   /* Segmented control: switching between options of one setting. */
   .hub-seg {
@@ -1507,5 +1542,17 @@ button.hub-btn.primary.is-loading::after {
   button.is-loading:not(#hub-none)::after {
     animation-duration: 0.6s !important;
     animation-iteration-count: infinite !important;
+  }
+}
+
+/* iOS Safari zooms into any text field under 16px on focus. On phones every field is 16px;
+   :not(#hub-none) lifts this over inline sizes, utilities and the !important legacy rules. */
+@media (max-width: 639px) {
+  :is(
+      input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color'], [type='submit'], [type='button'], [type='reset']),
+      select,
+      textarea
+    ):not(#hub-none) {
+    font-size: 16px !important;
   }
 }

@@ -151,8 +151,8 @@ const ServersPage: React.FC = () => {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-end justify-between gap-4 mb-6">
-        <div>
+      <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
+        <div className="min-w-0">
           <h1 className="hub-h1">{t('pages.servers.title')}</h1>
           <p className="hub-sub">
             <span className="hub-num">{counts.all}</span> {t('nav.servers').toLowerCase()} ·{' '}
@@ -161,7 +161,7 @@ const ServersPage: React.FC = () => {
             {t('common.inactive') || 'issues'}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button className="hub-btn" onClick={() => navigate('/market')}>
             <Plus size={13} /> {t('nav.market')}
           </button>
@@ -214,10 +214,7 @@ const ServersPage: React.FC = () => {
 
       {/* Toolbar */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <div
-          className="hub-card flex items-center"
-          style={{ padding: 2, borderRadius: 7, background: 'var(--hub-surface)' }}
-        >
+        <div className="hub-seg">
           {(
             [
               ['all', t('common.all') || 'All', counts.all],
@@ -228,18 +225,12 @@ const ServersPage: React.FC = () => {
           ).map(([k, l, n]) => (
             <button
               key={k}
+              type="button"
+              aria-pressed={filter === k}
               onClick={() => setFilter(k)}
-              className="inline-flex items-center gap-1.5 px-3 text-[12px]"
-              style={{
-                height: 24,
-                borderRadius: 5,
-                background: filter === k ? 'var(--hub-bg-2)' : 'transparent',
-                color: filter === k ? 'var(--hub-ink)' : 'var(--hub-ink-3)',
-                border: '1px solid ' + (filter === k ? 'var(--hub-line)' : 'transparent'),
-              }}
             >
               {l}
-              <span className="hub-mono" style={{ fontSize: 11, color: 'var(--hub-ink-3)' }}>
+              <span className="hub-mono hub-num" style={{ fontSize: 12, color: 'var(--hub-ink-3)' }}>
                 {n}
               </span>
             </button>
@@ -247,14 +238,14 @@ const ServersPage: React.FC = () => {
         </div>
 
         <div
-          className="hub-card flex items-center gap-2 px-2.5 flex-1"
-          style={{ height: 30, background: 'var(--hub-surface)', maxWidth: 360 }}
+          className="hub-card flex min-w-[180px] items-center gap-2 px-2.5 flex-1"
+          style={{ height: 32, background: 'var(--hub-surface)', maxWidth: 360 }}
         >
-          <Search size={13} style={{ color: 'var(--hub-ink-3)' }} />
+          <Search size={14} style={{ color: 'var(--hub-ink-3)' }} />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 bg-transparent outline-none text-[13px]"
+            className="min-w-0 flex-1 bg-transparent outline-none text-[14px] max-sm:text-[16px]"
             style={{ color: 'var(--hub-ink)' }}
             placeholder={t('market.searchPlaceholder') || 'Search…'}
           />
@@ -304,15 +295,18 @@ const ServersPage: React.FC = () => {
             ))}
           </div>
 
-          <div className="flex items-center mt-4 text-[12px]" style={{ color: 'var(--hub-ink-3)' }}>
-            <div className="flex-[2]">
+          <div
+            className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-4 text-[12px]"
+            style={{ color: 'var(--hub-ink-3)' }}
+          >
+            <div className="flex-[2] whitespace-nowrap">
               {t('common.showing', {
                 start: (clientPagination.page - 1) * clientPagination.limit + 1,
                 end: Math.min(clientPagination.page * clientPagination.limit, clientPagination.total),
                 total: clientPagination.total,
               })}
             </div>
-            <div className="flex-[4] flex justify-center">
+            <div className="flex-[4] flex min-w-0 max-w-full justify-start sm:justify-center overflow-x-auto">
               {clientPagination.totalPages > 1 && (
                 <Pagination
                   currentPage={clientPagination.page}
@@ -322,7 +316,7 @@ const ServersPage: React.FC = () => {
                 />
               )}
             </div>
-            <div className="flex-[2] flex items-center justify-end gap-2">
+            <div className="flex-[2] flex items-center justify-end gap-2 whitespace-nowrap">
               <label htmlFor="perPage">{t('common.itemsPerPage')}:</label>
               <select
                 id="perPage"
@@ -330,7 +324,7 @@ const ServersPage: React.FC = () => {
                 onChange={(e) => setServersPerPage(Number(e.target.value))}
                 disabled={isLoading}
                 className="hub-input"
-                style={{ height: 26, width: 70, padding: '0 6px', fontSize: 12 }}
+                style={{ height: 28, width: 72, padding: '0 6px' }}
               >
                 <option value={5}>5</option>
                 <option value={10}>10</option>

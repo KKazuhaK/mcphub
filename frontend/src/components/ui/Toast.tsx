@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, CheckCircle2, Info, X, XCircle } from 'lucide-react';
 import { cn } from '@/utils/cn';
@@ -11,6 +11,8 @@ export interface ToastProps {
   duration?: number;
   onClose: () => void;
   visible: boolean;
+  // Changes with every toast shown, so a repeated message is announced again.
+  announceId?: number;
 }
 
 const Toast: React.FC<ToastProps> = ({
@@ -19,8 +21,18 @@ const Toast: React.FC<ToastProps> = ({
   duration = 3000,
   onClose,
   visible,
+  announceId,
 }) => {
   const { t } = useTranslation();
+  const [announcement, setAnnouncement] = useState('');
+
+  // Empty the live region first, then fill it: screen readers skip text that did not change.
+  useEffect(() => {
+    setAnnouncement('');
+    if (!visible) return;
+    const timer = setTimeout(() => setAnnouncement(message), 50);
+    return () => clearTimeout(timer);
+  }, [visible, message, announceId]);
 
   useEffect(() => {
     if (visible) {
@@ -30,7 +42,8 @@ const Toast: React.FC<ToastProps> = ({
 
       return () => clearTimeout(timer);
     }
-  }, [visible, duration, onClose]);
+    // A new toast restarts the timer, so it gets its full duration.
+  }, [visible, duration, onClose, announceId]);
 
   const Icon = { success: CheckCircle2, error: XCircle, info: Info, warning: AlertTriangle }[type];
   const tone = {
@@ -44,7 +57,7 @@ const Toast: React.FC<ToastProps> = ({
     <>
       {/* Always mounted, so screen readers announce each message as it arrives. */}
       <div className="sr-only" role="status" aria-live="polite">
-        {visible ? message : ''}
+        {announcement}
       </div>
       <div className={cn('hub-toast', visible && 'visible')} aria-hidden={!visible}>
         <Icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: tone }} aria-hidden />

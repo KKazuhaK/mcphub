@@ -1829,9 +1829,9 @@ const SettingsPage: React.FC = () => {
           >
             <div className="flex items-center gap-2.5">
               <Key size={15} className="text-[var(--hub-ink-2)]" />
-              <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]">
+              <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]"><button type="button" className="text-left" aria-expanded={sectionsVisible.bearerKeys}>
                 {t('settings.bearerKeysSectionTitle') || 'Bearer authentication keys'}
-              </h2>
+              </button></h2>
             </div>
             <span className="text-[var(--hub-ink-3)]">
               <ChevronDown size={16} className={'hub-chevron' + (sectionsVisible.bearerKeys ? ' open' : '')} aria-hidden />
@@ -2229,7 +2229,7 @@ const SettingsPage: React.FC = () => {
           >
             <div className="flex items-center gap-2.5">
               <RouteIcon size={15} className="text-[var(--hub-ink-2)]" />
-              <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]">{t('pages.settings.smartRouting')}</h2>
+              <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]"><button type="button" className="text-left" aria-expanded={sectionsVisible.smartRoutingConfig}>{t('pages.settings.smartRouting')}</button></h2>
               <span className="hub-status ml-2" data-state={smartRoutingConfig.enabled ? 'on' : 'off'}>
                 <span
                   className="hub-dot"
@@ -3045,9 +3045,9 @@ const SettingsPage: React.FC = () => {
           >
             <div className="flex items-center gap-2.5">
               <FileText size={15} className="text-[var(--hub-ink-2)]" />
-              <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]">
+              <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]"><button type="button" className="text-left" aria-expanded={sectionsVisible.toolResultCompressionConfig}>
                 {t('settings.toolResultCompressionTitle') || 'Tool Result Compression'}
-              </h2>
+              </button></h2>
               <span
                 className="hub-status ml-2"
                 data-state={toolResultCompressionConfig.enabled ? 'on' : 'off'}
@@ -3214,7 +3214,7 @@ const SettingsPage: React.FC = () => {
           >
             <div className="flex items-center gap-2.5">
               <Lock size={15} className="text-[var(--hub-ink-2)]" />
-              <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]">{t('pages.settings.oauthServer')}</h2>
+              <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]"><button type="button" className="text-left" aria-expanded={sectionsVisible.oauthServerConfig}>{t('pages.settings.oauthServer')}</button></h2>
             </div>
             <span className="text-[var(--hub-ink-3)]"><ChevronDown size={16} className={'hub-chevron' + (sectionsVisible.oauthServerConfig ? ' open' : '')} aria-hidden /></span>
           </div>
@@ -3510,7 +3510,7 @@ const SettingsPage: React.FC = () => {
           >
             <div className="flex items-center gap-2.5">
               <Cloud size={15} className="text-[var(--hub-ink-2)]" />
-              <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]">{t('settings.mcpRouterConfig')}</h2>
+              <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]"><button type="button" className="text-left" aria-expanded={sectionsVisible.mcpRouterConfig}>{t('settings.mcpRouterConfig')}</button></h2>
             </div>
             <span className="text-[var(--hub-ink-3)]">
               <ChevronDown size={16} className={'hub-chevron' + (sectionsVisible.mcpRouterConfig ? ' open' : '')} aria-hidden />
@@ -3584,9 +3584,9 @@ const SettingsPage: React.FC = () => {
           >
             <div className="flex items-center gap-2.5">
               <Lock size={15} className="text-[var(--hub-ink-2)]" />
-              <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]">
+              <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]"><button type="button" className="text-left" aria-expanded={sectionsVisible.betterAuthConfig}>
                 {t('settings.betterAuthTitle') || 'Better Auth'}
-              </h2>
+              </button></h2>
             </div>
             <span className="text-[var(--hub-ink-3)]">
               <ChevronDown size={16} className={'hub-chevron' + (sectionsVisible.betterAuthConfig ? ' open' : '')} aria-hidden />
@@ -3915,7 +3915,7 @@ const SettingsPage: React.FC = () => {
           >
             <div className="flex items-center gap-2.5">
               <SlidersHorizontal size={15} className="text-[var(--hub-ink-2)]" />
-              <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]">{t('settings.systemSettings')}</h2>
+              <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]"><button type="button" className="text-left" aria-expanded={sectionsVisible.nameSeparator}>{t('settings.systemSettings')}</button></h2>
             </div>
             <span className="text-[var(--hub-ink-3)]"><ChevronDown size={16} className={'hub-chevron' + (sectionsVisible.nameSeparator ? ' open' : '')} aria-hidden /></span>
           </div>
@@ -3999,7 +3999,7 @@ const SettingsPage: React.FC = () => {
           >
             <div className="flex items-center gap-2.5">
               <ShieldCheck size={15} className="text-[var(--hub-ink-2)]" />
-              <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]">{t('pages.settings.routeConfig')}</h2>
+              <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]"><button type="button" className="text-left" aria-expanded={sectionsVisible.routingConfig}>{t('pages.settings.routeConfig')}</button></h2>
             </div>
             <span className="text-[var(--hub-ink-3)]"><ChevronDown size={16} className={'hub-chevron' + (sectionsVisible.routingConfig ? ' open' : '')} aria-hidden /></span>
           </div>
@@ -4145,7 +4145,7 @@ const SettingsPage: React.FC = () => {
           >
             <div className="flex items-center gap-2.5">
               <Package size={15} className="text-[var(--hub-ink-2)]" />
-              <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]">{t('settings.installConfig')}</h2>
+              <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]"><button type="button" className="text-left" aria-expanded={sectionsVisible.installConfig}>{t('settings.installConfig')}</button></h2>
             </div>
             <span className="text-[var(--hub-ink-3)]"><ChevronDown size={16} className={'hub-chevron' + (sectionsVisible.installConfig ? ' open' : '')} aria-hidden /></span>
           </div>
@@ -4249,11 +4249,10 @@ const SettingsPage: React.FC = () => {
         <div
           className="flex justify-between items-center cursor-pointer transition-colors duration-100 hover:bg-[var(--hub-surface-hover)] hub-disclosure px-4 py-3"
           onClick={() => toggleSection('password')}
-          role="button"
         >
           <div className="flex items-center gap-2.5">
             <KeyRound size={15} className="text-[var(--hub-ink-2)]" />
-            <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]">{t('auth.changePassword')}</h2>
+            <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]"><button type="button" className="text-left" aria-expanded={sectionsVisible.password}>{t('auth.changePassword')}</button></h2>
           </div>
           <span className="text-[var(--hub-ink-3)]"><ChevronDown size={16} className={'hub-chevron' + (sectionsVisible.password ? ' open' : '')} aria-hidden /></span>
         </div>
@@ -4274,7 +4273,7 @@ const SettingsPage: React.FC = () => {
           >
             <div className="flex items-center gap-2.5">
               <FileDown size={15} className="text-[var(--hub-ink-2)]" />
-              <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]">{t('settings.exportMcpSettings')}</h2>
+              <h2 className="text-[16px] font-semibold text-[var(--hub-ink)]"><button type="button" className="text-left" aria-expanded={sectionsVisible.exportConfig}>{t('settings.exportMcpSettings')}</button></h2>
             </div>
             <span className="text-[var(--hub-ink-3)]"><ChevronDown size={16} className={'hub-chevron' + (sectionsVisible.exportConfig ? ' open' : '')} aria-hidden /></span>
           </div>

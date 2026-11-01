@@ -27,7 +27,7 @@ const Content: React.FC<ContentProps> = ({ children }) => {
 
   return (
     <main className="flex-1 overflow-auto" style={{ background: 'var(--hub-bg)' }}>
-      <div ref={pageRef} className="mx-auto w-full max-w-[1280px] px-4 pt-6 pb-16 sm:px-6 lg:px-8">
+      <div ref={pageRef} className="mx-auto w-full max-w-[1680px] px-4 pt-6 pb-16 sm:px-6 lg:px-8 xl:px-10">
         {children}
       </div>
     </main>
