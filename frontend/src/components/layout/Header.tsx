@@ -112,7 +112,7 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
           href="https://github.com/samanhappy/mcphub"
           target="_blank"
           rel="noopener noreferrer"
-          className="hub-icon-btn"
+          className="hub-icon-btn max-sm:hidden!"
           aria-label="GitHub Repository"
         >
           <GitHubIcon className="h-4 w-4" />
@@ -121,7 +121,7 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
           href="https://docs.mcphub.app"
           target="_blank"
           rel="noopener noreferrer"
-          className="hub-icon-btn"
+          className="hub-icon-btn max-sm:hidden!"
           aria-label="Documentation"
         >
           <BookOpen className="h-4 w-4" />

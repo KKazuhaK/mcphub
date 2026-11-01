@@ -14,8 +14,31 @@ const PageFallback: React.FC = () => (
   </div>
 );
 
+// Below this width the expanded sidebar would leave the page too little room.
+const NARROW_QUERY = '(max-width: 767px)';
+
+const isNarrow = () =>
+  typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? window.matchMedia(NARROW_QUERY).matches
+    : false;
+
+// Reports the current narrow state, then every crossing; returns the unsubscribe.
+export const followNarrowViewport = (onChange: (narrow: boolean) => void): (() => void) => {
+  if (typeof window.matchMedia !== 'function') return () => undefined;
+  const query = window.matchMedia(NARROW_QUERY);
+  // The width may have crossed between the first render and this subscription.
+  onChange(query.matches);
+  const listener = (event: MediaQueryListEvent) => onChange(event.matches);
+  query.addEventListener('change', listener);
+  return () => query.removeEventListener('change', listener);
+};
+
 const MainLayout: React.FC = () => {
-  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(isNarrow);
+
+  // Collapse when the window becomes narrow and expand when it widens again;
+  // the menu button still overrides this until the next crossing.
+  React.useEffect(() => followNarrowViewport(setSidebarCollapsed), []);
 
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);

@@ -86,7 +86,7 @@ const ConnectedClientsPanel: React.FC = () => {
           </h2>
           <p className="hub-sub">{t('workspacePage.clients.description')}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button type="button" className="hub-btn" onClick={() => void load()}>
             <RefreshCw size={13} /> {t('common.refresh')}
           </button>

@@ -35,7 +35,7 @@ const WorkspacePage: React.FC = () => {
         <p className="hub-sub">{t('workspacePage.subtitle')}</p>
       </div>
 
-      <div className="flex gap-2" role="tablist" aria-label={t('workspacePage.title')}>
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label={t('workspacePage.title')}>
         {tabButton('services', t('workspacePage.services.tab'))}
         {tabButton('clients', t('workspacePage.clients.tab'))}
         {tabButton('activity', t('workspacePage.activity.tab'))}
