@@ -6020,6 +6020,21 @@ export const getServerToolsForPrincipal = async (
   }
 };
 
+/**
+ * The tools the given principal's own runtime has already listed for a personal-credential
+ * server, read without connecting anything. Undefined when nothing is known yet.
+ */
+export const peekServerToolsForPrincipal = async (
+  serverName: string,
+  principal: RequestPrincipal,
+): Promise<Tool[] | undefined> => {
+  try {
+    return await principalRuntimes.peekTools(serverName, principal);
+  } catch {
+    return undefined;
+  }
+};
+
 type McpHandler = (request: any, extra: any) => Promise<any>;
 const withModernLists =
   (handler: McpHandler, fields: Array<Exclude<UpstreamList, 'templates'>>): McpHandler =>

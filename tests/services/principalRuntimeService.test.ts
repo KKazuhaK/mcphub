@@ -172,3 +172,42 @@ test('tools-only restoration rejects a binding rotation during cache lookup', as
   );
   await expect(pool.acquire('shared', alice, true)).rejects.toThrow('changed');
 });
+
+describe('peekTools', () => {
+  const tool = { name: 'shared::get', inputSchema: { type: 'object' as const } };
+
+  test('returns the caller’s own live tools without connecting, and nobody else’s', async () => {
+    const connect = jest.fn(async () => ({ ...info(), tools: [tool] }));
+    const pool = new PrincipalRuntimeService(connect, jest.fn());
+    (await pool.acquire('shared', alice)).release();
+    connect.mockClear();
+
+    expect(await pool.peekTools('shared', alice)).toEqual([tool]);
+    expect(await pool.peekTools('shared', { username: 'bob' })).toBeUndefined();
+    expect(connect).not.toHaveBeenCalled();
+  });
+
+  test('falls back to the saved snapshot and is undefined when there is none', async () => {
+    const connect = jest.fn(async () => info());
+    const restore = jest.fn(async () => undefined as ServerInfo | undefined);
+    const pool = new PrincipalRuntimeService(connect, jest.fn(), restore);
+
+    expect(await pool.peekTools('shared', alice)).toBeUndefined();
+    restore.mockResolvedValueOnce({ ...info(), tools: [tool] });
+    expect(await pool.peekTools('shared', alice)).toEqual([tool]);
+    expect(restore).toHaveBeenCalledWith(
+      'shared',
+      mockDefinition,
+      expect.objectContaining({ username: alice.username }),
+    );
+    expect(connect).not.toHaveBeenCalled();
+  });
+
+  test('ignores a runtime built for a revision that has since changed', async () => {
+    const pool = new PrincipalRuntimeService(async () => ({ ...info(), tools: [tool] }), jest.fn());
+    (await pool.acquire('shared', alice)).release();
+    mockRevision = 'rotated';
+
+    expect(await pool.peekTools('shared', alice)).toBeUndefined();
+  });
+});

@@ -1740,6 +1740,8 @@
       "banner_many": "{{count}} herramientas de tus servicios seleccionados están ocultas: las herramientas que cambian datos o actúan por ti siguen desactivadas hasta que las permitas. Abre un servicio abajo para permitir más.",
       "connectToSee": "Conecta este servicio para ver sus herramientas y elegir qué pueden hacer.",
       "unknownTools": "Conecta para ver las herramientas",
+      "pendingTools": "Conectado — las herramientas aparecen tras el primer uso",
+      "connectedPending": "Conectado. Las herramientas de este servicio aparecen aquí tras usarlo por primera vez.",
       "defaultNote": "Lo fija tu administrador hasta que elijas.",
       "untrustedHint": "Este servicio no lo gestiona un administrador, así que sus herramientas no están verificadas: todas cuentan como acciones visibles para otros."
     }

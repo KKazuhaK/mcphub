@@ -57,6 +57,44 @@ export class PrincipalRuntimeService {
     }
   }
 
+  /**
+   * The tools this principal's own runtime already has, without starting anything: the live
+   * runtime when one is held, else the persisted capability snapshot. Undefined when
+   * neither exists yet. Never consults another principal's runtime.
+   */
+  async peekTools(
+    serverName: string,
+    principal: RequestPrincipal,
+  ): Promise<ServerInfo['tools'] | undefined> {
+    if (principal.credentialEligible === false) return undefined;
+    const definition = await getServerDao().findById(serverName);
+    if (
+      !definition ||
+      definition.enabled === false ||
+      !hasPersonalAuthentication(definition) ||
+      !authorizationService.can('server.invoke', definition, principal)
+    ) {
+      return undefined;
+    }
+    const resolver = hasPersonalOAuth(definition) ? resolvePersonalOAuth : resolveCredentialBinding;
+    const resolved = await resolver(serverName, principal.username, definition);
+    const existing = this.entries.get(JSON.stringify([serverName, principal.username]));
+    if (
+      existing?.valid &&
+      existing.info &&
+      existing.info.status !== 'disconnected' &&
+      existing.revision === JSON.stringify([JSON.stringify(definition), resolved.revision])
+    ) {
+      return existing.info.tools;
+    }
+    if (!this.restoreTools) return undefined;
+    const cached = await this.restoreTools(serverName, resolved.config, {
+      username: principal.username,
+      revision: resolved.revision,
+    });
+    return cached?.tools;
+  }
+
   async acquire(
     serverName: string,
     principal: RequestPrincipal,

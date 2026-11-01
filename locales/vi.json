@@ -1724,6 +1724,8 @@
       "banner_other": "{{count}} công cụ trong các dịch vụ bạn đã chọn đang bị ẩn: công cụ thay đổi dữ liệu hoặc hành động thay bạn sẽ tắt cho đến khi bạn cho phép. Hãy mở một dịch vụ bên dưới để cho phép thêm.",
       "connectToSee": "Hãy kết nối dịch vụ này để xem công cụ của nó và chọn những gì chúng được phép làm.",
       "unknownTools": "Kết nối để xem công cụ",
+      "pendingTools": "Đã kết nối — công cụ hiện sau lần dùng đầu tiên",
+      "connectedPending": "Đã kết nối. Công cụ của dịch vụ này sẽ hiện ở đây sau lần dùng đầu tiên.",
       "defaultNote": "Do quản trị viên đặt cho đến khi bạn tự chọn.",
       "untrustedHint": "Dịch vụ này không do quản trị viên vận hành nên công cụ của nó chưa được xác minh: tất cả được tính là hành động người khác nhìn thấy."
     }

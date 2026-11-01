@@ -17,6 +17,12 @@ const selectionRows: Array<{
 // Replaces every server's live tools when set.
 let liveTools: Array<{ name: string; annotations?: Record<string, unknown> }> | null;
 const mockNotifyUserListsChanged = jest.fn();
+// Tools each user's own runtime has listed, by username then server name.
+let userTools: Record<string, Record<string, Array<{ name: string; annotations?: object }>>>;
+const mockPeekServerTools = jest.fn(
+  async (serverName: string, principal: { username: string }) =>
+    userTools[principal.username]?.[serverName],
+);
 const mockGetCredentialBindingStatus = jest.fn();
 
 jest.mock('../../src/dao/DaoFactory.js', () => ({
@@ -79,6 +85,8 @@ jest.mock('../../src/services/mcpService.js', () => ({
     ],
   }),
   notifyUserListsChanged: (...args: unknown[]) => mockNotifyUserListsChanged(...args),
+  peekServerToolsForPrincipal: (serverName: string, principal: { username: string }) =>
+    mockPeekServerTools(serverName, principal),
 }));
 // Annotations are believed for servers owned by an administrator ("admin" here).
 jest.mock('../../src/services/annotationTrustService.js', () => ({
@@ -137,6 +145,7 @@ describe('workspace API', () => {
     jest.clearAllMocks();
     selectionRows.length = 0;
     liveTools = null;
+    userTools = {};
     groupNames = [];
     clearServerSelectionCache();
     clearUserServerFailures();
@@ -227,10 +236,10 @@ describe('workspace API', () => {
           name: 'needs-key',
           selected: false,
           enabled: true,
-          toolCount: 3,
+          toolCount: null,
           riskCeiling: 'read',
           riskCeilingIsDefault: true,
-          riskCounts: { read: 3, write: 0, external: 0 },
+          riskCounts: null,
           maxAllowedRisk: 'external',
           annotationsTrusted: true,
           requiresPersonalCredential: true,
@@ -256,6 +265,66 @@ describe('workspace API', () => {
       expect(
         response.body.data.find((server: { name: string }) => server.name === 'needs-key'),
       ).toMatchObject({ requiresPersonalCredential: true, credentialConfigured: true });
+    });
+
+    describe('a service needing personal credentials', () => {
+      const needsKey = async (username: string) => {
+        const response = await request(app)
+          .get('/api/workspace/servers')
+          .set('x-test-user', asUser(username))
+          .expect(200);
+        return response.body.data.find((server: { name: string }) => server.name === 'needs-key');
+      };
+
+      it('counts the connected user’s own tools', async () => {
+        mockGetCredentialBindingStatus.mockResolvedValue({ configured: true });
+        userTools.bob = {
+          'needs-key': [
+            { name: 'needs-key::get', annotations: { readOnlyHint: true } },
+            { name: 'needs-key::list', annotations: { readOnlyHint: true } },
+            { name: 'needs-key::post', annotations: { readOnlyHint: false } },
+          ],
+        };
+
+        expect(await needsKey('bob')).toMatchObject({
+          toolCount: 2,
+          riskCounts: { read: 2, write: 0, external: 1 },
+        });
+      });
+
+      it('reports unknown tools, not zero, when the connected user has no runtime yet', async () => {
+        mockGetCredentialBindingStatus.mockResolvedValue({ configured: true });
+
+        expect(await needsKey('bob')).toMatchObject({
+          credentialConfigured: true,
+          toolCount: null,
+          riskCounts: null,
+        });
+      });
+
+      it('never uses another user’s runtime', async () => {
+        mockGetCredentialBindingStatus.mockResolvedValue({ configured: true });
+        userTools.alice = {
+          'needs-key': [{ name: 'needs-key::get', annotations: { readOnlyHint: true } }],
+        };
+
+        expect(await needsKey('bob')).toMatchObject({ toolCount: null, riskCounts: null });
+        expect(mockPeekServerTools).toHaveBeenCalledWith(
+          'needs-key',
+          expect.objectContaining({ username: 'bob' }),
+        );
+        expect(mockPeekServerTools).not.toHaveBeenCalledWith(
+          'needs-key',
+          expect.objectContaining({ username: 'alice' }),
+        );
+      });
+
+      it('does not look at tools until the user has connected', async () => {
+        userTools.bob = { 'needs-key': [{ name: 'needs-key::get' }] };
+
+        expect(await needsKey('bob')).toMatchObject({ toolCount: null, riskCounts: null });
+        expect(mockPeekServerTools).not.toHaveBeenCalled();
+      });
     });
 
     it('shows an admin every server, as the dashboard does', async () => {
