@@ -191,6 +191,7 @@ export const listWorkspaceServers = async (req: Request, res: Response): Promise
           return {
             name: server.name,
             description: server.description,
+            manageUrl: server.manageUrl,
             selected,
             enabled: server.enabled !== false,
             toolCount: tools.toolCount,
@@ -209,6 +210,27 @@ export const listWorkspaceServers = async (req: Request, res: Response): Promise
     res.json({ success: true, data });
   } catch {
     res.status(500).json({ success: false, message: 'Unable to list workspace servers' });
+  }
+};
+
+// The management page link of one service, for the stable /services/:name page. It works with
+// Workspace Mode off, and answers 404 for a service the user cannot see so it does not reveal
+// which services exist.
+export const getServiceManageUrl = async (req: Request, res: Response): Promise<void> => {
+  const user = principal(req);
+  if (!user?.username) {
+    res.status(401).json({ success: false, message: 'Authentication required' });
+    return;
+  }
+  try {
+    const server = await getServerDao().findById(req.params.name);
+    if (!server || !filterVisible([server], user).length) {
+      res.status(404).json({ success: false, message: 'Server not found' });
+      return;
+    }
+    res.json({ success: true, data: { name: server.name, manageUrl: server.manageUrl ?? null } });
+  } catch {
+    res.status(500).json({ success: false, message: 'Unable to load the service' });
   }
 };
 

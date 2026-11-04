@@ -72,6 +72,11 @@ mcphub servers add fetch \
   --arg mcp-server-fetch \
   --env USER_AGENT=mcphub
 
+# --description and --manage-url (an https link to the service's account or token page) are optional:
+mcphub servers add notes \
+  --type streamable-http --url https://notes.example.com/mcp \
+  --manage-url https://notes.example.com/account/token
+
 mcphub servers remove fetch
 mcphub servers toggle fetch --on
 mcphub servers reload fetch

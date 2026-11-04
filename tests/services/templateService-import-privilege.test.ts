@@ -39,6 +39,26 @@ beforeEach(() => {
   mockGroupDao.findByName.mockResolvedValue(null);
 });
 
+describe('template import of the management page link', () => {
+  const servers = {
+    linked: { type: 'sse', url: 'https://example.com/sse', manageUrl: 'https://example.com/acct' },
+  };
+
+  it('does not persist manageUrl from a non-admin import', async () => {
+    const result = await importTemplate(templateWith(servers), 'alice', alice);
+    expect(result.serversCreated).toBe(1);
+    expect(addServer).toHaveBeenCalledTimes(1);
+    expect((addServer as jest.Mock).mock.calls[0][1]).not.toHaveProperty('manageUrl');
+  });
+
+  it('keeps manageUrl from an admin import', async () => {
+    await importTemplate(templateWith(servers), 'admin', admin);
+    expect((addServer as jest.Mock).mock.calls[0][1]).toMatchObject({
+      manageUrl: 'https://example.com/acct',
+    });
+  });
+});
+
 describe('template import privileged-config policy (#1094)', () => {
   it.each([
     { type: 'stdio', command: 'node' },

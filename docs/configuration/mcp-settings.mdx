@@ -75,6 +75,7 @@ A server entry has the shape `"<server-name>": ServerConfig`. The relevant field
 | `visibility` | `"private" \| "group" \| "public"` | no | Runtime access for non-admin users. Defaults to `private`; `group` grants access to `sharedWithUsers`. |
 | `sharedWithUsers` | string[] | no | Local usernames allowed to discover and call a server whose `visibility` is `group`. Ignored for other visibility values. |
 | `description` | string | no | Free-form description displayed in the dashboard. |
+| `manageUrl` | string | no | Link to the upstream service's own account or token page, shown to users in their workspace and credentials pages. Must be an absolute `https:` URL (`http:` is accepted only for `localhost`, `127.0.0.1` and `[::1]`) without embedded credentials, at most 2048 characters. Empty clears it. Only administrators can set or change it. Users reach it through the stable link `/services/<server name>` on the hub (for example `https://hub.example.com/services/ubc-personal`), which signs them in if needed and then redirects to this URL, or shows a short notice when the service has none. |
 | `options` | object | no | Per-server runtime options (see `src/types/index.ts`). |
 | `proxy` | object | no | Optional HTTP proxy settings (`url`, `noProxy`, etc.). |
 | `oauth` | object | no | Upstream OAuth client settings (used when the upstream server requires OAuth). |

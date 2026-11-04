@@ -32,6 +32,7 @@ import { safeStringify } from './utils/serialization.js';
 import { resolveTrustProxySetting } from './utils/proxyTrust.js';
 import { resolveCorsOrigin } from './utils/corsOrigin.js';
 import { setFrontendDistPath } from './utils/frontendShell.js';
+import { serviceLinkShellMiddleware } from './utils/serviceLinkShell.js';
 import http from 'http';
 import type { Socket } from 'net';
 import { mcpConnectionRateLimiter, spaPageRateLimiter } from './utils/rateLimit.js';
@@ -151,6 +152,12 @@ export class AppServer {
       initUpstreamServers()
         .then(() => {
           logger.log('MCP server initialized successfully');
+
+          // A browser opening /services/mcp or /services/sse is the hub link of a service with
+          // that name, not an MCP connection of a user named "services".
+          this.app.use(
+            serviceLinkShellMiddleware(this.basePath, () => this.frontendPath, spaPageRateLimiter),
+          );
 
           // Original routes (global and group-based)
           this.app.get(

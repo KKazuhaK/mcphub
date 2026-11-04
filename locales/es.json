@@ -135,6 +135,15 @@
     "nameInvalid": "El nombre del servidor solo puede contener letras, números, puntos, guiones bajos y guiones (sin espacios ni caracteres especiales)",
     "description": "Nota del servidor",
     "descriptionPlaceholder": "Nota opcional para describir este servidor",
+    "manageUrl": "URL de la página de gestión",
+    "manageUrlPlaceholder": "https://service.example.com/account/token",
+    "manageUrlHint": "Enlace opcional a la página de cuenta o de tokens del propio servicio. Los usuarios lo ven como un enlace en su espacio de trabajo y en la página de credenciales. Debe ser https (http solo para localhost).",
+    "manageUrlInvalid": {
+      "tooLong": "La URL de la página de gestión es demasiado larga (máximo 2048 caracteres)",
+      "invalid": "La URL de la página de gestión debe ser una dirección web completa",
+      "scheme": "La URL de la página de gestión debe empezar por https:// (http:// solo se permite para localhost)",
+      "credentials": "La URL de la página de gestión no debe contener usuario ni contraseña"
+    },
     "url": "URL del servidor",
     "apiKey": "Clave de API",
     "save": "Guardar",
@@ -1519,6 +1528,8 @@
     "configured": "Configurado",
     "required": "Vinculación obligatoria",
     "writeOnly": "Los valores guardados no se pueden mostrar. Para reemplazar una vinculación, introduce nuevos valores para cada campo.",
+    "getCredentials": "Obtener o gestionar tus credenciales",
+    "getCredentialsFor": "Obtener o gestionar tus credenciales de {{name}}",
     "replaceValue": "Introduce el valor de reemplazo",
     "enterValue": "Introduce la credencial",
     "save": "Guardar vinculación",
@@ -1632,7 +1643,9 @@
       "contactAdmin": "Consulta a un administrador",
       "retryLater": "Inténtalo más tarde",
       "retryUntil": "Inténtalo de nuevo después de {{until}}",
-      "openAuthorization": "Abrir la página de inicio de sesión"
+      "openAuthorization": "Abrir la página de inicio de sesión",
+      "manageAccount": "Gestionar cuenta",
+      "manageAccountFor": "Gestionar cuenta de {{name}}"
     },
     "clients": {
       "tab": "Clientes conectados",
@@ -1749,5 +1762,10 @@
       "defaultNote": "Lo fija tu administrador hasta que elijas.",
       "untrustedHint": "Este servicio no lo gestiona un administrador, así que sus herramientas no están verificadas: todas cuentan como acciones visibles para otros."
     }
+  },
+  "serviceLink": {
+    "redirecting": "Abriendo la página de gestión del servicio...",
+    "noManagePage": "Este servicio no tiene página de gestión.",
+    "backToWorkspace": "Volver al espacio de trabajo"
   }
 }

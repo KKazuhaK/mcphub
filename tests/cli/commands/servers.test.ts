@@ -50,6 +50,36 @@ describe('servers command', () => {
     });
   });
 
+  it('add inline sends --description and --manage-url', async () => {
+    const { client, calls } = makeClient(() => ({ success: true, data: {} }));
+    await servers.run(
+      [
+        'add',
+        'notes',
+        '--type',
+        'streamable-http',
+        '--url',
+        'https://notes.example.com/mcp',
+        '--description',
+        'Notes',
+        '--manage-url',
+        'https://notes.example.com/account/token',
+      ],
+      {},
+      { client },
+    );
+    expect(calls[0].body.config).toMatchObject({
+      description: 'Notes',
+      manageUrl: 'https://notes.example.com/account/token',
+    });
+  });
+
+  it('add inline leaves manageUrl unset without --manage-url', async () => {
+    const { client, calls } = makeClient(() => ({ success: true, data: {} }));
+    await servers.run(['add', 'foo', '--type', 'stdio', '--command', 'npx'], {}, { client });
+    expect(calls[0].body.config.manageUrl).toBeUndefined();
+  });
+
   it('add inline collects repeated --arg and --env entries', async () => {
     const { client, calls } = makeClient(() => ({ success: true, data: {} }));
     await servers.run(

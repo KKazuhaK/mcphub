@@ -172,4 +172,53 @@ describe('credentialWriteClients (file mode)', () => {
       'credentialWriteClients',
     );
   });
+
+  describe('manageUrl', () => {
+    const run = async (updates: object) => {
+      const dao = new ServerDaoImpl();
+      jest.spyOn(dao as any, 'loadSettings').mockResolvedValue({
+        mcpServers: {
+          linked: {
+            type: 'sse',
+            url: 'https://example.com/sse',
+            manageUrl: 'https://example.com/account',
+          },
+        },
+      });
+      const save = jest.spyOn(dao as any, 'saveSettings').mockResolvedValue(undefined);
+      await dao.update('linked', updates);
+      return JSON.parse(JSON.stringify(save.mock.calls[0][0].mcpServers.linked));
+    };
+
+    it('reads the stored link back', async () => {
+      const dao = new ServerDaoImpl();
+      jest.spyOn(dao as any, 'loadSettings').mockResolvedValue({
+        mcpServers: { linked: { type: 'sse', manageUrl: 'https://example.com/account' } },
+      });
+
+      expect((await dao.findById('linked'))?.manageUrl).toBe('https://example.com/account');
+    });
+
+    it('keeps it through an update that does not name it', async () => {
+      expect((await run({ description: 'edited' })).manageUrl).toBe('https://example.com/account');
+    });
+
+    it('replaces it', async () => {
+      expect((await run({ manageUrl: 'https://example.com/new' })).manageUrl).toBe(
+        'https://example.com/new',
+      );
+    });
+
+    it('clears it, leaving no stored link on the DAO result', async () => {
+      const dao = new ServerDaoImpl();
+      jest.spyOn(dao as any, 'loadSettings').mockResolvedValue({
+        mcpServers: { linked: { type: 'sse', manageUrl: 'https://example.com/account' } },
+      });
+      jest.spyOn(dao as any, 'saveSettings').mockResolvedValue(undefined);
+
+      const updated = await dao.update('linked', { manageUrl: undefined });
+
+      expect(updated?.manageUrl).toBeUndefined();
+    });
+  });
 });

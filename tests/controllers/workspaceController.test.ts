@@ -104,6 +104,7 @@ jest.mock('../../src/services/personalOAuthService.js', () => ({
 }));
 
 import {
+  getServiceManageUrl,
   getWorkspaceEndpoints,
   getWorkspaceSummary,
   listWorkspaceServers,
@@ -129,6 +130,7 @@ const buildApp = () => {
     next();
   });
   app.get('/api/workspace/servers', listWorkspaceServers);
+  app.get('/api/services/:name/manage-url', getServiceManageUrl);
   app.get('/api/workspace/summary', getWorkspaceSummary);
   app.put('/api/workspace/servers/:name/selection', updateWorkspaceSelection);
   app.put('/api/workspace/servers/:name/risk', updateWorkspaceRisk);
@@ -153,7 +155,13 @@ describe('workspace API', () => {
     workspaceConfig = { workspace: { enabled: true } };
     mockGetCredentialBindingStatus.mockResolvedValue({ configured: false });
     servers = [
-      { name: 'public-tool', owner: 'admin', visibility: 'public', description: 'Shared' },
+      {
+        name: 'public-tool',
+        owner: 'admin',
+        visibility: 'public',
+        description: 'Shared',
+        manageUrl: 'https://tool.example.com/account',
+      },
       { name: 'private-tool', owner: 'admin', visibility: 'private' },
       { name: 'alice-tool', owner: 'alice', visibility: 'private', enabled: false },
       {
@@ -206,6 +214,7 @@ describe('workspace API', () => {
         {
           name: 'public-tool',
           description: 'Shared',
+          manageUrl: 'https://tool.example.com/account',
           selected: true,
           enabled: true,
           toolCount: 3,
@@ -556,6 +565,37 @@ describe('workspace API', () => {
     it('is empty when every selected server is unavailable', async () => {
       select('alice', 'needs-key');
       expect((await summary()).endpointState).toBe('empty');
+    });
+  });
+
+  describe('GET /services/:name/manage-url', () => {
+    const get = (name: string, user?: string) => {
+      const req = request(app).get(`/api/services/${name}/manage-url`);
+      return user ? req.set('x-test-user', asUser(user)) : req;
+    };
+
+    it('returns the link of a visible service, even with Workspace Mode off', async () => {
+      workspaceConfig = null;
+      const response = await get('public-tool', 'alice').expect(200);
+      expect(response.body.data).toEqual({
+        name: 'public-tool',
+        manageUrl: 'https://tool.example.com/account',
+      });
+    });
+
+    it('returns null for a visible service without a link', async () => {
+      const response = await get('needs-key', 'alice').expect(200);
+      expect(response.body.data.manageUrl).toBeNull();
+    });
+
+    it('answers 404 alike for a service the user cannot see and one that does not exist', async () => {
+      const hidden = await get('private-tool', 'alice').expect(404);
+      const missing = await get('nope', 'alice').expect(404);
+      expect(hidden.body).toEqual(missing.body);
+    });
+
+    it('requires an authenticated user', async () => {
+      await get('public-tool').expect(401);
     });
   });
 

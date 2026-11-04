@@ -56,6 +56,7 @@ const declarationSchema = z.object({
           env: z.record(z.string(), z.string()).optional(),
           headers: z.record(z.string(), z.string()).optional(),
           description: z.string().optional(),
+          manageUrl: z.string().optional(),
           owner: z.string().optional(),
           sharedWithUsers: z.array(z.string()).optional(),
           enableKeepAlive: z.boolean().optional(),

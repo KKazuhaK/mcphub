@@ -4,6 +4,7 @@ import { validateCredentialTemplate } from './credentialTemplate.js';
 import { validateMaxBufferSize } from './stdioOptions.js';
 import { normalizeCredentialWriteClients } from './credentialWriteScope.js';
 import { ServerConfigValidationError } from './serverConfigValidation.js';
+import { normalizeManageUrl } from './manageUrl.js';
 import { ServerConfig } from '../types/index.js';
 import { normalizeMaintenance, normalizePausedUsers } from './serverMaintenance.js';
 import {
@@ -361,6 +362,9 @@ export const normalizeServerConfigForPersistence = (config: ServerConfig): Serve
     sharedWithUsers,
     // Only emitted when the request carries the key: absent means "unchanged" under the
     // DAO's shallow merge, while null or an empty value clears the stored one.
+    ...(Object.prototype.hasOwnProperty.call(config, 'manageUrl')
+      ? { manageUrl: normalizeManageUrl(config.manageUrl) }
+      : {}),
     ...(Object.prototype.hasOwnProperty.call(config, 'pausedUsers')
       ? { pausedUsers: normalizePausedUsers(config.pausedUsers) }
       : {}),

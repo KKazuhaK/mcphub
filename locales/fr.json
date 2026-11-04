@@ -135,6 +135,15 @@
     "nameInvalid": "Le nom du serveur ne peut contenir que des lettres, chiffres, points, underscores et traits d'union (ni espaces ni caractères spéciaux)",
     "description": "Note du serveur",
     "descriptionPlaceholder": "Optionnel : décrivez l'utilité de ce serveur",
+    "manageUrl": "URL de la page de gestion",
+    "manageUrlPlaceholder": "https://service.example.com/account/token",
+    "manageUrlHint": "Lien facultatif vers la page de compte ou de jetons du service lui-même. Les utilisateurs le voient sous forme de lien dans leur espace de travail et sur la page des identifiants. Doit être en https (http uniquement pour localhost).",
+    "manageUrlInvalid": {
+      "tooLong": "L'URL de la page de gestion est trop longue (2048 caractères maximum)",
+      "invalid": "L'URL de la page de gestion doit être une adresse web complète",
+      "scheme": "L'URL de la page de gestion doit commencer par https:// (http:// n'est autorisé que pour localhost)",
+      "credentials": "L'URL de la page de gestion ne doit contenir ni nom d'utilisateur ni mot de passe"
+    },
     "url": "URL du serveur",
     "apiKey": "Clé API",
     "save": "Enregistrer",
@@ -1517,6 +1526,8 @@
     "configured": "Configuré",
     "required": "Association requise",
     "writeOnly": "Les valeurs enregistrées ne sont jamais affichées. Pour remplacer une association, renseignez tous les champs.",
+    "getCredentials": "Obtenir ou gérer vos identifiants",
+    "getCredentialsFor": "Obtenir ou gérer vos identifiants pour {{name}}",
     "replaceValue": "Nouvelle valeur",
     "enterValue": "Saisir l’identifiant",
     "save": "Enregistrer",
@@ -1630,7 +1641,9 @@
       "contactAdmin": "Contactez un administrateur",
       "retryLater": "Réessayez plus tard",
       "retryUntil": "Réessayez après {{until}}",
-      "openAuthorization": "Ouvrir la page de connexion"
+      "openAuthorization": "Ouvrir la page de connexion",
+      "manageAccount": "Gérer le compte",
+      "manageAccountFor": "Gérer le compte pour {{name}}"
     },
     "clients": {
       "tab": "Clients connectés",
@@ -1747,5 +1760,10 @@
       "defaultNote": "Défini par votre administrateur tant que vous n'avez pas choisi.",
       "untrustedHint": "Ce service n'est pas géré par un administrateur : ses outils ne sont pas vérifiés et comptent tous comme des actions visibles par d'autres."
     }
+  },
+  "serviceLink": {
+    "redirecting": "Ouverture de la page de gestion du service...",
+    "noManagePage": "Ce service n'a pas de page de gestion.",
+    "backToWorkspace": "Retour à l'espace de travail"
   }
 }

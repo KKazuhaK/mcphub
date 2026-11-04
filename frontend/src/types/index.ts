@@ -205,6 +205,7 @@ export interface CredentialSlot {
 
 export interface MyCredentialBinding {
   serverName: string;
+  manageUrl?: string;
   credentialTemplate: CredentialSlot[];
   configured: boolean;
   configuredSlots: string[];
@@ -223,6 +224,7 @@ export interface ServerConfig {
   credentialTemplate?: CredentialSlot[];
   type?: 'stdio' | 'sse' | 'streamable-http' | 'openapi';
   description?: string;
+  manageUrl?: string;
   url?: string;
   command?: string;
   args?: string[];
@@ -428,6 +430,7 @@ export interface ServerFormData {
   credentialTemplate?: CredentialSlot[];
   name: string;
   description?: string;
+  manageUrl?: string;
   url: string;
   command: string;
   arguments: string;
@@ -999,6 +1002,7 @@ export type ToolRiskLevel = 'read' | 'write' | 'external';
 export interface WorkspaceServer {
   name: string;
   description?: string;
+  manageUrl?: string;
   selected: boolean;
   enabled: boolean;
   // Enabled tools within the user's risk ceiling: what their endpoint exposes. Null when the

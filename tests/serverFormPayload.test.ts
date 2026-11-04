@@ -122,6 +122,7 @@ describe('buildServerPayload', () => {
       config: {
         type: 'openapi',
         description: '',
+        manageUrl: '',
         visibility: 'private',
         options: {},
         headers: {},
@@ -141,5 +142,40 @@ describe('buildServerPayload', () => {
         },
       },
     });
+  });
+
+  const baseForm = {
+    name: 'ubc',
+    description: '',
+    url: 'https://example.com/mcp',
+    command: '',
+    arguments: '',
+    args: [],
+    type: 'streamable-http' as const,
+    env: [],
+    headers: [],
+    passthroughHeaders: '',
+    visibility: 'private' as const,
+    options: {},
+    oauth: {},
+    keepAlive: {},
+  };
+  const build = (manageUrl?: string) =>
+    buildServerPayload({
+      formData: { ...baseForm, manageUrl },
+      serverType: 'streamable-http',
+      envVars: [],
+      headerVars: [],
+    });
+
+  test('sends a trimmed management page URL', () => {
+    expect(build('  https://example.com/account/token ').config.manageUrl).toBe(
+      'https://example.com/account/token',
+    );
+  });
+
+  test('sends an empty string to clear a stored management page URL', () => {
+    expect(build('   ').config.manageUrl).toBe('');
+    expect(build(undefined).config.manageUrl).toBe('');
   });
 });

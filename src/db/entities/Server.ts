@@ -25,6 +25,9 @@ export class Server {
   description?: string;
 
   @Column({ type: 'text', nullable: true })
+  manageUrl?: string;
+
+  @Column({ type: 'text', nullable: true })
   url?: string;
 
   @Column({ type: 'varchar', length: 500, nullable: true })

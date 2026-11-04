@@ -357,6 +357,7 @@ function serverConfigToTemplate(config: ServerConfig): {
 
   if (config.type) templateConfig.type = config.type;
   if (config.description) templateConfig.description = config.description;
+  if (config.manageUrl) templateConfig.manageUrl = config.manageUrl;
   if (config.url) templateConfig.url = config.url;
   if (config.command) templateConfig.command = config.command;
   if (config.args) templateConfig.args = [...config.args];
@@ -620,10 +621,16 @@ export async function importTemplate(
         toolRiskOverrides: _toolRiskOverrides,
         defaultUserRisk: _defaultUserRisk,
         credentialWriteClients: _credentialWriteClients,
+        manageUrl,
         ...importable
       } = config as ServerConfig;
       const serverConfig: ServerConfig = {
         ...importable,
+        // The management page link is administrator-chosen: kept for administrators and
+        // trusted system callers, dropped from a non-admin import.
+        ...(manageUrl !== undefined && (!requestingUser || requestingUser.isAdmin)
+          ? { manageUrl }
+          : {}),
         enabled: config.enabled ?? true,
         owner: owner || 'admin',
       };

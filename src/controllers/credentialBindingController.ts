@@ -50,6 +50,7 @@ export const listMyCredentials = async (req: Request, res: Response): Promise<vo
     const data = await Promise.all(
       servers.map(async (server) => ({
         serverName: server.name,
+        manageUrl: server.manageUrl,
         credentialTemplate: validateCredentialTemplate(server),
         ...(await getCredentialBindingStatus(server.name, user.username, server)),
       })),

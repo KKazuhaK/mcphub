@@ -135,6 +135,15 @@
     "nameInvalid": "Server name can only contain letters, numbers, dots, underscores, and hyphens (no spaces or special characters)",
     "description": "Server Note",
     "descriptionPlaceholder": "Optional note to describe this server",
+    "manageUrl": "Management page URL",
+    "manageUrlPlaceholder": "https://service.example.com/account/token",
+    "manageUrlHint": "Optional link to the service's own account or token page. Users see it as a link in their workspace and credentials pages. Must be https (http only for localhost).",
+    "manageUrlInvalid": {
+      "tooLong": "The management page URL is too long (at most 2048 characters)",
+      "invalid": "The management page URL must be a full web address",
+      "scheme": "The management page URL must start with https:// (http:// is allowed only for localhost)",
+      "credentials": "The management page URL must not contain a username or password"
+    },
     "url": "Server URL",
     "apiKey": "API Key",
     "save": "Save",
@@ -1519,6 +1528,8 @@
     "configured": "Configured",
     "required": "Binding required",
     "writeOnly": "Saved values cannot be displayed. To replace a binding, enter new values for every slot.",
+    "getCredentials": "Get or manage your credentials",
+    "getCredentialsFor": "Get or manage your credentials for {{name}}",
     "replaceValue": "Enter replacement value",
     "enterValue": "Enter credential",
     "save": "Save binding",
@@ -1627,7 +1638,9 @@
       "contactAdmin": "Ask an administrator",
       "retryLater": "Try again later",
       "retryUntil": "Try again after {{until}}",
-      "openAuthorization": "Open the sign-in page"
+      "openAuthorization": "Open the sign-in page",
+      "manageAccount": "Manage account",
+      "manageAccountFor": "Manage account for {{name}}"
     },
     "clients": {
       "tab": "Connected clients",
@@ -1742,5 +1755,10 @@
       "defaultNote": "Set by your administrator until you choose.",
       "untrustedHint": "This service is not run by an administrator, so its tools are not verified: all of them count as actions others can see."
     }
+  },
+  "serviceLink": {
+    "redirecting": "Opening the service's management page...",
+    "noManagePage": "This service has no management page.",
+    "backToWorkspace": "Back to workspace"
   }
 }
