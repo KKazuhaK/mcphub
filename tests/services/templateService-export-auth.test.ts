@@ -73,6 +73,40 @@ beforeEach(() => {
   mockGroupDao.findAll.mockResolvedValue(groups);
 });
 
+describe('template export of the management page link', () => {
+  it('copies manageUrl into the exported server config', async () => {
+    mockServerDao.findAll.mockResolvedValue([
+      {
+        name: 'linked',
+        owner: 'admin',
+        visibility: 'public',
+        enabled: true,
+        url: 'http://d',
+        manageUrl: 'https://d.example.com/account',
+      },
+      { name: 'plain', owner: 'admin', visibility: 'public', enabled: true, url: 'http://e' },
+    ]);
+    mockGroupDao.findAll.mockResolvedValue([
+      {
+        id: 'g-links',
+        name: 'Links',
+        description: '',
+        owner: 'admin',
+        visibility: 'public',
+        servers: [
+          { name: 'linked', tools: 'all', prompts: 'all', resources: 'all' },
+          { name: 'plain', tools: 'all', prompts: 'all', resources: 'all' },
+        ],
+      },
+    ]);
+
+    const tpl = await exportTemplate({ name: 't', requestingUser: admin });
+
+    expect(tpl.servers.linked.manageUrl).toBe('https://d.example.com/account');
+    expect(tpl.servers.plain).not.toHaveProperty('manageUrl');
+  });
+});
+
 describe('template export ownership filtering (GHSA-p589)', () => {
   it('non-admin full export excludes other users’ private servers and groups', async () => {
     const tpl = await exportTemplate({ name: 't', requestingUser: alice });

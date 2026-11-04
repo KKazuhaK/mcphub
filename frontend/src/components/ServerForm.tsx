@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSettings } from '../contexts/SettingsContext';
 import ServerAvailabilityFields from './ServerAvailabilityFields';
 import { getServerConfigPermissionError } from '../utils/serverPermissions.js';
+import { MANAGE_URL_MAX_LENGTH, getManageUrlSubmitProblem } from '../utils/manageUrl';
 import { X } from 'lucide-react';
 import { Server, EnvVar, ServerFormData, OpenApiToolStats } from '@/types';
 import { apiGet, apiPost } from '../utils/fetchInterceptor';
@@ -125,7 +126,9 @@ const ServerForm = ({
       // and preserved by the backend `normalizeOAuth` whitelist (#1193). Each
       // key is only added when the stored config actually has it, so the
       // payload does not gain absent fields.
-      ...(oauth?.authorizationServerMetadata && { authorizationServerMetadata: oauth.authorizationServerMetadata }),
+      ...(oauth?.authorizationServerMetadata && {
+        authorizationServerMetadata: oauth.authorizationServerMetadata,
+      }),
       ...(oauth?.dynamicRegistration && { dynamicRegistration: oauth.dynamicRegistration }),
       ...(oauth?.revocationEndpoint && { revocationEndpoint: oauth.revocationEndpoint }),
       ...(oauth?.redirectUri && { redirectUri: oauth.redirectUri }),
@@ -139,6 +142,7 @@ const ServerForm = ({
   const [formData, setFormData] = useState<ServerFormData>({
     name: (initialData && initialData.name) || '',
     description: (initialData && initialData.config && initialData.config.description) || '',
+    manageUrl: (initialData && initialData.config && initialData.config.manageUrl) || '',
     url: (initialData && initialData.config && initialData.config.url) || '',
     command: (initialData && initialData.config && initialData.config.command) || '',
     arguments: '',
@@ -593,6 +597,8 @@ const ServerForm = ({
   }, [isEdit, openApiSource.key, serverType]);
 
   // Submit handler for server configuration
+  const isAdmin = auth.user?.isAdmin === true;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -604,6 +610,12 @@ const ServerForm = ({
     const isNameChanging = !initialData?.name || formData.name !== initialData.name;
     if (isNameChanging && !isValidServerName(formData.name)) {
       setError(t('server.nameInvalid'));
+      return;
+    }
+
+    const manageUrlProblem = getManageUrlSubmitProblem(formData.manageUrl, isAdmin);
+    if (manageUrlProblem) {
+      setError(t(`server.manageUrlInvalid.${manageUrlProblem}`));
       return;
     }
 
@@ -627,6 +639,9 @@ const ServerForm = ({
             ? getDefaultUserRiskEdit(formData, initialAvailability.current)
             : undefined,
       });
+
+      // Only an administrator sets the management page link; leaving the key out keeps it.
+      if (!isAdmin) delete payload.config.manageUrl;
 
       const permissionError = getServerConfigPermissionError(payload.config, auth.user?.isAdmin);
       if (permissionError) {
@@ -700,6 +715,29 @@ const ServerForm = ({
                 placeholder={t('server.descriptionPlaceholder')}
               />
             </div>
+
+            {isAdmin && (
+              <div className="md:col-span-2">
+                <label
+                  className="block text-sm font-medium mb-1.5 text-[var(--hub-ink-2)]"
+                  htmlFor="manageUrl"
+                >
+                  {t('server.manageUrl')}
+                </label>
+                <input
+                  type="text"
+                  inputMode="url"
+                  name="manageUrl"
+                  id="manageUrl"
+                  value={formData.manageUrl || ''}
+                  onChange={handleInputChange}
+                  className="w-full py-2 px-3 form-input"
+                  placeholder={t('server.manageUrlPlaceholder')}
+                  maxLength={MANAGE_URL_MAX_LENGTH}
+                />
+                <p className="mt-1 text-xs text-[var(--hub-ink-3)]">{t('server.manageUrlHint')}</p>
+              </div>
+            )}
           </div>
         </div>
 

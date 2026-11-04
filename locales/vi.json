@@ -135,6 +135,15 @@
     "nameInvalid": "Tên máy chủ chỉ có thể chứa chữ cái, số, dấu chấm, dấu gạch dưới và dấu gạch ngang (không chứa khoảng trắng hoặc ký tự đặc biệt)",
     "description": "Ghi chú máy chủ",
     "descriptionPlaceholder": "Ghi chú tùy chọn để mô tả máy chủ này",
+    "manageUrl": "URL trang quản lý",
+    "manageUrlPlaceholder": "https://service.example.com/account/token",
+    "manageUrlHint": "Liên kết tùy chọn tới trang tài khoản hoặc mã thông báo của chính dịch vụ. Người dùng thấy nó dưới dạng liên kết trong không gian làm việc và trang thông tin xác thực. Phải dùng https (http chỉ cho localhost).",
+    "manageUrlInvalid": {
+      "tooLong": "URL trang quản lý quá dài (tối đa 2048 ký tự)",
+      "invalid": "URL trang quản lý phải là địa chỉ web đầy đủ",
+      "scheme": "URL trang quản lý phải bắt đầu bằng https:// (http:// chỉ được phép với localhost)",
+      "credentials": "URL trang quản lý không được chứa tên người dùng hoặc mật khẩu"
+    },
     "url": "URL máy chủ",
     "apiKey": "Khóa API",
     "save": "Lưu",
@@ -1519,6 +1528,8 @@
     "configured": "Đã cấu hình",
     "required": "Bắt buộc có ràng buộc (binding)",
     "writeOnly": "Các giá trị đã lưu không thể được hiển thị. Để thay thế một ràng buộc, bạn phải nhập giá trị mới cho tất cả các khe cắm.",
+    "getCredentials": "Lấy hoặc quản lý thông tin xác thực của bạn",
+    "getCredentialsFor": "Lấy hoặc quản lý thông tin xác thực của bạn cho {{name}}",
     "replaceValue": "Nhập giá trị thay thế",
     "enterValue": "Nhập thông tin xác thực",
     "save": "Lưu ràng buộc",
@@ -1622,7 +1633,9 @@
       "contactAdmin": "Hãy hỏi quản trị viên",
       "retryLater": "Hãy thử lại sau",
       "retryUntil": "Hãy thử lại sau {{until}}",
-      "openAuthorization": "Mở trang đăng nhập"
+      "openAuthorization": "Mở trang đăng nhập",
+      "manageAccount": "Quản lý tài khoản",
+      "manageAccountFor": "Quản lý tài khoản cho {{name}}"
     },
     "clients": {
       "tab": "Ứng dụng khách đã kết nối",
@@ -1733,5 +1746,10 @@
       "defaultNote": "Do quản trị viên đặt cho đến khi bạn tự chọn.",
       "untrustedHint": "Dịch vụ này không do quản trị viên vận hành nên công cụ của nó chưa được xác minh: tất cả được tính là hành động người khác nhìn thấy."
     }
+  },
+  "serviceLink": {
+    "redirecting": "Đang mở trang quản lý của dịch vụ...",
+    "noManagePage": "Dịch vụ này không có trang quản lý.",
+    "backToWorkspace": "Quay lại không gian làm việc"
   }
 }

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import type { MyCredentialBinding } from '../types';
+import { getSafeManageHref } from '../utils/manageUrl';
+import { getServiceLinkHref } from '../utils/serviceLink';
 import { apiDelete, apiGet, apiPut, type ApiResponse } from '../utils/fetchInterceptor';
 
 const CredentialForm = ({
@@ -33,6 +35,7 @@ const CredentialForm = ({
       setBusy(false);
     }
   };
+  const manageHref = getSafeManageHref(binding.manageUrl);
   return (
     <form
       className="hub-card p-5 space-y-4"
@@ -51,6 +54,17 @@ const CredentialForm = ({
         <p role="status" className="text-sm" style={{ color: 'var(--hub-err)' }}>
           {t('credentials.staleNotice')}
         </p>
+      )}
+      {manageHref && (
+        <a
+          href={getServiceLinkHref(binding.serverName)}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={t('credentials.getCredentialsFor', { name: binding.serverName })}
+          className="block text-sm underline"
+        >
+          {t('credentials.getCredentials')}
+        </a>
       )}
       <p className="text-sm text-[var(--hub-ink-3)]">{t('credentials.writeOnly')}</p>
       {binding.credentialTemplate.map((slot) => {

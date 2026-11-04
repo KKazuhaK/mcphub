@@ -84,7 +84,7 @@ async function add(
   deps: ServersDeps,
 ): Promise<void> {
   const { positional, flags } = extractFlags(args, {
-    valued: ['--from-file', '--type', '--command', '--url', '--description'],
+    valued: ['--from-file', '--type', '--command', '--url', '--description', '--manage-url'],
     boolean: ['--enabled', '--disabled'],
   });
   const name = positional[0];
@@ -110,6 +110,7 @@ async function add(
     config = {
       type: (flags['--type'] as ServerConfig['type']) || 'stdio',
       description: flags['--description'] as string | undefined,
+      manageUrl: flags['--manage-url'] as string | undefined,
       command: flags['--command'] as string | undefined,
       args: argArgs.length > 0 ? argArgs : undefined,
       env: envEntries.length > 0 ? Object.fromEntries(envEntries) : undefined,

@@ -38,6 +38,7 @@ const buildRawServerConfig = (): Record<string, unknown> => ({
   command: undefined,
   args: ['--token', 'mcphub-phase1-secret'],
   description: 'Org web search',
+  manageUrl: 'https://search.example.com/account',
   env: { UPSTREAM_API_KEY: 'mcphub-phase1-api-key' },
   headers: { Authorization: 'Bearer mcphub-phase1-secret' },
   passthroughHeaders: ['X-Request-Id'],
@@ -104,6 +105,7 @@ describe('serverConfigPresenter (#1036 Phase 1)', () => {
       expect(data).toEqual({
         name: 'org-search',
         description: 'Org web search',
+        manageUrl: 'https://search.example.com/account',
         type: 'streamable-http',
         visibility: 'public',
         owner: 'bob',
@@ -111,6 +113,13 @@ describe('serverConfigPresenter (#1036 Phase 1)', () => {
         tools: { search: { enabled: true } },
         configRestricted: true,
       });
+    });
+
+    it('keeps the management link visible to shared users', () => {
+      const result = presentServerForPrincipal(buildRawServerConfig(), alice);
+      expect((result.data as Record<string, unknown>).manageUrl).toBe(
+        'https://search.example.com/account',
+      );
     });
 
     it('withholds url, command and every other raw config field from shared users', () => {

@@ -135,6 +135,15 @@
     "nameInvalid": "Sunucu adı yalnızca harf, rakam, nokta, alt çizgi ve tire içerebilir (boşluk veya özel karakter içeremez)",
     "description": "Sunucu Notu",
     "descriptionPlaceholder": "İsteğe bağlı: Bu sunucunun ne işe yaradığını yazın",
+    "manageUrl": "Yönetim sayfası URL'si",
+    "manageUrlPlaceholder": "https://service.example.com/account/token",
+    "manageUrlHint": "Hizmetin kendi hesap veya jeton sayfasına isteğe bağlı bağlantı. Kullanıcılar bunu çalışma alanında ve kimlik bilgileri sayfasında bağlantı olarak görür. https olmalıdır (http yalnızca localhost için).",
+    "manageUrlInvalid": {
+      "tooLong": "Yönetim sayfası URL'si çok uzun (en fazla 2048 karakter)",
+      "invalid": "Yönetim sayfası URL'si tam bir web adresi olmalıdır",
+      "scheme": "Yönetim sayfası URL'si https:// ile başlamalıdır (http:// yalnızca localhost için izinlidir)",
+      "credentials": "Yönetim sayfası URL'si kullanıcı adı veya parola içermemelidir"
+    },
     "url": "Sunucu URL'si",
     "apiKey": "API Anahtarı",
     "save": "Kaydet",
@@ -1516,6 +1525,8 @@
     "configured": "Yapılandırıldı",
     "required": "Bağlama gerekli",
     "writeOnly": "Kaydedilen değerler görüntülenemez. Bağlamayı değiştirmek için tüm alanlara yeni değerler girin.",
+    "getCredentials": "Kimlik bilgilerinizi alın veya yönetin",
+    "getCredentialsFor": "{{name}} için kimlik bilgilerinizi alın veya yönetin",
     "replaceValue": "Yeni değer girin",
     "enterValue": "Kimlik bilgisi girin",
     "save": "Bağlamayı kaydet",
@@ -1624,7 +1635,9 @@
       "contactAdmin": "Bir yöneticiye danışın",
       "retryLater": "Daha sonra tekrar deneyin",
       "retryUntil": "{{until}} sonrasında tekrar deneyin",
-      "openAuthorization": "Oturum açma sayfasını aç"
+      "openAuthorization": "Oturum açma sayfasını aç",
+      "manageAccount": "Hesabı yönet",
+      "manageAccountFor": "{{name}} için hesabı yönet"
     },
     "clients": {
       "tab": "Bağlı istemciler",
@@ -1738,5 +1751,10 @@
       "defaultNote": "Siz seçene kadar yöneticiniz tarafından belirlenir.",
       "untrustedHint": "Bu hizmeti bir yönetici işletmiyor; araçları doğrulanmadı ve hepsi başkalarının görebileceği işlemler sayılır."
     }
+  },
+  "serviceLink": {
+    "redirecting": "Hizmetin yönetim sayfası açılıyor...",
+    "noManagePage": "Bu hizmetin yönetim sayfası yok.",
+    "backToWorkspace": "Çalışma alanına dön"
   }
 }

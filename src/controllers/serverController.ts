@@ -289,6 +289,22 @@ const adminOnlyFieldRefusal = (
   return undefined;
 };
 
+// The management page link is an administrator-chosen public link. A non-admin may only send
+// it blank or, on an edit, equal to the stored value, so an unchanged round trip still works.
+const manageUrlRefusal = (
+  currentUser: RequestUser | null | undefined,
+  config: object,
+  existing?: { manageUrl?: string | null },
+): string | undefined => {
+  if (currentUser?.isAdmin === true || !hasOwnKey(config, 'manageUrl')) return undefined;
+  const asText = (value: unknown): unknown =>
+    value === undefined || value === null ? '' : typeof value === 'string' ? value.trim() : value;
+  if (asText((config as { manageUrl?: unknown }).manageUrl) === asText(existing?.manageUrl)) {
+    return undefined;
+  }
+  return 'Only admins can set the management page URL';
+};
+
 // Admin availability state after an edit: a key the request leaves out keeps its stored value.
 const availabilityAfterEdit = (
   existing: ServerConfig,
@@ -367,7 +383,7 @@ const stripUndefinedDeep = (value: unknown): unknown => {
 
 // Fields baked into the live MCP client/transport at connect time. Editing any
 // of these requires tearing down and re-establishing the runtime. Everything
-// else in ServerConfig (description, owner, visibility, sharedWithUsers,
+// else in ServerConfig (description, manageUrl, owner, visibility, sharedWithUsers,
 // `enabled`, and the tools/prompts/resources per-item overrides) is read-time
 // or access metadata that can be applied without a reconnect.
 const CONNECTION_RELEVANT_CONFIG_FIELDS = [
@@ -778,7 +794,9 @@ export const createServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const refusal = adminOnlyFieldRefusal(getRequestUser(req), config);
+    const refusal =
+      adminOnlyFieldRefusal(getRequestUser(req), config) ??
+      manageUrlRefusal(getRequestUser(req), config);
     if (refusal) {
       res.status(403).json({ success: false, message: refusal });
       return;
@@ -1043,7 +1061,9 @@ export const batchCreateServers = async (req: Request, res: Response): Promise<v
       const serverName = validation.normalizedName ?? name;
 
       try {
-        const refusal = adminOnlyFieldRefusal(currentUser as RequestUser | null, config);
+        const refusal =
+          adminOnlyFieldRefusal(currentUser as RequestUser | null, config) ??
+          manageUrlRefusal(currentUser as RequestUser | null, config);
         if (refusal) {
           results.push({ name: serverName, success: false, message: refusal });
           failureCount++;
@@ -1352,6 +1372,12 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    const manageUrlRefused = manageUrlRefusal(getRequestUser(req), config, existingServer);
+    if (manageUrlRefused) {
+      res.status(403).json({ success: false, message: manageUrlRefused });
+      return;
+    }
+
     if (
       ((existingServer.oauth?.allowInsecureTokenEndpoint === true ||
         Boolean(
@@ -1536,7 +1562,7 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
 
     // Fast path: if no connection-relevant field changed, persist and update
     // in-memory access metadata without tearing down the runtime. This covers
-    // visibility/sharedWithUsers edits, description-only edits, owner changes,
+    // visibility/sharedWithUsers edits, description and manageUrl-only edits, owner changes,
     // and no-op edits alike - none of them need a reconnect.
     if (!isRenaming && !hasConnectionRelevantChange(existingServer, normalizedConfig)) {
       const serverDao = getServerDao();

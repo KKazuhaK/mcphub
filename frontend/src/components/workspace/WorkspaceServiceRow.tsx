@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { Copy } from 'lucide-react';
 import { StatusDot } from '@/components/ui/StatusDot';
 import type { ToolRiskLevel, WorkspaceServer, WorkspaceServerEndpoint } from '@/types';
+import { getSafeManageHref } from '@/utils/manageUrl';
+import { getServiceLinkHref } from '@/utils/serviceLink';
 import { TOOL_RISK_LEVELS, countHiddenByCeiling, isRiskChoiceAllowed } from '@/utils/toolRisk';
 import {
   localizeStatusMessage,
@@ -203,6 +205,8 @@ const WorkspaceServiceRow: React.FC<WorkspaceServiceRowProps> = ({
     );
   };
 
+  const manageHref = getSafeManageHref(server.manageUrl);
+
   return (
     <li
       className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3"
@@ -227,6 +231,17 @@ const WorkspaceServiceRow: React.FC<WorkspaceServiceRowProps> = ({
           <div className="text-[12px] leading-[1.625]" style={{ color: 'var(--hub-ink-3)' }}>
             {server.description}
           </div>
+        )}
+        {manageHref && (
+          <a
+            href={getServiceLinkHref(server.name)}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={t('workspacePage.actions.manageAccountFor', { name: server.name })}
+            className="mt-0.5 block text-[12px] underline"
+          >
+            {t('workspacePage.actions.manageAccount')}
+          </a>
         )}
         {code !== 'available' && code !== 'not_selected' && (
           <div className="mt-0.5 text-[12px]" style={{ color: 'var(--hub-ink-2)' }}>

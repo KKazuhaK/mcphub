@@ -3946,6 +3946,89 @@ describe('serverController - maintenance and per-user pause', () => {
     expect(updatesOf()).not.toHaveProperty('maintenance');
   });
 
+  describe('management page URL', () => {
+    const stored = 'https://example.com/account';
+    const withStored = () =>
+      mockServerDao.findById.mockResolvedValue({
+        name: 'test-server',
+        ...base,
+        owner: 'alice',
+        manageUrl: stored,
+      });
+    const refusal = { success: false, message: 'Only admins can set the management page URL' };
+
+    it('lets an admin set and clear it', async () => {
+      await update(admin, { manageUrl: ' https://example.com/new ' });
+      expect(updatesOf()).toMatchObject({ manageUrl: 'https://example.com/new' });
+
+      mockServerDao.update.mockClear();
+      await update(admin, { manageUrl: '' });
+      expect(updatesOf()).toHaveProperty('manageUrl', undefined);
+    });
+
+    it('refuses a non-admin who sets or changes it on an edit', async () => {
+      withStored();
+      for (const manageUrl of ['https://example.com/other', '']) {
+        status.mockClear();
+        json.mockClear();
+        await update(alice, { manageUrl });
+        expect(status).toHaveBeenCalledWith(403);
+        expect(json).toHaveBeenLastCalledWith(refusal);
+      }
+      expect(mockServerDao.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects an unsafe value without saving it', async () => {
+      withStored();
+      await update(alice, { manageUrl: 'javascript:alert(1)' });
+      expect(status).toHaveBeenCalledWith(400);
+      expect(mockServerDao.update).not.toHaveBeenCalled();
+    });
+
+    it('still accepts a non-admin save that carries the unchanged value or omits the key', async () => {
+      withStored();
+      await update(alice, { manageUrl: ` ${stored} ` });
+      expect(status).not.toHaveBeenCalled();
+      expect(updatesOf()).toMatchObject({ manageUrl: stored });
+
+      mockServerDao.update.mockClear();
+      await update(alice, { description: 'mine' });
+      expect(status).not.toHaveBeenCalled();
+      expect(updatesOf()).not.toHaveProperty('manageUrl');
+    });
+
+    it('lets a non-admin send it blank when nothing is stored', async () => {
+      await update(alice, { manageUrl: '' });
+      expect(status).not.toHaveBeenCalled();
+    });
+
+    it('refuses a non-admin value on create, single or batch', async () => {
+      await createServer(
+        {
+          body: { name: 'fresh', config: { ...base, manageUrl: stored } },
+          user: alice,
+        } as unknown as Request,
+        res,
+      );
+      expect(status).toHaveBeenCalledWith(403);
+      expect(json).toHaveBeenLastCalledWith(refusal);
+      expect(mockAddServer).not.toHaveBeenCalled();
+
+      json.mockClear();
+      await batchCreateServers(
+        {
+          body: { servers: [{ name: 'fresh', config: { ...base, manageUrl: stored } }] },
+          user: alice,
+        } as unknown as Request,
+        res,
+      );
+      expect(JSON.stringify(json.mock.calls)).toContain(
+        'Only admins can set the management page URL',
+      );
+      expect(mockAddServer).not.toHaveBeenCalled();
+    });
+  });
+
   it('refuses a non-admin pause list on create, single or batch', async () => {
     await createServer(
       {

@@ -21,6 +21,7 @@ export interface PresentedServer<T> {
 const SAFE_SERVER_CONFIG_FIELDS = [
   'name',
   'description',
+  'manageUrl',
   'type',
   'visibility',
   'owner',

@@ -83,6 +83,41 @@ describe('ServerDaoDbImpl', () => {
     expect(result.passthroughHeaders).toEqual(headers);
   });
 
+  it('should persist and map the manageUrl field, and clear it on update', async () => {
+    const dao = new ServerDaoDbImpl();
+
+    mockRepository.create.mockResolvedValue({
+      name: 'ubc',
+      type: 'streamable-http',
+      url: 'https://example.com/mcp',
+      enabled: true,
+      manageUrl: 'https://example.com/account/token',
+    });
+    const created = await dao.create({
+      name: 'ubc',
+      type: 'streamable-http',
+      url: 'https://example.com/mcp',
+      manageUrl: 'https://example.com/account/token',
+    });
+    expect(mockRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ manageUrl: 'https://example.com/account/token' }),
+    );
+    expect(created.manageUrl).toBe('https://example.com/account/token');
+
+    mockRepository.update.mockResolvedValue({
+      name: 'ubc',
+      type: 'streamable-http',
+      enabled: true,
+      manageUrl: null,
+    });
+    const cleared = await dao.update('ubc', { manageUrl: undefined });
+    expect(mockRepository.update).toHaveBeenCalledWith(
+      'ubc',
+      expect.objectContaining({ manageUrl: null }),
+    );
+    expect(cleared?.manageUrl).toBeUndefined();
+  });
+
   it('should persist passthroughHeaders on update', async () => {
     const dao = new ServerDaoDbImpl();
     const headers = ['Authorization'];

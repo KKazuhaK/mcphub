@@ -16,6 +16,7 @@ const OAuthConsentPage = lazy(() => import('./pages/OAuthConsentPage'));
 const DashboardPage = lazy(() => import('./pages/Dashboard'));
 const WorkspacePage = lazy(() => import('./pages/WorkspacePage'));
 const CredentialsPage = lazy(() => import('./pages/CredentialsPage'));
+const ServiceLinkPage = lazy(() => import('./pages/ServiceLinkPage'));
 const ServersPage = lazy(() => import('./pages/ServersPage'));
 const GroupsPage = lazy(() => import('./pages/GroupsPage'));
 const UsersPage = lazy(() => import('./pages/UsersPage'));
@@ -77,6 +78,14 @@ function App() {
                         <Route path="/" element={<DashboardPage />} />
                         <Route path="/workspace" element={<WorkspacePage />} />
                         <Route path="/credentials" element={<CredentialsPage />} />
+                        <Route
+                          path="/services/:serverName"
+                          element={
+                            <Suspense fallback={<RouteFallback />}>
+                              <ServiceLinkPage />
+                            </Suspense>
+                          }
+                        />
                         <Route path="/servers" element={<ServersPage />} />
                         <Route path="/groups" element={<GroupsPage />} />
                         <Route path="/prompts" element={<PromptsPage />} />

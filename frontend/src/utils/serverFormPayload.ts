@@ -305,10 +305,12 @@ export const buildServerPayload = ({
   const headers = buildKeyValueRecord(headerVars);
   const options = buildOptions(formData.options);
   const description = formData.description?.trim() || '';
+  const manageUrl = formData.manageUrl?.trim() || '';
 
   const config: Partial<ServerConfig> = {
     type: serverType,
     description,
+    manageUrl,
     options,
     visibility: formData.visibility ?? 'private',
     sharedWithUsers:
